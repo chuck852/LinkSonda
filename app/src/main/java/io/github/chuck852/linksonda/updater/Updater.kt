@@ -143,13 +143,11 @@ internal class Updater(
                                 if (isCurrent()) {
                                     readyFile = destination
                                     completed = true
+                                    _state.update {
+                                        it.copy(download = null, readyToInstall = true, error = null)
+                                    }
                                 } else {
                                     destination.delete()
-                                }
-                            }
-                            if (completed) {
-                                _state.update {
-                                    it.copy(download = null, readyToInstall = true, error = null)
                                 }
                             }
                         }
