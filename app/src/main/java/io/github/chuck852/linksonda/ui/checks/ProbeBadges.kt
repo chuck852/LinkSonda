@@ -47,7 +47,7 @@ fun OutcomeBadge(item: ProbeListItem, modifier: Modifier = Modifier) {
 
         else -> Unit
     }
-    if (item.lastSkipped != null) {
+    if (item.latestSkipped != null) {
         StatusBadge(
             label = stringResource(R.string.outcome_skipped),
             tone = StatusTone.NEUTRAL,

@@ -1,6 +1,6 @@
 # Checks and details
 
-The Checks tab is backed by the real domain models. Each row keeps a `ProbeConfig` and its `ProbeState`; the details screen renders the configuration revision, observations, outcome, freshness and measured phases without inventing missing values.
+The Checks tab is backed by the real domain models. Each row keeps a `ProbeConfig` and its `ProbeState`; `ProbeListItem` requires the state to belong to the same configuration revision. The details screen renders the configuration revision, observations, outcome, freshness and measured phases without inventing missing values.
 
 ## List
 
@@ -13,9 +13,9 @@ The Checks tab is backed by the real domain models. Each row keeps a `ProbeConfi
 
 ## Details
 
-The header shows the result status, freshness, presentation outcome and lifecycle separately. Configuration fields are specific to the protocol, including endpoints, SNI, minimum TLS, expected HTTP status/body marker, DNS name/record type/RCODE, resolver and ICMP packet criteria. `Probe ID` and `Revision` are preserved from the domain model; a changed request or timeout advances the revision.
+The header shows the result status, freshness, presentation outcome and lifecycle separately. Configuration fields are specific to the protocol, including endpoints, SNI, minimum TLS, expected HTTP status/body marker, DNS name/record type/RCODE, resolver and ICMP packet criteria. A configured IP family is shown for TCP, TLS, HTTP/HTTPS, DoH, DNS over UDP/TCP and DoT. IPv6 endpoints with a port are formatted with brackets, such as `[2001:db8::1]:443`. `Probe ID` and `Revision` are preserved from the domain model; a changed request or timeout advances the revision.
 
-The result card shows the outcome, recorded time and elapsed duration. Restricted results include `retryAt`; skipped results include the reason and next allowed time. The phase card lists only phases reported by the runner and states that missing phases are not zero. The observations card shows connected IP family, HTTP status and body-marker state, DNS RCODE/answer count/truncation, negotiated TLS, and ICMP packets/loss/RTT. A null fact is rendered as `Not observed`, `Not checked` or `Not measured`, never as `0`.
+The result card shows the outcome, recorded time and elapsed duration. Restricted results include `retryAt`; skipped results include the reason and next allowed time. A completed result retained after a later skipped slot keeps both records. A skipped slot older than a newer completed result is history, not the latest state, and is not shown as such. The phase card lists only phases reported by the runner and states that missing phases are not zero. The observations card shows connected IP family, HTTP status and body-marker state, DNS RCODE/answer count/truncation, negotiated TLS, and ICMP packets/loss/RTT. A null fact is rendered as `Not observed`, `Not checked` or `Not measured`, never as `0`.
 
 `Run again` and `Edit check` are wired through nullable `ProbeActions` callbacks with a `ProbeKey`. Production leaves them disabled with an explanation until the runner and profile editor are connected. The debug harness enables them only to show a demo message; it sends no request and saves nothing. History is an explicit placeholder until local storage is implemented.
 
@@ -47,6 +47,8 @@ Useful demo IDs include `https-global` (revision 2, matched HTTPS with phases), 
 
 ![Check details](design/check-details.png)
 
+![TLS details with the configured IP family](design/check-details-tls.png)
+
 ![Result, phases and observations](design/check-details-result.png)
 
 ![Timeout, skipped, inconclusive and restricted headers](design/check-states.png)
@@ -63,7 +65,7 @@ Useful demo IDs include `https-global` (revision 2, matched HTTPS with phases), 
 
 ## Verification
 
-- 46 JVM tests: 15 domain, 2 build configuration, 8 palette, 3 contrast, 7 navigation, 6 filtering, 2 overview state and 3 demo-scenario tests.
+- 52 JVM tests: 15 domain, 2 build configuration, 8 palette, 3 contrast, 7 navigation, 6 filtering, 6 check-item invariants/formatting, 2 overview state and 3 demo-scenario tests.
 - Android 17 (API 37): search, group/status/protocol filters, filtered empty state, details navigation, back stack, light and dark themes checked.
 - 320 dp width at 200% font scale: no horizontal overflow; labels and fields wrap; controls remain reachable.
 - Release build excludes the demo activity, domain-backed demo catalog and demo resources.

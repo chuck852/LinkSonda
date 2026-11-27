@@ -541,7 +541,7 @@ private val demoSpecs = listOf(
             id = "tls-global",
             name = "Global TLS",
             request = ProbeRequest.TlsHandshake(
-                endpoint = SocketEndpoint("example.net", 443),
+                endpoint = SocketEndpoint("example.net", 443, IpFamily.IPV4),
                 serverName = "example.net",
                 minimumVersion = TlsVersion.TLS_1_2,
             ),
@@ -626,7 +626,7 @@ private val demoSpecs = listOf(
             id = "dns-udp",
             name = "DNS over UDP",
             request = ProbeRequest.DirectDns(
-                resolver = SocketEndpoint("192.0.2.53", 53),
+                resolver = SocketEndpoint("192.0.2.53", 53, IpFamily.IPV4),
                 transport = DnsTransport.UDP,
                 question = DnsQuestion("example.com", 1),
                 expected = DnsExpectation(responseCode = 0, requiresAnswer = true),
@@ -641,7 +641,7 @@ private val demoSpecs = listOf(
             id = "dns-tcp",
             name = "DNS over TCP",
             request = ProbeRequest.DirectDns(
-                resolver = SocketEndpoint("192.0.2.54", 53),
+                resolver = SocketEndpoint("192.0.2.54", 53, IpFamily.IPV4),
                 transport = DnsTransport.TCP,
                 question = DnsQuestion("example.com", 1),
                 expected = DnsExpectation(responseCode = 0, requiresAnswer = true),
@@ -671,7 +671,7 @@ private val demoSpecs = listOf(
             id = "dot",
             name = "DNS over TLS",
             request = ProbeRequest.DnsOverTls(
-                resolver = SocketEndpoint("dns.example", 853),
+                resolver = SocketEndpoint("dns.example", 853, IpFamily.IPV4),
                 serverName = "dns.example",
                 question = DnsQuestion("example.com", 1),
                 expected = DnsExpectation(responseCode = 0, requiresAnswer = true),

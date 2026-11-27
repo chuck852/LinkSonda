@@ -380,7 +380,7 @@ private fun ProbeRow(
 @Composable
 private fun ProbeDetailLine(probe: ProbeListItem) {
     val completed = probe.lastCompleted
-    val skipped = probe.lastSkipped
+    val skipped = probe.latestSkipped
     if (completed != null) {
         when (val outcome = completed.outcome) {
             ProbeOutcome.Matched -> DetailText(

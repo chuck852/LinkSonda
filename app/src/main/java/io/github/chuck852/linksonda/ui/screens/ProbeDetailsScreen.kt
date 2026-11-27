@@ -38,6 +38,7 @@ import io.github.chuck852.linksonda.ui.checks.OutcomeBadge
 import io.github.chuck852.linksonda.ui.checks.ProbeActions
 import io.github.chuck852.linksonda.ui.checks.ProbeListItem
 import io.github.chuck852.linksonda.ui.checks.display
+import io.github.chuck852.linksonda.ui.checks.formatEndpoint
 import io.github.chuck852.linksonda.ui.checks.label
 import io.github.chuck852.linksonda.ui.components.EmptyState
 import io.github.chuck852.linksonda.ui.components.LabeledValue
@@ -235,6 +236,7 @@ private fun ConfigurationRequestRows(config: ProbeConfig) {
 
         is ProbeRequest.TlsHandshake -> {
             DetailValue(R.string.probe_endpoint_label, endpoint(request.endpoint.host, request.endpoint.port), true)
+            DetailValue(R.string.probe_ip_family_label, familyText(request.endpoint.family))
             DetailValue(R.string.probe_sni_label, request.serverName ?: notConfigured())
             DetailValue(R.string.probe_min_tls_label, request.minimumVersion?.let { stringResource(it.label()) } ?: notConfigured())
         }
@@ -266,6 +268,7 @@ private fun ConfigurationRequestRows(config: ProbeConfig) {
 
         is ProbeRequest.DirectDns -> {
             DetailValue(R.string.probe_resolver_label, endpoint(request.resolver.host, request.resolver.port), true)
+            DetailValue(R.string.probe_ip_family_label, familyText(request.resolver.family))
             DetailValue(R.string.probe_transport_label, stringResource(request.transport.label()))
             DetailValue(R.string.probe_dns_name_label, request.question.name)
             DetailValue(R.string.probe_record_type_label, request.question.recordType.toString())
@@ -284,6 +287,7 @@ private fun ConfigurationRequestRows(config: ProbeConfig) {
 
         is ProbeRequest.DnsOverTls -> {
             DetailValue(R.string.probe_resolver_label, endpoint(request.resolver.host, request.resolver.port), true)
+            DetailValue(R.string.probe_ip_family_label, familyText(request.resolver.family))
             DetailValue(R.string.probe_sni_label, request.serverName)
             DetailValue(R.string.probe_dns_name_label, request.question.name)
             DetailValue(R.string.probe_record_type_label, request.question.recordType.toString())
@@ -315,7 +319,7 @@ private fun ResultCard(item: ProbeListItem) {
         ) {
             SectionHeader(stringResource(R.string.probe_details_result))
             val completed = item.lastCompleted
-            val skipped = item.lastSkipped
+            val skipped = item.latestSkipped
             if (completed != null) {
                 OutcomeText(completed)
                 DetailValue(R.string.result_recorded_label, completed.recordedAt.display())
@@ -530,7 +534,7 @@ private fun DetailValue(label: Int, value: String, monospace: Boolean = false) {
 private fun familyText(family: IpFamily?): String =
     family?.let { stringResource(it.label()) } ?: stringResource(R.string.value_automatic)
 
-private fun endpoint(host: String, port: Int): String = "$host:$port"
+private fun endpoint(host: String, port: Int): String = formatEndpoint(host, port)
 
 @Composable
 private fun yesNo(value: Boolean): String =

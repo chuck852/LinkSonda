@@ -46,14 +46,25 @@ fun ProbeRequest.toProtocol(): ProbeProtocol = when (this) {
 }
 
 fun ProbeRequest.targetText(): String = when (this) {
-    is ProbeRequest.TcpConnect -> "${endpoint.host}:${endpoint.port}"
-    is ProbeRequest.TlsHandshake -> "${endpoint.host}:${endpoint.port}"
+    is ProbeRequest.TcpConnect -> formatEndpoint(endpoint.host, endpoint.port)
+    is ProbeRequest.TlsHandshake -> formatEndpoint(endpoint.host, endpoint.port)
     is ProbeRequest.Http -> url.toString()
     is ProbeRequest.SystemDns -> "${question.name} · type ${question.recordType}"
-    is ProbeRequest.DirectDns -> "${resolver.host}:${resolver.port} · ${question.name}"
+    is ProbeRequest.DirectDns -> "${formatEndpoint(resolver.host, resolver.port)} · ${question.name}"
     is ProbeRequest.DnsOverHttps -> "$resolver · ${question.name}"
-    is ProbeRequest.DnsOverTls -> "${resolver.host}:${resolver.port} · ${question.name}"
+    is ProbeRequest.DnsOverTls -> "${formatEndpoint(resolver.host, resolver.port)} · ${question.name}"
     is ProbeRequest.IcmpEcho -> "$host · $packetCount packets"
+}
+
+/** IPv6 literals need brackets before a port; already bracketed hosts are kept as they are. */
+fun formatEndpoint(host: String, port: Int): String {
+    val value = host.trim()
+    val formattedHost = if (value.contains(':') && !(value.startsWith("[") && value.endsWith("]"))) {
+        "[$value]"
+    } else {
+        value
+    }
+    return "$formattedHost:$port"
 }
 
 /**
@@ -70,6 +81,9 @@ data class ProbeListItem(
 ) {
     init {
         require(groupId.isNotBlank() && groupName.isNotBlank())
+        require(config.key == state.context.probe) {
+            "ProbeState ${state.context.probe} does not belong to config ${config.key}"
+        }
     }
 
     val id: ProbeId get() = config.id
@@ -81,4 +95,15 @@ data class ProbeListItem(
     val freshness: ProbeFreshness get() = state.freshness
     val lastCompleted: ProbeResult.Completed? get() = state.lastCompleted
     val lastSkipped: ProbeResult.Skipped? get() = state.lastSkipped
+
+    /**
+     * The skipped slot only describes the latest state when it is newer than the retained completed
+     * result. An older skipped record stays in history and must not replace a newer result.
+     */
+    val latestSkipped: ProbeResult.Skipped?
+        get() {
+            val skipped = lastSkipped ?: return null
+            val completed = lastCompleted ?: return skipped
+            return skipped.takeIf { it.recordedAt.isAfter(completed.recordedAt) }
+        }
 }

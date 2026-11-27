@@ -129,7 +129,7 @@
     <string name="probe_method_label">Method</string>
     <string name="probe_expected_status_label">Expected status</string>
     <string name="probe_body_marker_label">Body marker</string>
-    <string name="probe_ip_family_label">IP family</string>
+    <string name="probe_ip_family_label">Configured IP family</string>
     <string name="probe_dns_name_label">DNS name</string>
     <string name="probe_record_type_label">Record type</string>
     <string name="probe_expected_rcode_label">Expected RCODE</string>
