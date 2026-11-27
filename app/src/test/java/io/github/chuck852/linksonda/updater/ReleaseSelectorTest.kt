@@ -155,6 +155,9 @@ class ReleaseSelectorTest {
         assertTrue(!UpdaterUrls.isAllowedDownload("https://github.com@evil.example/a.apk"))
         assertTrue(UpdaterUrls.isAllowedApi(GITHUB_RELEASES_URL))
         assertTrue(!UpdaterUrls.isAllowedApi("https://evil.example/releases"))
+        assertTrue(UpdaterUrls.isAllowedApi("http://10.0.2.2:8765/releases", allowTestSource = true))
+        assertTrue(UpdaterUrls.isAllowedDownload("http://10.0.2.2:8765/release.json", allowTestSource = true))
+        assertTrue(!UpdaterUrls.isAllowedDownload("http://10.0.2.2:8765/release.json"))
     }
 
     private fun loaded(

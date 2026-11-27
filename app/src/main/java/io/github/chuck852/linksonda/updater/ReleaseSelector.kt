@@ -23,6 +23,7 @@ internal object ReleaseSelector {
         installedSignerSha256: String,
         installedSdk: Int,
         applicationId: String,
+        allowTestSource: Boolean = false,
     ): ReleaseSelection {
         var sawOlder = false
         var firstInvalid: String? = null
@@ -40,6 +41,7 @@ internal object ReleaseSelector {
                 installedSignerSha256 = installedSignerSha256,
                 installedSdk = installedSdk,
                 applicationId = applicationId,
+                allowTestSource = allowTestSource,
             )
             if (invalid != null) {
                 firstInvalid = firstInvalid ?: invalid
@@ -76,6 +78,7 @@ internal object ReleaseSelector {
         installedSignerSha256: String,
         installedSdk: Int,
         applicationId: String,
+        allowTestSource: Boolean,
     ): String? {
         if (metadata.schemaVersion != 1) return "unsupported metadata schema"
         if (metadata.testOnly) return "test-only release"
@@ -100,7 +103,7 @@ internal object ReleaseSelector {
         }
         val apkAsset = release.assets.firstOrNull { it.name == metadata.apk.name } ?: return "APK asset missing"
         if (apkAsset.size > 0 && apkAsset.size != metadata.apk.size) return "APK size mismatch"
-        if (!UpdaterUrls.isAllowedDownload(apkAsset.browserDownloadUrl)) return "untrusted download URL"
+        if (!UpdaterUrls.isAllowedDownload(apkAsset.browserDownloadUrl, allowTestSource)) return "untrusted download URL"
         return null
     }
 
@@ -118,21 +121,28 @@ internal object UpdaterUrls {
         "github-releases.githubusercontent.com",
     )
 
-    fun isAllowedDownload(value: String): Boolean = try {
+    fun isAllowedDownload(value: String, allowTestSource: Boolean = false): Boolean = try {
         val uri = URI(value)
-        uri.scheme.equals("https", ignoreCase = true) &&
+        (uri.scheme.equals("https", ignoreCase = true) &&
             uri.rawUserInfo == null &&
-            uri.host?.lowercase() in downloadHosts
+            uri.host?.lowercase() in downloadHosts) ||
+            (allowTestSource && isTestUrl(uri))
     } catch (_: Exception) {
         false
     }
 
-    fun isAllowedApi(value: String): Boolean = try {
+    fun isAllowedApi(value: String, allowTestSource: Boolean = false): Boolean = try {
         val uri = URI(value)
-        uri.scheme.equals("https", ignoreCase = true) &&
+        (uri.scheme.equals("https", ignoreCase = true) &&
             uri.rawUserInfo == null &&
-            uri.host.equals("api.github.com", ignoreCase = true)
+            uri.host.equals("api.github.com", ignoreCase = true)) ||
+            (allowTestSource && isTestUrl(uri))
     } catch (_: Exception) {
         false
     }
+
+    private fun isTestUrl(uri: URI): Boolean =
+        uri.scheme.equals("http", ignoreCase = true) &&
+            uri.rawUserInfo == null &&
+            uri.host?.lowercase() in setOf("10.0.2.2", "127.0.0.1", "localhost")
 }

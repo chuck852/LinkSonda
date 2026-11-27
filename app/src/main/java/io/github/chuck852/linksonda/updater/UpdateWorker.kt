@@ -17,7 +17,7 @@ class UpdateWorker(
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val application = applicationContext as? LinkSondaApplication ?: return Result.success()
-        application.updater.checkNowAwait()
+        application.updater.checkNowAwait(requireAutoConsent = true)
         return Result.success()
     }
 }

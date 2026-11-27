@@ -70,6 +70,60 @@ class UpdaterCheckTest {
     }
 
     @Test
+    fun stableSearchFiltersBeforeTheMetadataLimit() = runBlocking {
+        val storage = MemoryStorage()
+        val settings = PersistentSettingsStore(storage)
+        val previews = (1..9).map { index ->
+            release(
+                versionCode = 30L + index,
+                versionName = "0.5.$index-beta.1",
+                tag = "v0.5.$index-beta.1",
+                prerelease = true,
+                channel = "preview",
+            )
+        }
+        val stable = release(versionCode = 20, versionName = "0.4.0", tag = "v0.4.0")
+        val http = FakeHttp(
+            releases = previews + stable,
+            metadata = metadata(versionCode = 20, versionName = "0.4.0", tag = "v0.4.0"),
+        )
+
+        assertEquals(UpdateCheckStatus.UPDATE_AVAILABLE, updater(settings, http).checkNowAwait())
+    }
+
+    @Test
+    fun manualCheckHonorsPersistedRetryAfter() = runBlocking {
+        val storage = MemoryStorage()
+        val settings = PersistentSettingsStore(storage)
+        settings.update {
+            it.copy(lastUpdateRetryAt = now.plusSeconds(60))
+        }
+        val http = FakeHttp(
+            releases = listOf(release(versionCode = 10, versionName = "0.4.0", tag = "v0.4.0")),
+            metadata = metadata(versionCode = 10, versionName = "0.4.0", tag = "v0.4.0"),
+        )
+        val updater = updater(settings, http)
+
+        assertEquals(UpdateCheckStatus.RATE_LIMITED, updater.checkNowAwait())
+        assertEquals(0, http.calls)
+        assertEquals(now.plusSeconds(60), updater.state.value.retryAt)
+    }
+
+    @Test
+    fun backgroundCheckRequiresCurrentAutomaticConsent() = runBlocking {
+        val storage = MemoryStorage()
+        val settings = PersistentSettingsStore(storage)
+        val http = FakeHttp(
+            releases = listOf(release(versionCode = 10, versionName = "0.4.0", tag = "v0.4.0")),
+            metadata = metadata(versionCode = 10, versionName = "0.4.0", tag = "v0.4.0"),
+        )
+        val updater = updater(settings, http)
+
+        updater.checkNowAwait(requireAutoConsent = true)
+        assertEquals(0, http.calls)
+    }
+
+    @Test
     fun metadataFetchFailureDoesNotPoisonTheReleaseEtag() = runBlocking {
         val storage = MemoryStorage()
         val settings = PersistentSettingsStore(storage)
@@ -113,11 +167,18 @@ class UpdaterCheckTest {
         )
     }
 
-    private fun release(versionCode: Long, versionName: String, tag: String): GitHubRelease {
+    private fun release(
+        versionCode: Long,
+        versionName: String,
+        tag: String,
+        prerelease: Boolean = false,
+        channel: String = "stable",
+    ): GitHubRelease {
         val apk = "LinkSonda-$versionName.apk"
         return GitHubRelease(
             tagName = tag,
             body = "Notes",
+            prerelease = prerelease,
             assets = listOf(
                 GitHubAsset(RELEASE_METADATA_ASSET, "https://github.com/release.json", 200),
                 GitHubAsset(apk, "https://github.com/$apk", 1000),
@@ -130,6 +191,7 @@ class UpdaterCheckTest {
         versionName: String,
         tag: String,
         signer: String = this.signer,
+        channel: String = "stable",
     ): ReleaseMetadata = ReleaseMetadata(
         schemaVersion = 1,
         tag = tag,
@@ -137,7 +199,7 @@ class UpdaterCheckTest {
         applicationId = "io.github.chuck852.linksonda",
         versionName = versionName,
         versionCode = versionCode,
-        channel = "stable",
+        channel = channel,
         minSdk = 26,
         apk = ReleaseApk("LinkSonda-$versionName.apk", 1000, sha),
         signerCertificateSha256 = signer,
@@ -149,7 +211,11 @@ class UpdaterCheckTest {
         private val notModified: Boolean = false,
         private val failure: UpdaterHttpResult? = null,
     ) : UpdaterHttpClient {
+        var calls = 0
+            private set
+
         override suspend fun get(url: String, etag: String?): UpdaterHttpResult {
+            calls++
             if (failure != null) return failure
             if (notModified) return UpdaterHttpResult.NotModified
             val body = if (url == GITHUB_RELEASES_URL) {

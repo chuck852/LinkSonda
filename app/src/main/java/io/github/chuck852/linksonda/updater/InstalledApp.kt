@@ -30,7 +30,8 @@ internal fun readInstalledApp(context: Context): InstalledApp? {
     } catch (_: PackageManager.NameNotFoundException) {
         return null
     }
-    val signer = info.signerSha256() ?: return null
+    val signers = info.signerSha256s()
+    if (signers.size != 1) return null
     return InstalledApp(
         versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             info.longVersionCode
@@ -39,7 +40,7 @@ internal fun readInstalledApp(context: Context): InstalledApp? {
             info.versionCode.toLong()
         },
         versionName = info.versionName.orEmpty(),
-        signerSha256 = signer,
+        signerSha256 = signers.single(),
         sdk = Build.VERSION.SDK_INT,
         debuggable = info.applicationInfo?.flags?.and(android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0,
     )
@@ -96,24 +97,30 @@ internal class ApkVerifier(private val context: Context) {
         if (application.minSdkVersion > Build.VERSION.SDK_INT) {
             return UpdaterError.VERIFY_FAILED
         }
-        if (info.signerSha256() != ReleaseSelector.normalizeSha256(metadata.signerCertificateSha256)) {
+        if (info.versionName != metadata.versionName) return UpdaterError.VERIFY_FAILED
+        if (application.minSdkVersion != metadata.minSdk) return UpdaterError.VERIFY_FAILED
+        val signers = info.signerSha256s()
+        if (signers.size != 1 ||
+            signers.single() != ReleaseSelector.normalizeSha256(metadata.signerCertificateSha256)
+        ) {
             return UpdaterError.VERIFY_FAILED
         }
         return null
     }
 }
 
-internal fun PackageInfo.signerSha256(): String? {
+internal fun PackageInfo.signerSha256s(): List<String> {
     val signatures: List<Signature> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
         signingInfo?.apkContentsSigners?.toList().orEmpty()
     } else {
         @Suppress("DEPRECATION")
         signatures?.toList().orEmpty()
     }
-    val first = signatures.firstOrNull() ?: return null
-    return MessageDigest.getInstance("SHA-256")
-        .digest(first.toByteArray())
-        .joinToString("") { "%02x".format(it) }
+    return signatures.map { signature ->
+        MessageDigest.getInstance("SHA-256")
+            .digest(signature.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+    }
 }
 
 internal fun File.sha256(): String {

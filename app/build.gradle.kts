@@ -14,6 +14,8 @@ val appVersionCode = versionProperties.getProperty("versionCode")?.toIntOrNull()
     ?: error("version.properties must define an integer versionCode")
 val appVersionName = versionProperties.getProperty("versionName")?.takeIf { it.isNotBlank() }
     ?: error("version.properties must define a non-empty versionName")
+val updaterTestUrl = providers.gradleProperty("updaterTestUrl").getOrElse("")
+val escapedUpdaterTestUrl = updaterTestUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 
 android {
     namespace = "io.github.chuck852.linksonda"
@@ -25,6 +27,9 @@ android {
         targetSdk = 37
         versionCode = appVersionCode
         versionName = appVersionName
+        buildConfigField("String", "UPDATER_TEST_URL", "\"$escapedUpdaterTestUrl\"")
+        buildConfigField("boolean", "UPDATER_TEST_SOURCE", updaterTestUrl.isNotBlank().toString())
+        manifestPlaceholders["usesCleartextTraffic"] = updaterTestUrl.isNotBlank().toString()
     }
 
     buildFeatures {

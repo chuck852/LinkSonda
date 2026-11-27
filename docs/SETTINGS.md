@@ -35,7 +35,7 @@ Settings rows use selectable or toggleable semantics with radio/switch roles, se
 
 ## Verification
 
-- 219 JVM tests, 0 failures, including the storage and updater tests.
+- 222 JVM tests, 0 failures, including the storage and updater tests.
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` and `assembleRelease` passed.
 - Android 17 (API 37) emulator: first run, profile selection in the debug harness, completion, Russian/English switch, platform app-locale synchronization, language and dark-theme persistence after force-stop, notification permission denial and rationale persistence, permission revocation while enabled, editor access after denial, and 200% font scale.
 - Release APK contains the Russian resources and no demo screens or demo settings data.

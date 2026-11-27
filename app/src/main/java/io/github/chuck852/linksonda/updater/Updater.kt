@@ -22,6 +22,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -32,7 +36,9 @@ internal const val UPDATE_NOTIFICATION_ID = 4001
 internal class Updater(
     context: Context,
     private val settingsStore: SettingsStore,
-    private val http: UpdaterHttpClient = HttpUpdaterHttpClient(),
+    private val apiUrl: String = GITHUB_RELEASES_URL,
+    private val testSource: Boolean = false,
+    private val http: UpdaterHttpClient = HttpUpdaterHttpClient(testSource),
     private val installed: InstalledApp? = readInstalledApp(context),
     private val clock: () -> Instant = Instant::now,
     private val debugBuild: Boolean = BuildConfig.DEBUG,
@@ -56,7 +62,12 @@ internal class Updater(
 
     private var checkJob: Job? = null
     private var downloadJob: Job? = null
+    private var installJob: Job? = null
+    @Volatile
     private var readyFile: File? = null
+    private var downloadGeneration = 0L
+    private var installGeneration = 0L
+    private val downloadLock = Any()
 
     init {
         scope.launch {
@@ -69,28 +80,33 @@ internal class Updater(
     fun checkNow() {
         if (checkJob?.isActive == true) return
         checkJob = scope.launch {
-            runCheck()
+            runCheck(requireAutoConsent = false)
         }
     }
 
-    suspend fun checkNowAwait(): UpdateCheckStatus {
-        runCheck()
+    suspend fun checkNowAwait(requireAutoConsent: Boolean = false): UpdateCheckStatus {
+        runCheck(requireAutoConsent = requireAutoConsent)
         return _state.value.status
     }
 
     fun download() {
         val update = _state.value.available ?: return
         if (downloadJob?.isActive == true) return
-        if (readyFile?.isFile == true) {
+        if (synchronized(downloadLock) { readyFile?.isFile == true }) {
             _state.update { it.copy(readyToInstall = true, download = null, error = null) }
             return
         }
+        val generation = synchronized(downloadLock) { ++downloadGeneration }
+        val destination = cacheFile(update, generation)
         downloadJob = scope.launch {
             var completed = false
-            val destination = cacheFile(update)
+            fun isCurrent() = generation == downloadGeneration
+            fun updateIfCurrent(block: (UpdaterUiState) -> UpdaterUiState) {
+                if (isCurrent()) _state.update(block)
+            }
             try {
                 destination.parentFile?.mkdirs()
-                _state.update {
+                updateIfCurrent {
                     it.copy(
                         download = DownloadProgress(0, update.metadata.apk.size),
                         readyToInstall = false,
@@ -98,10 +114,10 @@ internal class Updater(
                     )
                 }
                 when (val result = http.download(update.downloadUrl, destination) { downloaded, total ->
-                    _state.update { it.copy(download = DownloadProgress(downloaded, total)) }
+                    updateIfCurrent { it.copy(download = DownloadProgress(downloaded, total)) }
                 }) {
                     is UpdaterDownloadResult.Failure -> {
-                        _state.update {
+                        updateIfCurrent {
                             it.copy(download = null, error = result.error, readyToInstall = false)
                         }
                     }
@@ -113,109 +129,175 @@ internal class Updater(
                             installedSignerSha256 = _state.value.installedSigner(),
                             installedVersionCode = installed?.versionCode ?: 0,
                         )
-                        if (verifyError != null) {
+                        if (!isCurrent()) {
+                            destination.delete()
+                        } else if (verifyError != null) {
                             destination.delete()
                             _state.update {
                                 it.copy(download = null, error = verifyError, readyToInstall = false)
                             }
                         } else {
-                            readyFile = destination
-                            completed = true
-                            _state.update {
-                                it.copy(download = null, readyToInstall = true, error = null)
+                            synchronized(downloadLock) {
+                                if (isCurrent()) {
+                                    readyFile = destination
+                                    completed = true
+                                } else {
+                                    destination.delete()
+                                }
+                            }
+                            if (completed) {
+                                _state.update {
+                                    it.copy(download = null, readyToInstall = true, error = null)
+                                }
                             }
                         }
                     }
                 }
+            } catch (_: TimeoutCancellationException) {
+                updateIfCurrent {
+                    it.copy(download = null, error = UpdaterError.NETWORK, readyToInstall = false)
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                _state.update { it.copy(download = null, error = UpdaterError.DOWNLOAD_FAILED) }
-            } finally {
-                if (!completed) {
-                    destination.delete()
-                    _state.update { it.copy(download = null) }
+                updateIfCurrent {
+                    it.copy(download = null, error = UpdaterError.DOWNLOAD_FAILED, readyToInstall = false)
                 }
+            } finally {
+                if (!completed || !isCurrent()) {
+                    destination.delete()
+                }
+                updateIfCurrent { it.copy(download = null) }
             }
         }
     }
 
     fun cancelDownload() {
-        downloadJob?.cancel()
-        downloadJob = null
+        synchronized(downloadLock) {
+            downloadGeneration++
+            downloadJob?.cancel()
+            downloadJob = null
+            readyFile?.delete()
+            readyFile = null
+        }
         _state.update { it.copy(download = null, error = null) }
     }
 
     fun install() {
+        if (installJob?.isActive == true) return
         val update = _state.value.available ?: return
-        val file = readyFile?.takeIf { it.isFile } ?: return
-        val verifyError = verifier.verify(
-            file = file,
-            update = update,
-            installedSignerSha256 = _state.value.installedSigner(),
-            installedVersionCode = installed?.versionCode ?: 0,
-        )
-        if (verifyError != null) {
-            _state.update { it.copy(error = verifyError, installState = InstallState.FAILED) }
-            return
+        val file = synchronized(downloadLock) { readyFile?.takeIf { it.isFile } } ?: return
+        val generation = ++installGeneration
+        fun isCurrent() = generation == installGeneration
+        _state.update {
+            it.copy(
+                installState = InstallState.INSTALLING,
+                installPermissionRequired = false,
+                error = null,
+            )
         }
-        if (!appContext.packageManager.canRequestPackageInstalls()) {
-            _state.update {
-                it.copy(
-                    installPermissionRequired = true,
-                    installState = InstallState.WAITING_PERMISSION,
-                )
-            }
-            return
-        }
-        try {
-            _state.update { it.copy(installState = InstallState.INSTALLING, error = null) }
-            val installer = appContext.packageManager.packageInstaller
-            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-            params.setAppPackageName(appContext.packageName)
-            val sessionId = installer.createSession(params)
-            installer.openSession(sessionId).use { session ->
-                session.openWrite("LinkSonda-update.apk", 0, file.length()).use { output ->
-                    file.inputStream().use { input -> input.copyTo(output) }
-                    session.fsync(output)
+        installJob = scope.launch {
+            var sessionId: Int? = null
+            var committed = false
+            try {
+                if (!appContext.packageManager.canRequestPackageInstalls()) {
+                    if (isCurrent()) {
+                        _state.update {
+                            it.copy(
+                                installPermissionRequired = true,
+                                installState = InstallState.WAITING_PERMISSION,
+                            )
+                        }
+                    }
+                    return@launch
                 }
-                session.commit(installPendingIntent().intentSender)
-            }
-            file.delete()
-            readyFile = null
-            _state.update { it.copy(readyToInstall = false, installState = InstallState.INSTALLING) }
-        } catch (_: SecurityException) {
-            _state.update {
-                it.copy(
-                    installPermissionRequired = true,
-                    installState = InstallState.WAITING_PERMISSION,
+                val verifyError = verifier.verify(
+                    file = file,
+                    update = update,
+                    installedSignerSha256 = _state.value.installedSigner(),
+                    installedVersionCode = installed?.versionCode ?: 0,
                 )
+                if (verifyError != null) {
+                    if (isCurrent()) {
+                        _state.update { it.copy(error = verifyError, installState = InstallState.FAILED) }
+                    }
+                    return@launch
+                }
+                val installer = appContext.packageManager.packageInstaller
+                val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+                params.setAppPackageName(appContext.packageName)
+                sessionId = installer.createSession(params)
+                installer.openSession(sessionId).use { session ->
+                    session.openWrite("LinkSonda-update.apk", 0, file.length()).use { output ->
+                        file.inputStream().use { input -> input.copyTo(output) }
+                        session.fsync(output)
+                    }
+                    if (!isCurrent() ||
+                        _state.value.available?.versionCode != update.versionCode ||
+                        _state.value.available?.downloadUrl != update.downloadUrl
+                    ) {
+                        return@use
+                    }
+                    session.commit(installPendingIntent().intentSender)
+                    committed = true
+                }
+                if (committed && isCurrent()) {
+                    _state.update { it.copy(readyToInstall = true, installState = InstallState.INSTALLING) }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: SecurityException) {
+                if (isCurrent()) {
+                    _state.update {
+                        it.copy(
+                            installPermissionRequired = true,
+                            installState = InstallState.WAITING_PERMISSION,
+                        )
+                    }
+                }
+            } catch (_: Exception) {
+                if (isCurrent()) {
+                    _state.update { it.copy(error = UpdaterError.INSTALL_FAILED, installState = InstallState.FAILED) }
+                }
+            } finally {
+                if (!committed) {
+                    sessionId?.let { id ->
+                        runCatching { appContext.packageManager.packageInstaller.abandonSession(id) }
+                    }
+                }
             }
-        } catch (_: Exception) {
-            _state.update { it.copy(error = UpdaterError.INSTALL_FAILED, installState = InstallState.FAILED) }
         }
     }
 
     fun onInstallResult(status: Int) {
         when (status) {
-            PackageInstaller.STATUS_SUCCESS -> _state.update {
-                it.copy(installState = InstallState.IDLE, readyToInstall = false)
+            PackageInstaller.STATUS_SUCCESS -> {
+                synchronized(downloadLock) {
+                    readyFile?.delete()
+                    readyFile = null
+                }
+                _state.update {
+                    it.copy(installState = InstallState.IDLE, readyToInstall = false)
+                }
             }
             PackageInstaller.STATUS_PENDING_USER_ACTION -> _state.update {
                 it.copy(installState = InstallState.INSTALLING)
             }
             else -> _state.update {
-                it.copy(installState = InstallState.FAILED, error = UpdaterError.INSTALL_FAILED)
+                it.copy(
+                    installState = InstallState.FAILED,
+                    readyToInstall = readyFile?.isFile == true,
+                    error = UpdaterError.INSTALL_FAILED,
+                )
             }
         }
     }
 
-    private suspend fun runCheck(): Unit = checkMutex.withLock {
-        if (debugBuild) {
+    private suspend fun runCheck(requireAutoConsent: Boolean): Unit = checkMutex.withLock {
+        if (debugBuild && !testSource) {
             _state.update { it.copy(status = UpdateCheckStatus.INVALID_RELEASE, error = UpdaterError.INVALID_RELEASE) }
             return@withLock
         }
-        _state.update { it.copy(checking = true, error = null) }
         val settings = try {
             settingsStore.initialize()
             settingsStore.current()
@@ -223,8 +305,17 @@ internal class Updater(
             _state.update { it.copy(checking = false, status = UpdateCheckStatus.NETWORK_ERROR, error = UpdaterError.NETWORK) }
             return@withLock
         }
+        if (requireAutoConsent && !settings.updateChecksEnabled) return@withLock
+        val retryAt = settings.lastUpdateRetryAt
+        if (retryAt != null && retryAt.isAfter(clock())) {
+            _state.update {
+                it.copy(checking = false, status = UpdateCheckStatus.RATE_LIMITED, retryAt = retryAt, error = UpdaterError.RATE_LIMITED)
+            }
+            return@withLock
+        }
+        _state.update { it.copy(checking = true, error = null) }
         try {
-            when (val response = http.get(GITHUB_RELEASES_URL, settings.updateEtag)) {
+            when (val response = http.get(apiUrl, settings.updateEtag)) {
                 is UpdaterHttpResult.NotModified -> finish(
                     status = UpdateCheckStatus.NOT_MODIFIED,
                     settings = settings,
@@ -256,8 +347,22 @@ internal class Updater(
                         )
                     val loaded = mutableListOf<LoadedRelease>()
                     var metadataFailure = false
-                    for (release in releases.filter { !it.draft }.take(MAX_METADATA_CANDIDATES)) {
-                        if (settings.updateChannel == UpdateChannel.STABLE && release.prerelease) continue
+                    val channelReleases = releases.filter { release ->
+                        !release.draft &&
+                            (settings.updateChannel == UpdateChannel.PREVIEW || !release.prerelease)
+                    }
+                    val scan = channelReleases.take(MAX_METADATA_CANDIDATES)
+                    val truncated = channelReleases.size > scan.size
+                    val deadline = System.nanoTime() + CHECK_BUDGET_MS * 1_000_000
+                    for (release in scan) {
+                        if (System.nanoTime() > deadline) {
+                            return@withLock finish(
+                                UpdateCheckStatus.NETWORK_ERROR,
+                                settings,
+                                etag = null,
+                                error = UpdaterError.NETWORK,
+                            )
+                        }
                         val metadataAsset = release.assets.firstOrNull { it.name == RELEASE_METADATA_ASSET } ?: continue
                         when (val metadataResponse = http.get(metadataAsset.browserDownloadUrl)) {
                             is UpdaterHttpResult.Response -> {
@@ -298,17 +403,18 @@ internal class Updater(
                         installedSignerSha256 = installed.signerSha256,
                         installedSdk = installed.sdk,
                         applicationId = appContext.packageName,
+                        allowTestSource = testSource,
                     )) {
                         is ReleaseSelection.Available -> finish(
                             status = UpdateCheckStatus.UPDATE_AVAILABLE,
                             settings = settings,
-                            etag = if (metadataFailure) null else response.etag,
+                            etag = if (metadataFailure || truncated) null else response.etag,
                             update = selection.update,
                         )
                         ReleaseSelection.UpToDate -> finish(
-                            UpdateCheckStatus.UP_TO_DATE,
+                            if (truncated) UpdateCheckStatus.NO_RELEASE else UpdateCheckStatus.UP_TO_DATE,
                             settings,
-                            etag = if (metadataFailure) null else response.etag,
+                            etag = null,
                         )
                         is ReleaseSelection.Invalid -> finish(
                             UpdateCheckStatus.INVALID_RELEASE,
@@ -411,9 +517,14 @@ internal class Updater(
             offered?.downloadUrl != old?.downloadUrl ||
             offered?.metadata?.apk?.sha256 != old?.metadata?.apk?.sha256
         if (discardDownload) {
-            downloadJob?.cancel()
-            readyFile?.delete()
-            readyFile = null
+            synchronized(downloadLock) {
+                downloadGeneration++
+                downloadJob?.cancel()
+                readyFile?.delete()
+                readyFile = null
+            }
+            installGeneration++
+            installJob?.cancel()
         }
         _state.update {
             val base = if (discardDownload) {
@@ -450,9 +561,9 @@ internal class Updater(
         return notifier.show(update)
     }
 
-    private fun cacheFile(update: OfferedUpdate): File {
+    private fun cacheFile(update: OfferedUpdate, generation: Long): File {
         val name = File(update.metadata.apk.name).name.ifBlank { "LinkSonda-${update.versionName}.apk" }
-        return File(appContext.cacheDir, "updates/$name")
+        return File(appContext.cacheDir, "updates/$generation-$name")
     }
 
     private fun installPendingIntent(): PendingIntent {
@@ -464,5 +575,6 @@ internal class Updater(
 
     private companion object {
         const val MAX_METADATA_CANDIDATES = 8
+        const val CHECK_BUDGET_MS = 60_000L
     }
 }
