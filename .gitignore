@@ -1,0 +1,29 @@
+AGENTS.md
+AGENTS.override.md
+[Cc][Oo][Dd][Ee][Xx].md
+.agents/
+.codex/
+/.local/
+
+# Gradle and Android Studio
+.gradle/
+.kotlin/
+.idea/
+*.iml
+build/
+local.properties
+.externalNativeBuild/
+.cxx/
+captures/
+
+# Local secrets and signing files
+.env
+.env.*
+keystore.properties
+signing.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pk8
+*.key
