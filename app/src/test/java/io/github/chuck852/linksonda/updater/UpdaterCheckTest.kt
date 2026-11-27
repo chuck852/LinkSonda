@@ -70,6 +70,17 @@ class UpdaterCheckTest {
     }
 
     @Test
+    fun metadataFetchFailureDoesNotPoisonTheReleaseEtag() = runBlocking {
+        val storage = MemoryStorage()
+        val settings = PersistentSettingsStore(storage)
+        val http = MetadataFailureHttp(release(versionCode = 12, versionName = "0.4.2", tag = "v0.4.2"))
+        val updater = updater(settings, http)
+
+        assertEquals(UpdateCheckStatus.INVALID_RELEASE, updater.checkNowAwait())
+        assertNull(settings.current().updateEtag)
+    }
+
+    @Test
     fun invalidSignerIsRejectedAndNotOffered() = runBlocking {
         val storage = MemoryStorage()
         val settings = PersistentSettingsStore(storage)
@@ -89,7 +100,7 @@ class UpdaterCheckTest {
         assertNull(settings.current().lastOfferedVersionCode)
     }
 
-    private fun updater(settings: PersistentSettingsStore, http: FakeHttp): Updater {
+    private fun updater(settings: PersistentSettingsStore, http: UpdaterHttpClient): Updater {
         val context = ApplicationProvider.getApplicationContext<Context>()
         return Updater(
             context = context,
@@ -157,6 +168,27 @@ class UpdaterCheckTest {
             onProgress(10, 10)
             return UpdaterDownloadResult.Success(10)
         }
+    }
+
+    private class MetadataFailureHttp(
+        private val release: GitHubRelease,
+    ) : UpdaterHttpClient {
+        override suspend fun get(url: String, etag: String?): UpdaterHttpResult =
+            if (url == GITHUB_RELEASES_URL) {
+                UpdaterHttpResult.Response(
+                    200,
+                    updaterJson.encodeToString(ListSerializer(GitHubRelease.serializer()), listOf(release)),
+                    "\"etag-1\"",
+                )
+            } else {
+                UpdaterHttpResult.Failure(UpdaterError.NETWORK)
+            }
+
+        override suspend fun download(
+            url: String,
+            destination: File,
+            onProgress: (Long, Long?) -> Unit,
+        ): UpdaterDownloadResult = UpdaterDownloadResult.Failure(UpdaterError.DOWNLOAD_FAILED)
     }
 
     private class MemoryStorage : SettingsStorage {

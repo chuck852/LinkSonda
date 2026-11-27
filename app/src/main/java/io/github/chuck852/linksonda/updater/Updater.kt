@@ -251,8 +251,8 @@ internal class Updater(
                         ?: return@withLock finish(
                             UpdateCheckStatus.INVALID_RELEASE,
                             settings,
-                            response.etag,
-                            UpdaterError.INVALID_RELEASE,
+                            etag = null,
+                            error = UpdaterError.INVALID_RELEASE,
                         )
                     val loaded = mutableListOf<LoadedRelease>()
                     var metadataFailure = false
@@ -275,9 +275,9 @@ internal class Updater(
                                     return@withLock finish(
                                         UpdateCheckStatus.RATE_LIMITED,
                                         settings,
-                                        response.etag,
-                                        metadataResponse.error,
-                                        metadataResponse.retryAt,
+                                        etag = null,
+                                        error = metadataResponse.error,
+                                        retryAt = metadataResponse.retryAt,
                                     )
                                 }
                                 metadataFailure = true
@@ -288,8 +288,8 @@ internal class Updater(
                     val installed = installed ?: return@withLock finish(
                         UpdateCheckStatus.INVALID_RELEASE,
                         settings,
-                        response.etag,
-                        UpdaterError.INVALID_RELEASE,
+                        etag = null,
+                        error = UpdaterError.INVALID_RELEASE,
                     )
                     when (val selection = ReleaseSelector.choose(
                         releases = loaded,
@@ -302,24 +302,24 @@ internal class Updater(
                         is ReleaseSelection.Available -> finish(
                             status = UpdateCheckStatus.UPDATE_AVAILABLE,
                             settings = settings,
-                            etag = response.etag,
+                            etag = if (metadataFailure) null else response.etag,
                             update = selection.update,
                         )
                         ReleaseSelection.UpToDate -> finish(
                             UpdateCheckStatus.UP_TO_DATE,
                             settings,
-                            response.etag,
+                            etag = if (metadataFailure) null else response.etag,
                         )
                         is ReleaseSelection.Invalid -> finish(
                             UpdateCheckStatus.INVALID_RELEASE,
                             settings,
-                            response.etag,
+                            etag = if (metadataFailure) null else response.etag,
                             UpdaterError.INVALID_RELEASE,
                         )
                         ReleaseSelection.NoMetadata -> finish(
                             if (metadataFailure) UpdateCheckStatus.INVALID_RELEASE else UpdateCheckStatus.NO_RELEASE,
                             settings,
-                            response.etag,
+                            etag = if (metadataFailure) null else response.etag,
                         )
                     }
                 }
@@ -407,15 +407,28 @@ internal class Updater(
             runCatching { updaterJson.decodeFromString(OfferedUpdate.serializer(), json) }.getOrNull()
         }?.takeIf { it.versionCode > BuildConfig.VERSION_CODE && settings.updateChannel.accepts(it.channel) }
         val old = _state.value.available
-        if (offered?.versionCode != old?.versionCode ||
+        val discardDownload = offered?.versionCode != old?.versionCode ||
             offered?.downloadUrl != old?.downloadUrl ||
             offered?.metadata?.apk?.sha256 != old?.metadata?.apk?.sha256
-        ) {
+        if (discardDownload) {
             downloadJob?.cancel()
             readyFile?.delete()
             readyFile = null
         }
-        _state.update { stateFromSettings(settings, it.copy(available = offered)) }
+        _state.update {
+            val base = if (discardDownload) {
+                it.copy(
+                    available = offered,
+                    download = null,
+                    readyToInstall = false,
+                    installPermissionRequired = false,
+                    installState = InstallState.IDLE,
+                )
+            } else {
+                it.copy(available = offered)
+            }
+            stateFromSettings(settings, base)
+        }
     }
 
     private fun stateFromSettings(settings: AppSettings, base: UpdaterUiState): UpdaterUiState =
