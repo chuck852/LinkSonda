@@ -7,7 +7,7 @@ sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
 ./gradlew --console=plain testDebugUnitTest lintDebug assembleDebug
 ```
 
-Use `gradlew.bat` on Windows. The Wrapper uses Gradle 9.6.1 and validates the distribution SHA-256. Gradle resolves dependencies from Google Maven, Maven Central, and the Gradle Plugin Portal, as configured for the build.
+Use `gradlew.bat` on Windows. The Wrapper uses Gradle 9.6.1 and validates the distribution SHA-256. The Android build uses AGP 9.3.1 with built-in Kotlin and Compose Compiler 2.4.21. Android Studio Rabbit 2 (2026.2.2 Patch 3) is compatible with this AGP series. Gradle resolves dependencies from Google Maven, Maven Central, and the Gradle Plugin Portal, as configured for the build.
 
 ```bash
 adb devices -l
