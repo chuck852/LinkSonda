@@ -48,10 +48,18 @@ An attempted check whose outcome is obscured by OS limits, Doze, or a network ch
 
 `ProbeRunner` is a suspending transport boundary. Its admission contract accounts for each observable outbound attempt, including retries, redirects and fallbacks. Manual and background calls use the same policy and endpoint and infrastructure scope. Restricted responses and policy skips have separate types. Repository contracts expose Kotlin Flow, so UI code can observe domain data independently of transport and storage choices. These contracts are the boundary for future transport, monitoring, and storage implementations.
 
+## TCP and TLS transport — public #10
+
+`SocketProbeRunner` implements `ProbeRunner` for TCP Connect and TLS handshake. It authorizes DNS resolution for hostnames and one socket attempt before opening it; the TLS handshake is part of that socket attempt. IPv4 and IPv6 literals and hostname resolution with an optional family filter are supported. DNS, TCP and TLS failures stay separate, and all elapsed and phase durations use a monotonic clock.
+
+TLS uses the platform trust store and HTTPS endpoint identification. Certificate and hostname verification cannot be disabled. SNI is sent only for DNS names, and negotiated TLS 1.2 or 1.3 is recorded. Timeouts and cancellation close the active socket promptly.
+
+The runner is internal to the app and is not connected to production UI. The manifest still has no `INTERNET` permission and no public endpoint is activated. HTTP, DNS and ICMP runners, Android network binding and engine integration remain planned. See [TCP Connect and TLS](NETWORK.md).
+
 ## Planned components
 
 - UI presents probe results, their age and context, monitoring controls, and local history.
-- Probe runners perform bounded TCP, TLS, HTTP and DNS operations using platform trust defaults. Additional transports depend on device support and validation.
+- Probe runners perform bounded HTTP and DNS operations using platform trust defaults; TCP Connect and TLS handshake are implemented behind `ProbeRunner`. Additional transports depend on device support and validation.
 - Monitoring uses a scheduler and an explicit, user-started session. A foreground service is a candidate for periodic work. Stopping a session must cancel active I/O and close sockets. Long device sleep and vendor power policies may introduce gaps.
 - Local persistence stores actual results and incidents. Scheduled slots missed through sleep, a permission denial, or rate limits preserve the last result and age without counting as network failures.
 
