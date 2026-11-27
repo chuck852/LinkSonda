@@ -335,7 +335,7 @@
     <string name="settings_notifications_title">Notifications</string>
     <string name="settings_notifications_switch">Incident notifications</string>
     <string name="settings_notifications_body">Android permission is requested only when you turn this on. Other app features do not depend on it.</string>
-    <string name="settings_notifications_denied">Notification permission was denied. You can allow notifications in system settings; other app features continue to work.</string>
+    <string name="settings_notifications_denied">Notification permission is not granted. You can allow notifications in system settings; other app features continue to work.</string>
     <string name="settings_notifications_open_settings">Open notification settings</string>
 
     <string name="settings_history_title">History</string>

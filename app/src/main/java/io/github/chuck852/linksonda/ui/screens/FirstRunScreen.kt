@@ -56,7 +56,7 @@ fun FirstRunScreen(
     modifier: Modifier = Modifier,
 ) {
     var savedProfileId by rememberSaveable { mutableStateOf<String?>(null) }
-    // Do not restore this flag across recreation: an interrupted save must leave Continue usable.
+    // Not saveable: an interrupted save must leave Continue usable after recreation.
     var submitted by remember { mutableStateOf(false) }
 
     // A restored id may no longer be offered; the visible selection stays the source of truth.
@@ -84,7 +84,6 @@ fun FirstRunScreen(
         item {
             Button(
                 onClick = {
-                    // Complete at most once so a double tap cannot run onboarding twice.
                     if (!submitted) {
                         submitted = true
                         onComplete(selectedProfileId)

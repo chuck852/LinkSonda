@@ -341,7 +341,7 @@
     <string name="settings_notifications_title">Уведомления</string>
     <string name="settings_notifications_switch">Уведомления об инцидентах</string>
     <string name="settings_notifications_body">Разрешение Android запрашивается только при включении. Остальные функции приложения от него не зависят.</string>
-    <string name="settings_notifications_denied">В разрешении на уведомления отказано. Разрешить их можно в системных настройках; остальные функции приложения продолжат работать.</string>
+    <string name="settings_notifications_denied">Разрешение на уведомления не выдано. Разрешить их можно в системных настройках; остальные функции приложения продолжат работать.</string>
     <string name="settings_notifications_open_settings">Открыть настройки уведомлений</string>
 
     <string name="settings_history_title">История</string>
