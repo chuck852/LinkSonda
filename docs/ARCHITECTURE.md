@@ -2,7 +2,7 @@
 
 ## Current build
 
-`:app` is a native Android application written in Kotlin with Jetpack Compose and Material 3. `MainActivity` hosts `LinkSondaApp`, which owns the four-tab navigation shell and the overview. The project currently has one Android module, JVM tests for the debug build configuration, domain model, theme, navigation, overview state and check editor, and an Android CI workflow. It uses no backend or account system.
+`:app` is a native Android application written in Kotlin with Jetpack Compose and Material 3. `MainActivity` hosts `LinkSondaApp`, which owns the four-tab navigation shell and the overview. The project currently has one Android module, JVM tests for the debug build configuration, domain model, theme, navigation, overview state, check editor and settings persistence, and an Android CI workflow. It uses no backend or account system.
 
 ## Navigation and presentation
 
@@ -23,6 +23,14 @@ The details screen renders protocol-specific configuration, the latest `ProbeRes
 `ProbeEditorState` is a pure, saveable presentation model for all supported request families. It keeps partially typed values as strings, validates hosts, IPv4/IPv6, ports, URLs, timeouts, HTTP status ranges, DNS fields and TLS server names, and is the only place that constructs `ProbeConfig`. A protocol change resets fields that do not apply to the new request family. Editing a request or timeout delegates to `ProbeConfig.update`, which advances the revision; renaming keeps it. TLS and DoT require a DNS server name and certificate verification cannot be disabled.
 
 `ProbeEditorActions` is the UI boundary: `onSave` receives a `ProbeDraft` and `onTest` receives a `ProbeConfig`; a completed test result keeps a snapshot of the tested probe ID, request and timeout and is hidden when that snapshot no longer matches the draft. Production leaves both null until `ProfileRepository` storage and `ProbeRunner` transport are connected, so the editor shows the exact limitation instead of adding a temporary repository. The debug harness implements the callbacks with `DemoProfileRepository` and `DemoProbeRunner`; the demo runner authorizes through `ProbeAdmission`, returns a domain result and sends no traffic. Neither demo class is present in release builds. See [the check editor](CHECK_EDITOR.md).
+
+## Settings, localization and first run — public #17
+
+`AppSettings` keeps language, theme mode and brightness, monitoring and notification preferences, history retention, the selected profile and the onboarding flag. `SettingsStore` is the app-facing contract; `SettingsStorage` isolates the platform key-value adapter. This build uses `SharedPreferencesSettingsStorage` behind `PersistentSettingsStore`. It is a deliberately small transitional adapter: Issue #13 replaces it with DataStore behind the same `SettingsStore` contract and keeps the preference keys. No Room database or second settings architecture is introduced.
+
+`MainActivity` reads the saved language in `attachBaseContext`, so the first frame after a cold start uses the selected resources, and recreates the activity after a language change. On API 33+ `LocaleManager.setApplicationLocales` keeps the platform per-app language picker in sync; `SYSTEM` clears that override. `res/xml/locales_config.xml` exposes English and Russian to the platform picker. `LinkSondaApp` passes the saved theme mode and brightness to `LinkSondaTheme` and gates the shell behind the first-run screen until onboarding completes.
+
+The first-run screen explains that checks run from the device and results/settings stay local. It offers manual checks or an available profile; no placeholder profile is invented. `POST_NOTIFICATIONS` is requested only when the user enables notifications in Settings. Android remains the source of truth: the screen rechecks permission on resume, stores that a request was shown, turns the effective switch off after revocation, shows a live-region rationale and a link to Android notification settings, and does not block manual checks or the editor. See [settings, localization and first run](SETTINGS.md).
 
 ## Theme and design system
 

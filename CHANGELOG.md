@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added persisted settings for adaptive, accents-only and static color modes, system/light/dark brightness, system/English/Russian language, monitoring and notification preferences, history retention and the selected profile.
+- Added a localized settings screen and a first-run flow that explains local monitoring and offers manual checks or an available profile.
+- Added contextual notification permission: Android asks only when notifications are enabled, and a denial leaves manual checks and the editor usable.
+- Added complete English/Russian resources, per-app locale configuration, and 48 dp/accessibility semantics for the new screens.
 - Added a universal check editor for all P0 protocols with dynamic fields, validation, protocol-aware field reset, revision handling and progressive disclosure of advanced options.
 - Added check creation and editing through the domain models, an explicit TLS server-name requirement, read-only certificate validation and honest save/test limitations while storage and the network engine are not connected.
 - Wired the debug editor to `ProbeRunner` and `ProfileRepository` implementations that keep all demo state in memory and send no network traffic.
@@ -12,7 +16,7 @@
 - Added the overview with aggregate state, freshness, monitoring, network and VPN context, active profile, availability bars and manual-check state. Production remains empty until real monitoring is connected.
 - Added explicit empty, unknown, running, partial, down and up states plus a debug-only demo harness and Compose previews.
 - Added large-font and small-screen adaptations, including wrapping status badges and icon-only bottom navigation with accessible labels.
-- Added 79 JVM tests covering navigation, overview state, checks, editor validation, execution-snapshot test-result binding and demo consistency.
+- Added 93 JVM tests covering navigation, overview state, checks, editor validation, execution-snapshot test-result binding, settings persistence, locale/theme values and demo consistency.
 - Added the LinkSonda Material 3 design system with adaptive, accents and static color modes.
 - Added light, dark and system brightness, semantic result tones with text and icons, and a 650 ms adaptive transition that respects system animation settings.
 - Added Compose previews, contrast and palette tests, a debug screenshot harness, and design-system documentation.

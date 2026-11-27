@@ -95,7 +95,7 @@ Useful edit IDs include `https-global` (URL, status and body marker), `tls-globa
 
 ## Verification
 
-- 79 JVM tests, 0 failures. Editor coverage includes all ten protocols, invalid host/URL/port/status/timeout, TLS server-name rules, protocol reset, revision changes, execution-snapshot test-result binding and save/test contracts.
+- 93 JVM tests, 0 failures. Editor coverage includes all ten protocols, invalid host/URL/port/status/timeout, TLS server-name rules, protocol reset, revision changes, execution-snapshot test-result binding and save/test contracts.
 - `clean testDebugUnitTest lintDebug assembleDebug assembleRelease` passes; lint reports 0 errors and the same 6 pre-existing warnings.
 - Android 17 (API 37): new check from the empty production list, edit from details, protocol-specific fields, validation errors, test through the demo runner and save into the demo session.
 - 320 dp at 200% font scale: no horizontal overflow; fields and action buttons wrap and remain reachable.
