@@ -324,6 +324,15 @@ internal class Updater(
                     }
                 }
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            finish(
+                status = UpdateCheckStatus.NETWORK_ERROR,
+                settings = settings,
+                etag = settings.updateEtag,
+                error = UpdaterError.NETWORK,
+            )
         } finally {
             _state.update { it.copy(checking = false) }
         }
@@ -397,8 +406,11 @@ internal class Updater(
         val offered = settings.lastOfferedUpdateJson?.let { json ->
             runCatching { updaterJson.decodeFromString(OfferedUpdate.serializer(), json) }.getOrNull()
         }?.takeIf { it.versionCode > BuildConfig.VERSION_CODE && it.channel == settings.updateChannel }
-        val oldCode = _state.value.available?.versionCode
-        if (offered?.versionCode != oldCode) {
+        val old = _state.value.available
+        if (offered?.versionCode != old?.versionCode ||
+            offered?.downloadUrl != old?.downloadUrl ||
+            offered?.metadata?.apk?.sha256 != old?.metadata?.apk?.sha256
+        ) {
             downloadJob?.cancel()
             readyFile?.delete()
             readyFile = null
