@@ -19,6 +19,7 @@ private fun ChecksMixedPreview() {
             filters = ChecksFilterState(),
             onFiltersChange = {},
             onProbeClick = {},
+            onAddCheck = {},
         )
     }
 }

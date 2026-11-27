@@ -201,9 +201,8 @@
     <string name="action_edit">Edit check</string>
     <string name="action_retry_unavailable">Available after the network engine is connected.</string>
     <string name="action_edit_unavailable">Editing will be connected with the profile editor.</string>
-    <string name="action_demo">Demo only: no network request or edit is performed.</string>
+    <string name="action_demo">Demo only: no network request is sent. Edits and saves stay in this demo session.</string>
     <string name="action_add_check">Add check</string>
-    <string name="action_add_unavailable">Adding checks will be connected with the check editor.</string>
 
     <string name="inconclusive_os_limitation">OS limitation</string>
     <string name="inconclusive_doze">Doze</string>
@@ -228,8 +227,86 @@
         <item quantity="other">%1$d of %2$d checks</item>
     </plurals>
 
+    <plurals name="editor_advanced_configured">
+        <item quantity="one">%1$d configured</item>
+        <item quantity="other">%1$d configured</item>
+    </plurals>
+
     <plurals name="checks_count">
         <item quantity="one">%1$d check</item>
         <item quantity="other">%1$d checks</item>
     </plurals>
+
+    <string name="editor_title_new">New check</string>
+    <string name="editor_title_edit">Edit check</string>
+    <string name="editor_basics">Basics</string>
+    <string name="editor_target">Target</string>
+    <string name="editor_criteria">Success criteria</string>
+    <string name="editor_advanced">Advanced options</string>
+    <string name="editor_advanced_defaults">Defaults in use</string>
+    <string name="editor_unsupported_title">Not supported yet</string>
+    <string name="editor_unsupported_body">HTTP/3, raw UDP, WebSocket and gRPC are not available in this build. LinkSonda does not simulate unsupported protocols.</string>
+    <string name="editor_name_label">Name</string>
+    <string name="editor_group_label">Group</string>
+    <string name="editor_protocol_label">Protocol</string>
+    <string name="editor_timeout_label">Timeout (seconds)</string>
+    <string name="editor_host_label">Host</string>
+    <string name="editor_port_label">Port</string>
+    <string name="editor_url_label">URL</string>
+    <string name="editor_resolver_url_label">Resolver URL</string>
+    <string name="editor_server_name_label">TLS server name</string>
+    <string name="editor_server_name_helper">Required for certificate and hostname verification. IP addresses cannot be used as the TLS server name.</string>
+    <string name="editor_dns_name_label">DNS name</string>
+    <string name="editor_record_type_label">Record type</string>
+    <string name="editor_record_type_helper">Common types: A=1, AAAA=28, CNAME=5, MX=15, TXT=16.</string>
+    <string name="editor_expected_status_label">Expected HTTP status</string>
+    <string name="editor_expected_status_helper">For example 200, 204 or 200 to 299.</string>
+    <string name="editor_body_marker_label">Response body marker</string>
+    <string name="editor_body_marker_helper">Optional text that must appear in the response body.</string>
+    <string name="editor_method_label">Method</string>
+    <string name="editor_expected_rcode_label">Expected RCODE</string>
+    <string name="editor_expected_rcode_helper">0 means NOERROR.</string>
+    <string name="editor_requires_answer_label">Requires an answer</string>
+    <string name="editor_requires_answer_helper">Only available when the expected RCODE is 0.</string>
+    <string name="editor_packet_count_label">Packets</string>
+    <string name="editor_min_replies_label">Minimum replies</string>
+    <string name="editor_ip_family_label">IP family</string>
+    <string name="editor_min_tls_label">Minimum TLS version</string>
+    <string name="editor_transport_label">Transport</string>
+    <string name="editor_tls_validation_title">Certificate and server name validation</string>
+    <string name="editor_tls_validation_body">Always required. This editor cannot disable certificate or hostname verification.</string>
+    <string name="editor_tcp_criteria">A completed TCP handshake matches this check.</string>
+    <string name="editor_group_unavailable">No groups yet. The check will be added to Custom checks.</string>
+    <string name="editor_profile_scope_note">Schedule and notification thresholds are profile settings, not part of this check.</string>
+    <string name="editor_redirect_note">Redirects follow the shared endpoint policy and are not a per-check setting.</string>
+    <string name="editor_actions">Save and test</string>
+    <string name="editor_test">Test request</string>
+    <string name="editor_save">Save check</string>
+    <string name="editor_test_unavailable">Test requests require the network engine, which is not connected in this build.</string>
+    <string name="editor_save_unavailable">Saving requires local profile storage, which is not connected in this build.</string>
+    <string name="editor_demo_note">Demo only: the test uses an in-memory runner and saving stays in the demo session. No network request is sent.</string>
+    <string name="editor_validation_summary">Fix the highlighted fields before saving or testing.</string>
+    <string name="editor_test_running">Running the probe runner…</string>
+    <string name="editor_test_result">Test result: %1$s in %2$s.</string>
+    <string name="editor_test_demo_note">Demo runner: no network request was sent.</string>
+    <string name="editor_test_failed">The test request could not be started.</string>
+    <string name="editor_save_failed">The check could not be saved.</string>
+    <string name="editor_saved">Check saved at revision %1$d.</string>
+    <string name="editor_not_found_title">Check not found</string>
+    <string name="editor_not_found_body">The check you tried to edit is no longer available.</string>
+    <string name="editor_error_required">Required.</string>
+    <string name="editor_error_invalid_host">Enter a hostname or IP address without a scheme or path.</string>
+    <string name="editor_error_invalid_port">Enter a port from 1 to 65535.</string>
+    <string name="editor_error_invalid_url">Enter a complete HTTP(S) URL with a host, without credentials or a fragment.</string>
+    <string name="editor_error_invalid_server_name">Enter a DNS name for TLS. An IP address cannot be used as the server name.</string>
+    <string name="editor_error_invalid_dns_name">Enter a valid DNS name.</string>
+    <string name="editor_error_invalid_record_type">Enter a record type from 1 to 65535.</string>
+    <string name="editor_error_invalid_status">Use 100–599, with the first status not greater than the last.</string>
+    <string name="editor_error_head_body_marker">HEAD requests cannot check a body marker.</string>
+    <string name="editor_error_family_mismatch">The selected IP family does not match the literal address.</string>
+    <string name="editor_error_invalid_rcode">Enter an RCODE from 0 to 4095.</string>
+    <string name="editor_error_answer_not_allowed">A non-zero RCODE cannot require an answer.</string>
+    <string name="editor_error_invalid_timeout">Enter a timeout from 0.1 to 120 seconds.</string>
+    <string name="editor_error_invalid_packet_count">Enter 1 to 10 packets.</string>
+    <string name="editor_error_invalid_min_replies">Replies must be between 1 and the packet count.</string>
 </resources>

@@ -170,22 +170,18 @@ private fun scenarioWith(
     isDemo = true,
 )
 
-private fun groupsFor(items: List<ProbeListItem>): List<GroupUiSummary> = groupOrder.mapNotNull { (id, name) ->
-    val groupItems = items.filter { it.groupId == id }
-    if (groupItems.isEmpty()) {
-        null
-    } else {
+internal fun groupsFor(items: List<ProbeListItem>): List<GroupUiSummary> =
+    items.groupBy { it.groupId }.map { (id, groupItems) ->
         GroupUiSummary(
             id = id,
-            name = name,
+            name = groupItems.first().groupName,
             status = groupStatus(groupItems.map { it.status }),
             availableProbes = groupItems.count { it.status == ProbeStatus.UP },
             totalProbes = groupItems.size,
         )
     }
-}
 
-private fun groupStatus(statuses: List<ProbeStatus>): AggregateStatus = when {
+internal fun groupStatus(statuses: List<ProbeStatus>): AggregateStatus = when {
     statuses.all { it == ProbeStatus.UP } -> AggregateStatus.AVAILABLE
     statuses.all { it == ProbeStatus.UNKNOWN || it == ProbeStatus.PENDING } -> AggregateStatus.UNKNOWN
     statuses.none { it == ProbeStatus.UP } && statuses.any { it == ProbeStatus.DOWN } -> AggregateStatus.UNAVAILABLE
@@ -681,12 +677,6 @@ private val demoSpecs = listOf(
         groupId = "dns",
         groupName = "DNS",
     ),
-)
-
-private val groupOrder = listOf(
-    "global" to "Global services",
-    "regional" to "Regional services",
-    "dns" to "DNS",
 )
 
 private fun config(
