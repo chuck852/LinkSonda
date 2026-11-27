@@ -39,6 +39,7 @@ private fun EditorPreview(probeId: String) {
             status = null,
             onSave = {},
             onTest = {},
+            onDraftChange = {},
         )
     }
 }

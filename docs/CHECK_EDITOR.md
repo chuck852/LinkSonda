@@ -53,7 +53,7 @@ A new check starts at revision 1. Editing a name only keeps the revision and its
 - `onSave` receives a `ProbeDraft` with the domain `ProbeConfig`, group id and group name. The debug harness implements it with an in-memory `ProfileRepository`; production leaves it null until local storage is implemented.
 - `onTest` receives a `ProbeConfig` and is implemented with the `ProbeRunner` contract. The debug harness uses a demo runner that authorizes an attempt through `ProbeAdmission`, returns a domain result and performs no network request. Production leaves it null until the network engine and admission controller are connected.
 
-The production editor therefore shows both actions disabled with the exact reason. No temporary production repository, Room substitute or fake result was added. `LinkSonda` does not request network permissions for the editor, and the demo runner sends no traffic.
+An unsaved draft is retained if Settings opens above the editor and restored when the user returns; leaving the editor with Back discards the draft. The production editor therefore shows both actions disabled with the exact reason. No temporary production repository, Room substitute or fake result was added. `LinkSonda` does not request network permissions for the editor, and the demo runner sends no traffic.
 
 The debug-only `OverviewDemoActivity` saves checks into an in-memory `DemoProfileRepository` and displays the updated list for the current session. Nothing is persisted and release builds exclude these classes.
 

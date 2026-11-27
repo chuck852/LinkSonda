@@ -34,6 +34,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -81,6 +82,7 @@ fun ProbeEditorScreen(
     status: ProbeEditorStatus?,
     onSave: (ProbeDraft) -> Unit,
     onTest: (ProbeConfig) -> Unit,
+    onDraftChange: (ProbeEditorState) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var state by rememberSaveable(
@@ -92,6 +94,7 @@ fun ProbeEditorScreen(
     }
     var showAdvanced by rememberSaveable(initialState.probeId) { mutableStateOf(false) }
     var showValidation by rememberSaveable(initialState.probeId) { mutableStateOf(false) }
+    LaunchedEffect(state) { onDraftChange(state) }
     val validation = state.validate(baseConfig)
     val errors = if (showValidation) validation.errors else emptyMap()
     val advancedErrors = errors.keys.any { it in ADVANCED_FIELDS }

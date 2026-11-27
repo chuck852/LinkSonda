@@ -29,6 +29,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,6 +100,7 @@ fun LinkSondaApp(
         val scope = rememberCoroutineScope()
         var editorBusy by remember { mutableStateOf(false) }
         var editorStatus by remember { mutableStateOf<ProbeEditorStatus?>(null) }
+        var editorDraft by remember { mutableStateOf<ProbeEditorState?>(null) }
         val demoManualMessage = stringResource(R.string.overview_manual_demo)
         val demoActionMessage = stringResource(R.string.action_demo)
         val editorSavedTemplate = stringResource(R.string.editor_saved)
@@ -112,6 +114,11 @@ fun LinkSondaApp(
             } else {
                 null
             }
+        LaunchedEffect(navigation.stack) {
+            if (navigation.stack.none { it is AppRoute.ProbeEditor }) {
+                editorDraft = null
+            }
+        }
         val probeActions = ProbeActions(
             onRetry = if (overviewState.isDemo) {
                 {
@@ -122,11 +129,13 @@ fun LinkSondaApp(
             },
             onEdit = { key ->
                 editorStatus = null
+                editorDraft = null
                 navigation = navigation.openProbeEditor(key.id.value)
             },
         )
         val openNewEditor: () -> Unit = {
             editorStatus = null
+            editorDraft = null
             navigation = navigation.openProbeEditor()
         }
         val onEditorSave: (ProbeDraft) -> Unit = save@{ draft ->
@@ -145,6 +154,7 @@ fun LinkSondaApp(
                 if (saved == null) {
                     editorStatus = ProbeEditorStatus.SaveFailed
                 } else {
+                    editorDraft = null
                     navigation = navigation.back() ?: navigation
                     snackbarHostState.showSnackbar(
                         String.format(Locale.US, editorSavedTemplate, saved.revision.value),
@@ -264,7 +274,7 @@ fun LinkSondaApp(
                             val newProbeId = remember(route.probeId, route.initialProtocol) {
                                 "probe-${UUID.randomUUID()}"
                             }
-                            val initialState = remember(
+                            val builtState = remember(
                                 route.probeId,
                                 route.initialProtocol,
                                 item?.key,
@@ -284,7 +294,7 @@ fun LinkSondaApp(
                                 }
                             }
                             ProbeEditorScreen(
-                                initialState = initialState,
+                                initialState = editorDraft ?: builtState,
                                 baseConfig = item?.config,
                                 isDemo = overviewState.isDemo,
                                 isBusy = editorBusy,
@@ -293,6 +303,7 @@ fun LinkSondaApp(
                                 status = editorStatus,
                                 onSave = onEditorSave,
                                 onTest = onEditorTest,
+                                onDraftChange = { editorDraft = it },
                             )
                         }
                     }
