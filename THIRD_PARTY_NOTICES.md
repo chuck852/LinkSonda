@@ -6,6 +6,7 @@ The project license applies to LinkSonda's original work. Third-party components
 | --- | --- | --- |
 | Gradle Wrapper 9.6.1 | Wrapper scripts and JAR in the source tree | Apache-2.0. Script headers and the JAR's `META-INF/LICENSE` are preserved. [Bundled license](third_party/gradle-wrapper-LICENSE.txt) · [Gradle source](https://github.com/gradle/gradle/tree/v9.6.1/platforms/core-runtime/wrapper-main) |
 | AndroidX, including Compose, Room, DataStore and the native graphics-path library | APK runtime | Apache-2.0. [Upstream license as included in published artifacts](third_party/androidx-LICENSE.txt) · [AndroidX source](https://android.googlesource.com/platform/frameworks/support/) |
+| OkHttp 5.5.1, including okhttp-android, and Okio 3.18.1 | APK runtime | Apache-2.0. [OkHttp license](https://github.com/square/okhttp/blob/parent-5.5.1/LICENSE.txt) · [Okio license](https://github.com/square/okio/blob/parent-3.18.1/LICENSE.txt) |
 | Material Icons Core 1.7.8 | APK runtime | Apache-2.0. [AndroidX source](https://android.googlesource.com/platform/frameworks/support/+/refs/heads/androidx-main/compose/material/material-icons-core/) |
 | Kotlin standard library 2.4.21 | APK runtime | Apache-2.0. [Kotlin license](https://github.com/JetBrains/kotlin/blob/v2.4.21/license/LICENSE.txt) |
 | Kotlin coroutines 1.9.0 and kotlinx.serialization 1.9.0 | APK runtime | Apache-2.0. [Coroutines](https://github.com/Kotlin/kotlinx.coroutines/blob/1.9.0/LICENSE.txt) · [Serialization](https://github.com/Kotlin/kotlinx.serialization/blob/v1.9.0/LICENSE.txt) |
