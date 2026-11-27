@@ -334,8 +334,8 @@
     <string name="settings_monitoring_unavailable">The monitoring engine is not connected in this build. No background checks run yet.</string>
     <string name="settings_notifications_title">Notifications</string>
     <string name="settings_notifications_switch">Incident notifications</string>
-    <string name="settings_notifications_body">Android permission is requested only when you turn this on. Manual checks work without notifications.</string>
-    <string name="settings_notifications_denied">Notification permission was denied. Manual checks still work. You can allow notifications in system settings.</string>
+    <string name="settings_notifications_body">Android permission is requested only when you turn this on. Other app features do not depend on it.</string>
+    <string name="settings_notifications_denied">Notification permission was denied. You can allow notifications in system settings; other app features continue to work.</string>
     <string name="settings_notifications_open_settings">Open notification settings</string>
 
     <string name="settings_history_title">History</string>
@@ -347,17 +347,17 @@
     <string name="settings_history_storage_unavailable">History storage is not connected in this build. Retention will apply when it is.</string>
 
     <string name="settings_local_data_title">Local data</string>
-    <string name="settings_local_data_body">Settings and history stay on this device. LinkSonda has no account, no cloud backend and does not request location access.</string>
+    <string name="settings_local_data_body">Settings and history are designed to stay on this device. LinkSonda has no account, no cloud backend and does not request location access.</string>
     <string name="settings_version">Version %1$s</string>
 
     <string name="first_run_title">Welcome to LinkSonda</string>
     <string name="first_run_local_title">Monitoring stays on this device</string>
-    <string name="first_run_local_body">Checks run from this device and their results stay in local storage. LinkSonda has no account, no cloud backend and does not request location access.</string>
+    <string name="first_run_local_body">Checks run from this device. LinkSonda is designed for local monitoring: no account, no cloud backend and no location access.</string>
     <string name="first_run_profile_title">Monitoring profile</string>
     <string name="first_run_profile_manual">Manual checks</string>
-    <string name="first_run_profile_manual_body">Continue without background monitoring. You can add checks and choose a profile later.</string>
-    <string name="first_run_profile_available_body">Use this profile for monitoring.</string>
-    <string name="first_run_profiles_empty">No monitoring profiles are available yet. Continue with manual checks and add a profile later.</string>
+    <string name="first_run_profile_manual_body">Start without background monitoring. Profile selection will be available when profiles are connected.</string>
+    <string name="first_run_profile_available_body">Use this profile when monitoring is connected.</string>
+    <string name="first_run_profiles_empty">No monitoring profiles are available yet. Continue with manual checks; profiles will appear when they are connected.</string>
     <string name="first_run_notifications_note">Android notification permission is requested only when you enable notifications in Settings.</string>
     <string name="first_run_privacy_note">No account. No location access.</string>
     <string name="first_run_continue">Continue</string>

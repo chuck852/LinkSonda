@@ -17,6 +17,7 @@ class AppSettingsTest {
         assertEquals(ThemeBrightness.SYSTEM, settings.themeBrightness)
         assertEquals(false, settings.monitoringEnabled)
         assertEquals(false, settings.notificationsEnabled)
+        assertEquals(false, settings.notificationsPermissionRequested)
         assertEquals(30, settings.historyRetentionDays)
         assertNull(settings.selectedProfileId)
         assertEquals(false, settings.onboardingCompleted)

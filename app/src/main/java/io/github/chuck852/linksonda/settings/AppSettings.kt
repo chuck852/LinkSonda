@@ -22,6 +22,7 @@ data class AppSettings(
     val themeBrightness: ThemeBrightness = ThemeBrightness.SYSTEM,
     val monitoringEnabled: Boolean = false,
     val notificationsEnabled: Boolean = false,
+    val notificationsPermissionRequested: Boolean = false,
     val historyRetentionDays: Int = DEFAULT_HISTORY_RETENTION_DAYS,
     val selectedProfileId: String? = null,
     val onboardingCompleted: Boolean = false,

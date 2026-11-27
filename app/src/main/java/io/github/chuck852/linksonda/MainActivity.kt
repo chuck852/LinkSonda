@@ -8,9 +8,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import io.github.chuck852.linksonda.settings.AppLanguage
 import io.github.chuck852.linksonda.settings.PersistentSettingsStore
 import io.github.chuck852.linksonda.settings.SettingsStore
 import io.github.chuck852.linksonda.settings.SharedPreferencesSettingsStorage
+import io.github.chuck852.linksonda.settings.applySystemAppLanguage
 import io.github.chuck852.linksonda.settings.withAppLanguage
 import io.github.chuck852.linksonda.ui.LinkSondaApp
 import kotlinx.coroutines.launch
@@ -25,6 +27,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val storedLanguage = settingsStore.current().language
+        if (storedLanguage != AppLanguage.SYSTEM) {
+            // SYSTEM is left to the platform picker; an explicit choice is restored here.
+            applySystemAppLanguage(storedLanguage)
+        }
         enableEdgeToEdge()
         setContent {
             val settings by settingsStore.settings.collectAsState()
@@ -34,8 +41,11 @@ class MainActivity : ComponentActivity() {
                 onSettingsChange = { updated ->
                     scope.launch {
                         val languageChanged = updated.language != settings.language
-                        settingsStore.save(updated)
-                        if (languageChanged) recreate()
+                        val saved = settingsStore.save(updated)
+                        if (saved && languageChanged) {
+                            applySystemAppLanguage(updated.language)
+                            recreate()
+                        }
                     }
                 },
             )

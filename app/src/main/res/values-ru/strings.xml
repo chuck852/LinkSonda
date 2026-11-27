@@ -322,7 +322,7 @@
     <string name="settings_theme_mode_accents_body">Нейтральные поверхности с акцентами цвета статуса.</string>
     <string name="settings_theme_mode_static">Статичный зелёный</string>
     <string name="settings_theme_mode_static_body">Зелёная схема используется независимо от статуса.</string>
-    <string name="settings_brightness_title">Яркость</string>
+    <string name="settings_brightness_title">Тема</string>
     <string name="settings_brightness_system">Как в системе</string>
     <string name="settings_brightness_light">Светлая</string>
     <string name="settings_brightness_dark">Тёмная</string>
@@ -340,8 +340,8 @@
     <string name="settings_monitoring_unavailable">Движок мониторинга не подключён в этой сборке. Фоновые проверки пока не выполняются.</string>
     <string name="settings_notifications_title">Уведомления</string>
     <string name="settings_notifications_switch">Уведомления об инцидентах</string>
-    <string name="settings_notifications_body">Разрешение Android запрашивается только при включении. Ручные проверки работают без уведомлений.</string>
-    <string name="settings_notifications_denied">В разрешении на уведомления отказано. Ручные проверки по-прежнему работают. Разрешить уведомления можно в системных настройках.</string>
+    <string name="settings_notifications_body">Разрешение Android запрашивается только при включении. Остальные функции приложения от него не зависят.</string>
+    <string name="settings_notifications_denied">В разрешении на уведомления отказано. Разрешить их можно в системных настройках; остальные функции приложения продолжат работать.</string>
     <string name="settings_notifications_open_settings">Открыть настройки уведомлений</string>
 
     <string name="settings_history_title">История</string>
@@ -355,17 +355,17 @@
     <string name="settings_history_storage_unavailable">Хранилище истории не подключено в этой сборке. Срок хранения начнёт действовать после подключения.</string>
 
     <string name="settings_local_data_title">Локальные данные</string>
-    <string name="settings_local_data_body">Настройки и история остаются на этом устройстве. У LinkSonda нет аккаунта и облачного сервера, и приложение не запрашивает доступ к местоположению.</string>
+    <string name="settings_local_data_body">Настройки и история рассчитаны на локальное хранение. У LinkSonda нет аккаунта и облачного сервера, и приложение не запрашивает доступ к местоположению.</string>
     <string name="settings_version">Версия %1$s</string>
 
     <string name="first_run_title">Добро пожаловать в LinkSonda</string>
     <string name="first_run_local_title">Мониторинг остаётся на этом устройстве</string>
-    <string name="first_run_local_body">Проверки выполняются с этого устройства, а их результаты остаются в локальном хранилище. У LinkSonda нет аккаунта и облачного сервера, и приложение не запрашивает доступ к местоположению.</string>
+    <string name="first_run_local_body">Проверки выполняются с этого устройства. LinkSonda рассчитана на локальный мониторинг: без аккаунта, облачного сервера и доступа к местоположению.</string>
     <string name="first_run_profile_title">Профиль мониторинга</string>
     <string name="first_run_profile_manual">Ручные проверки</string>
-    <string name="first_run_profile_manual_body">Продолжить без фонового мониторинга. Проверки можно добавить и выбрать профиль позже.</string>
-    <string name="first_run_profile_available_body">Использовать этот профиль для мониторинга.</string>
-    <string name="first_run_profiles_empty">Профили мониторинга пока недоступны. Продолжите с ручными проверками и добавьте профиль позже.</string>
+    <string name="first_run_profile_manual_body">Начать без фонового мониторинга. Выбор профиля появится после подключения профилей.</string>
+    <string name="first_run_profile_available_body">Использовать этот профиль после подключения мониторинга.</string>
+    <string name="first_run_profiles_empty">Профили мониторинга пока недоступны. Продолжите с ручными проверками; профили появятся после подключения.</string>
     <string name="first_run_notifications_note">Разрешение Android на уведомления запрашивается только при включении уведомлений в настройках.</string>
     <string name="first_run_privacy_note">Без аккаунта. Без доступа к местоположению.</string>
     <string name="first_run_continue">Продолжить</string>

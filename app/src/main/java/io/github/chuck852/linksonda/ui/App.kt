@@ -92,7 +92,7 @@ fun LinkSondaApp(
     overviewState: OverviewUiState = OverviewUiState.Empty,
     initialNavigation: AppNavigationState = AppNavigationState(),
     editorActions: ProbeEditorActions = ProbeEditorActions(),
-    settings: AppSettings = AppSettings.Default.copy(onboardingCompleted = true),
+    settings: AppSettings = AppSettings.Default,
     onSettingsChange: (AppSettings) -> Unit = {},
     firstRunProfiles: List<FirstRunProfile> = emptyList(),
 ) {

@@ -16,6 +16,7 @@ class SettingsStoreTest {
             themeBrightness = ThemeBrightness.DARK,
             monitoringEnabled = true,
             notificationsEnabled = true,
+            notificationsPermissionRequested = true,
             historyRetentionDays = 90,
             selectedProfileId = "profile-1",
             onboardingCompleted = true,
@@ -33,6 +34,7 @@ class SettingsStoreTest {
                 SettingsCodec.KEY_THEME_BRIGHTNESS to "",
                 SettingsCodec.KEY_MONITORING_ENABLED to "yes",
                 SettingsCodec.KEY_NOTIFICATIONS_ENABLED to "1",
+                SettingsCodec.KEY_NOTIFICATIONS_PERMISSION_REQUESTED to "sometimes",
                 SettingsCodec.KEY_HISTORY_RETENTION_DAYS to "31",
                 SettingsCodec.KEY_ONBOARDING_COMPLETED to "done",
                 SettingsCodec.KEY_SELECTED_PROFILE_ID to "  ",
@@ -64,7 +66,7 @@ class SettingsStoreTest {
             historyRetentionDays = 365,
             selectedProfileId = "profile-2",
         )
-        store.save(updated)
+        assertEquals(true, store.save(updated))
 
         assertEquals(updated, store.settings.value)
         assertEquals(updated, SettingsCodec.decode(storage.values))
@@ -76,10 +78,13 @@ class SettingsStoreTest {
         val storage = FakeStorage(emptyMap())
         val store = PersistentSettingsStore(storage)
 
-        store.save(
-            AppSettings.Default.copy(
-                onboardingCompleted = true,
-                selectedProfileId = null,
+        assertEquals(
+            true,
+            store.save(
+                AppSettings.Default.copy(
+                    onboardingCompleted = true,
+                    selectedProfileId = null,
+                ),
             ),
         )
 
@@ -87,14 +92,29 @@ class SettingsStoreTest {
         assertEquals(true, SettingsCodec.decode(storage.values).onboardingCompleted)
     }
 
-    private class FakeStorage(initial: Map<String, String?>) : SettingsStorage {
+    @Test
+    fun failedWriteDoesNotAdvanceInMemoryState() = runBlocking {
+        val storage = FakeStorage(emptyMap(), writeResult = false)
+        val store = PersistentSettingsStore(storage)
+        val changed = AppSettings.Default.copy(onboardingCompleted = true)
+
+        assertEquals(false, store.save(changed))
+        assertEquals(AppSettings.Default, store.current())
+        assertEquals(emptyMap<String, String?>(), storage.values)
+    }
+
+    private class FakeStorage(
+        initial: Map<String, String?>,
+        private val writeResult: Boolean = true,
+    ) : SettingsStorage {
         var values: Map<String, String?> = initial
             private set
 
         override fun read(): Map<String, String?> = values
 
-        override fun write(values: Map<String, String>) {
-            this.values = values
+        override fun write(values: Map<String, String>): Boolean {
+            if (writeResult) this.values = values
+            return writeResult
         }
     }
 }

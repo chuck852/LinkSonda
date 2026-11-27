@@ -163,7 +163,11 @@ private fun scenarioWith(
     lastUpdatedSecondsAgo = secondsAgo,
     monitoring = monitoring,
     network = network.copy(validation = networkValidation),
-    activeProfile = ProfileUiSummary(name = "Default profile", intervalSeconds = 60),
+    activeProfile = ProfileUiSummary(
+        id = "demo-profile",
+        name = "Default profile",
+        intervalSeconds = 60,
+    ),
     groups = groupsFor(items),
     probes = items,
     manualCheck = manualCheck,

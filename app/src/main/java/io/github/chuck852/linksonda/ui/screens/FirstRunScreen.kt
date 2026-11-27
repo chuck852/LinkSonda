@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,7 +56,8 @@ fun FirstRunScreen(
     modifier: Modifier = Modifier,
 ) {
     var savedProfileId by rememberSaveable { mutableStateOf<String?>(null) }
-    var submitted by rememberSaveable { mutableStateOf(false) }
+    // Do not restore this flag across recreation: an interrupted save must leave Continue usable.
+    var submitted by remember { mutableStateOf(false) }
 
     // A restored id may no longer be offered; the visible selection stays the source of truth.
     val availableProfileIds = profiles.mapTo(HashSet()) { it.id }

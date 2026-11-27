@@ -1,6 +1,7 @@
 package io.github.chuck852.linksonda.ui.screens
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -31,23 +32,31 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.chuck852.linksonda.BuildConfig
 import io.github.chuck852.linksonda.R
 import io.github.chuck852.linksonda.settings.AppLanguage
 import io.github.chuck852.linksonda.settings.AppSettings
+import io.github.chuck852.linksonda.settings.notificationPermissionUiState
 import io.github.chuck852.linksonda.ui.components.SectionHeader
 import io.github.chuck852.linksonda.ui.theme.LinkSondaSpacing
 import io.github.chuck852.linksonda.ui.theme.ThemeBrightness
@@ -175,25 +184,48 @@ private fun MonitoringSection(
     }
 }
 
+@SuppressLint("InlinedApi") // POST_NOTIFICATIONS is only requested after the API 33 check.
 @Composable
 private fun NotificationsSection(
     settings: AppSettings,
     onSettingsChange: (AppSettings) -> Unit,
 ) {
     val context = LocalContext.current
-    var permissionDenied by rememberSaveable { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var permissionGranted by remember { mutableStateOf(hasNotificationPermission(context)) }
     val latestSettings by rememberUpdatedState(settings)
     val latestOnSettingsChange by rememberUpdatedState(onSettingsChange)
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val granted = hasNotificationPermission(context)
+                permissionGranted = granted
+                if (!granted && latestSettings.notificationsEnabled) {
+                    // Android may revoke the permission while the preference is still on.
+                    latestOnSettingsChange(
+                        latestSettings.copy(
+                            notificationsEnabled = false,
+                            notificationsPermissionRequested = true,
+                        ),
+                    )
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) {
-            permissionDenied = false
-            latestOnSettingsChange(latestSettings.copy(notificationsEnabled = true))
-        } else {
-            permissionDenied = true
-        }
+        permissionGranted = granted
+        latestOnSettingsChange(
+            latestSettings.copy(
+                notificationsEnabled = granted,
+                notificationsPermissionRequested = true,
+            ),
+        )
     }
 
     val openNotificationSettings: () -> Unit = {
@@ -202,31 +234,37 @@ private fun NotificationsSection(
         context.startActivity(intent)
     }
 
+    val permissionUi = notificationPermissionUiState(
+        granted = permissionGranted,
+        requested = settings.notificationsPermissionRequested,
+        preferenceEnabled = settings.notificationsEnabled,
+    )
+
     SettingsCard {
         SectionHeader(stringResource(R.string.settings_notifications_title))
         SettingsSwitchRow(
             title = stringResource(R.string.settings_notifications_switch),
             supportingText = stringResource(R.string.settings_notifications_body),
-            checked = settings.notificationsEnabled,
+            checked = permissionUi.effectiveEnabled,
             onCheckedChange = { enabled ->
                 when {
-                    !enabled -> {
-                        permissionDenied = false
-                        onSettingsChange(settings.copy(notificationsEnabled = false))
-                    }
+                    !enabled -> onSettingsChange(settings.copy(notificationsEnabled = false))
 
-                    hasNotificationPermission(context) -> {
-                        permissionDenied = false
-                        onSettingsChange(settings.copy(notificationsEnabled = true))
-                    }
+                    permissionGranted -> onSettingsChange(
+                        settings.copy(
+                            notificationsEnabled = true,
+                            notificationsPermissionRequested = true,
+                        ),
+                    )
 
                     else -> permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             },
         )
-        if (permissionDenied && !settings.notificationsEnabled) {
+        if (permissionUi.showRationale) {
             Text(
                 text = stringResource(R.string.settings_notifications_denied),
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -391,6 +429,7 @@ private fun SettingsSwitchRow(
 private fun SettingsSubheading(text: String) {
     Text(
         text = text,
+        modifier = Modifier.semantics { heading() },
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurface,
     )
