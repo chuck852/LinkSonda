@@ -26,7 +26,7 @@ The overview shows:
 - clickable groups with an aggregate badge and an availability bar;
 - a manual-check card.
 
-The production state is `OverviewUiState.Empty`: UNKNOWN availability, no result, no active network or profile, no groups and a disabled manual check with an explanation. The screen never invents a result. Demo states exist only in the debug source set.
+The production state is `OverviewUiState.Empty`: UNKNOWN availability, no result, network context unknown, no profile, no groups and a disabled manual check with an explanation. The screen never invents a result. Demo states exist only in the debug source set.
 
 ## Checks, presets, history and settings
 

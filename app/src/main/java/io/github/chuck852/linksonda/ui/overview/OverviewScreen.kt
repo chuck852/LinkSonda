@@ -325,6 +325,9 @@ private fun freshnessText(state: OverviewUiState): String {
 
 @Composable
 private fun networkText(network: NetworkUiSummary): String {
+    if (!network.contextKnown) {
+        return stringResource(R.string.overview_network_unknown)
+    }
     if (network.transports.isEmpty()) {
         return stringResource(R.string.overview_network_none)
     }

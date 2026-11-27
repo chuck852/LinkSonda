@@ -16,6 +16,7 @@ class OverviewUiStateTest {
         assertEquals(OverviewFreshness.MISSING, state.freshness)
         assertEquals(OverviewMonitoring.NOT_CONFIGURED, state.monitoring)
         assertEquals(ManualCheckState.UNAVAILABLE, state.manualCheck)
+        assertFalse(state.network.contextKnown)
         assertTrue(state.groups.isEmpty())
         assertTrue(state.probes.isEmpty())
         assertFalse(state.isDemo)

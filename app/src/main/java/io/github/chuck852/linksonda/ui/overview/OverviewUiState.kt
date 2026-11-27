@@ -26,6 +26,8 @@ sealed interface ProbeDetail {
 }
 
 data class NetworkUiSummary(
+    /** False until a real network snapshot has been measured. */
+    val contextKnown: Boolean = false,
     val transports: Set<NetworkTransport> = emptySet(),
     val validation: NetworkValidation = NetworkValidation.UNKNOWN,
 )

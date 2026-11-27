@@ -43,6 +43,7 @@ private fun unknownScenario(): OverviewUiState {
         freshness = OverviewFreshness.MISSING,
         monitoring = OverviewMonitoring.NOT_CONFIGURED,
         network = NetworkUiSummary(
+            contextKnown = true,
             transports = setOf(NetworkTransport.WIFI),
             validation = NetworkValidation.UNKNOWN,
         ),
@@ -68,6 +69,7 @@ private fun runningScenario(): OverviewUiState {
         secondsAgo = 4,
         monitoring = OverviewMonitoring.RUNNING,
         network = NetworkUiSummary(
+            contextKnown = true,
             transports = setOf(NetworkTransport.WIFI),
             validation = NetworkValidation.VALIDATED,
         ),
@@ -95,6 +97,7 @@ private fun partialScenario(): OverviewUiState {
         secondsAgo = 12,
         monitoring = OverviewMonitoring.RUNNING,
         network = NetworkUiSummary(
+            contextKnown = true,
             transports = setOf(NetworkTransport.CELLULAR, NetworkTransport.VPN),
             validation = NetworkValidation.VALIDATED,
         ),
@@ -121,6 +124,7 @@ private fun downScenario(): OverviewUiState {
         secondsAgo = 8,
         monitoring = OverviewMonitoring.RUNNING,
         network = NetworkUiSummary(
+            contextKnown = true,
             transports = setOf(NetworkTransport.WIFI),
             validation = NetworkValidation.UNVALIDATED,
         ),
@@ -148,6 +152,7 @@ private fun upScenario(): OverviewUiState {
         secondsAgo = 6,
         monitoring = OverviewMonitoring.RUNNING,
         network = NetworkUiSummary(
+            contextKnown = true,
             transports = setOf(NetworkTransport.ETHERNET),
             validation = NetworkValidation.VALIDATED,
         ),

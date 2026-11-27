@@ -33,6 +33,7 @@
     <string name="overview_monitoring_paused">Paused</string>
     <string name="overview_network_label">Network</string>
     <string name="overview_network_none">No active network</string>
+    <string name="overview_network_unknown">Network context unknown</string>
     <string name="network_validation_validated">Validated</string>
     <string name="network_validation_captive_portal">Captive portal</string>
     <string name="network_validation_unvalidated">Not validated</string>
