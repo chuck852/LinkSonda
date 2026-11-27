@@ -369,7 +369,7 @@ internal class Updater(
         }
         val stored = settingsStore.update { current ->
             current.copy(
-                updateEtag = etag ?: current.updateEtag,
+                updateEtag = etag,
                 lastUpdateCheckAt = checkedAt,
                 lastUpdateStatus = status,
                 lastUpdateRetryAt = retryAt,

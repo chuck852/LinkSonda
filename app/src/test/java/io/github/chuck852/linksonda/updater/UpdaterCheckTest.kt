@@ -73,6 +73,7 @@ class UpdaterCheckTest {
     fun metadataFetchFailureDoesNotPoisonTheReleaseEtag() = runBlocking {
         val storage = MemoryStorage()
         val settings = PersistentSettingsStore(storage)
+        settings.update { it.copy(updateEtag = "\"old-etag\"") }
         val http = MetadataFailureHttp(release(versionCode = 12, versionName = "0.4.2", tag = "v0.4.2"))
         val updater = updater(settings, http)
 
