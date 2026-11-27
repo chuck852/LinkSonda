@@ -379,41 +379,41 @@ private fun ProbeRow(
 
 @Composable
 private fun ProbeDetailLine(probe: ProbeListItem) {
+    val completed = probe.lastCompleted
     val skipped = probe.lastSkipped
+    if (completed != null) {
+        when (val outcome = completed.outcome) {
+            ProbeOutcome.Matched -> DetailText(
+                text = stringResource(R.string.result_elapsed, completed.timing.elapsed.display()),
+                icon = null,
+                monospace = true,
+            )
+
+            is ProbeOutcome.Failed -> DetailText(
+                text = stringResource(R.string.result_failed, stringResource(outcome.reason.label())),
+                icon = Icons.Rounded.Warning,
+                error = true,
+            )
+
+            is ProbeOutcome.Inconclusive -> DetailText(
+                text = stringResource(R.string.result_inconclusive, stringResource(outcome.reason.label())),
+                icon = Icons.Rounded.Warning,
+            )
+
+            is ProbeOutcome.Restricted -> DetailText(
+                text = stringResource(R.string.result_restricted, stringResource(outcome.reason.label())),
+                icon = Icons.Rounded.Warning,
+            )
+        }
+    }
     if (skipped != null) {
         DetailText(
             text = stringResource(R.string.result_skipped, stringResource(skipped.reason.label())),
             icon = Icons.Rounded.Info,
         )
-        return
     }
-    val completed = probe.lastCompleted
-    if (completed == null) {
+    if (completed == null && skipped == null) {
         DetailText(text = stringResource(R.string.result_no_result), icon = Icons.Rounded.Info)
-        return
-    }
-    when (val outcome = completed.outcome) {
-        ProbeOutcome.Matched -> DetailText(
-            text = stringResource(R.string.result_elapsed, completed.timing.elapsed.display()),
-            icon = null,
-            monospace = true,
-        )
-
-        is ProbeOutcome.Failed -> DetailText(
-            text = stringResource(R.string.result_failed, stringResource(outcome.reason.label())),
-            icon = Icons.Rounded.Warning,
-            error = true,
-        )
-
-        is ProbeOutcome.Inconclusive -> DetailText(
-            text = stringResource(R.string.result_inconclusive, stringResource(outcome.reason.label())),
-            icon = Icons.Rounded.Warning,
-        )
-
-        is ProbeOutcome.Restricted -> DetailText(
-            text = stringResource(R.string.result_restricted, stringResource(outcome.reason.label())),
-            icon = Icons.Rounded.Warning,
-        )
     }
 }
 

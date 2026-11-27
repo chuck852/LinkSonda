@@ -30,15 +30,6 @@ fun FreshnessBadge(freshness: ProbeFreshness, modifier: Modifier = Modifier) {
 
 @Composable
 fun OutcomeBadge(item: ProbeListItem, modifier: Modifier = Modifier) {
-    if (item.lastSkipped != null) {
-        StatusBadge(
-            label = stringResource(R.string.outcome_skipped),
-            tone = StatusTone.NEUTRAL,
-            icon = Icons.Rounded.Info,
-            modifier = modifier,
-        )
-        return
-    }
     when (item.lastCompleted?.outcome) {
         is ProbeOutcome.Inconclusive -> StatusBadge(
             label = stringResource(R.string.outcome_inconclusive),
@@ -55,5 +46,13 @@ fun OutcomeBadge(item: ProbeListItem, modifier: Modifier = Modifier) {
         )
 
         else -> Unit
+    }
+    if (item.lastSkipped != null) {
+        StatusBadge(
+            label = stringResource(R.string.outcome_skipped),
+            tone = StatusTone.NEUTRAL,
+            icon = Icons.Rounded.Info,
+            modifier = modifier,
+        )
     }
 }

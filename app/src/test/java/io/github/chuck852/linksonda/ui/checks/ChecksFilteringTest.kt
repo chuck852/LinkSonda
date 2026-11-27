@@ -98,6 +98,12 @@ class ChecksFilteringTest {
     }
 
     @Test
+    fun routeGroupInitializesOnlyTheGroupFilter() {
+        assertEquals(ChecksFilterState(groupId = "regional"), initialChecksFilters("regional"))
+        assertEquals(ChecksFilterState(), initialChecksFilters(null))
+    }
+
+    @Test
     fun saverRestoresQueryAndFilters() {
         val state = ChecksFilterState(
             query = "regional",

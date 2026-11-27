@@ -314,7 +314,17 @@ private fun ResultCard(item: ProbeListItem) {
             verticalArrangement = Arrangement.spacedBy(LinkSondaSpacing.medium),
         ) {
             SectionHeader(stringResource(R.string.probe_details_result))
+            val completed = item.lastCompleted
             val skipped = item.lastSkipped
+            if (completed != null) {
+                OutcomeText(completed)
+                DetailValue(R.string.result_recorded_label, completed.recordedAt.display())
+                DetailValue(R.string.result_elapsed_label, completed.timing.elapsed.display(), monospace = true)
+                val restricted = completed.outcome as? ProbeOutcome.Restricted
+                restricted?.retryAt?.let {
+                    DetailValue(R.string.result_retry_label, it.display())
+                }
+            }
             if (skipped != null) {
                 Text(
                     text = stringResource(R.string.result_skipped, stringResource(skipped.reason.label())),
@@ -324,22 +334,12 @@ private fun ResultCard(item: ProbeListItem) {
                 skipped.nextAllowedAt?.let {
                     DetailValue(R.string.result_next_allowed_label, it.display())
                 }
-                return@Column
             }
-            val completed = item.lastCompleted
-            if (completed == null) {
+            if (completed == null && skipped == null) {
                 Text(
                     text = stringResource(R.string.result_no_result),
                     style = MaterialTheme.typography.titleMedium,
                 )
-                return@Column
-            }
-            OutcomeText(completed)
-            DetailValue(R.string.result_recorded_label, completed.recordedAt.display())
-            DetailValue(R.string.result_elapsed_label, completed.timing.elapsed.display(), monospace = true)
-            val restricted = completed.outcome as? ProbeOutcome.Restricted
-            restricted?.retryAt?.let {
-                DetailValue(R.string.result_retry_label, it.display())
             }
         }
     }

@@ -117,6 +117,7 @@ private fun mixedScenario(): OverviewUiState {
             "tcp-global" -> upState(spec.config)
             "tls-global" -> staleState(spec.config)
             "https-backup" -> unknownState(spec.config)
+            "https-retained" -> retainedState(spec.config)
             "http-regional" -> downState(spec.config)
             "icmp-regional" -> upState(spec.config)
             "system-dns" -> upState(spec.config)
@@ -270,6 +271,26 @@ private fun downState(config: ProbeConfig): ProbeState {
         lastCompleted = completed,
     )
 }
+
+private fun retainedState(config: ProbeConfig): ProbeState = ProbeState(
+    context = context(config),
+    status = ProbeStatus.UP,
+    lifecycle = ProbeLifecycle.IDLE,
+    freshness = ProbeFreshness.STALE,
+    lastCompleted = completed(
+        config = config,
+        recordedAt = DEMO_TIME.minusSeconds(300),
+        timing = matchedTiming(config.request),
+        outcome = ProbeOutcome.Matched,
+        observations = observationsFor(config.request),
+    ),
+    lastSkipped = ProbeResult.Skipped(
+        context = context(config),
+        recordedAt = DEMO_TIME,
+        reason = SkipReason.BUDGET,
+        nextAllowedAt = DEMO_TIME.plusSeconds(60),
+    ),
+)
 
 private fun skippedState(config: ProbeConfig): ProbeState = ProbeState(
     context = context(config),
@@ -539,6 +560,21 @@ private val demoSpecs = listOf(
                 expected = HttpExpectation(200..299),
             ),
             timeout = 5.seconds,
+        ),
+        groupId = "global",
+        groupName = "Global services",
+    ),
+    DemoSpec(
+        config = config(
+            id = "https-retained",
+            name = "Retained HTTPS",
+            request = ProbeRequest.Http(
+                url = URI("https://example.net/"),
+                method = HttpMethod.HEAD,
+                expected = HttpExpectation(200..399),
+            ),
+            timeout = 5.seconds,
+            revision = 3,
         ),
         groupId = "global",
         groupName = "Global services",

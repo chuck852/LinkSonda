@@ -49,6 +49,7 @@ import io.github.chuck852.linksonda.R
 import io.github.chuck852.linksonda.ui.checks.ChecksFilterState
 import io.github.chuck852.linksonda.ui.checks.ChecksFilterStateSaver
 import io.github.chuck852.linksonda.ui.checks.ProbeActions
+import io.github.chuck852.linksonda.ui.checks.initialChecksFilters
 import io.github.chuck852.linksonda.ui.navigation.AppNavigationState
 import io.github.chuck852.linksonda.ui.navigation.AppNavigationStateSaver
 import io.github.chuck852.linksonda.ui.navigation.AppRoute
@@ -77,7 +78,7 @@ fun LinkSondaApp(
             mutableStateOf(initialNavigation)
         }
         var checksFilters by rememberSaveable(stateSaver = ChecksFilterStateSaver) {
-            mutableStateOf(ChecksFilterState())
+            mutableStateOf(initialChecksFilters(initialNavigation.checksFilter?.groupId))
         }
         val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()

@@ -57,6 +57,7 @@ class DemoOverviewTest {
         assertEquals(setOf(ProbeStatus.UP, ProbeStatus.PENDING, ProbeStatus.DOWN, ProbeStatus.UNKNOWN), state.probes.map { it.status }.toSet())
         assertTrue(state.probes.any { it.freshness == ProbeFreshness.STALE })
         assertTrue(state.probes.any { it.lastSkipped != null })
+        assertTrue(state.probes.any { it.lastCompleted != null && it.lastSkipped != null })
         assertTrue(state.probes.any { it.lastCompleted?.outcome is ProbeOutcome.Inconclusive })
         assertTrue(state.probes.any { it.lastCompleted?.outcome is ProbeOutcome.Restricted })
         assertTrue(

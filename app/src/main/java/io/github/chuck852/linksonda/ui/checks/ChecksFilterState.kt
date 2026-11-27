@@ -18,6 +18,9 @@ data class ChecksFilterState(
             status != ChecksStatusFilter.ALL || protocol != null
 }
 
+fun initialChecksFilters(groupId: String?): ChecksFilterState =
+    groupId?.let { ChecksFilterState(groupId = it) } ?: ChecksFilterState()
+
 fun List<ProbeListItem>.applyFilters(filters: ChecksFilterState): List<ProbeListItem> {
     val query = filters.query.trim()
     return filter { item ->
