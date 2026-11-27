@@ -37,15 +37,20 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLException
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Call
+import okhttp3.Connection
 import okhttp3.Dns
 import okhttp3.EventListener
 import okhttp3.Handshake
@@ -57,14 +62,17 @@ import okhttp3.Response
 /**
  * HTTP and HTTPS checks with manual redirects.
  *
- * Each HTTP hop is authorized as one outbound attempt. Redirect targets are separately
- * authorized. DNS is performed by OkHttp inside that attempt, so there is no separate DNS grant.
+ * Each HTTP hop is authorized as one request attempt. DNS lookups and every resolved-address
+ * transport attempt are separately authorized. Redirect targets are separately authorized.
  * Reused connections naturally produce no DNS/TCP/TLS phases.
  */
 internal class HttpProbeRunner internal constructor(
     private val baseClient: OkHttpClient,
     private val clock: Clock,
+    hostResolver: HostResolver = SystemHostResolver(),
 ) : ProbeRunner {
+    private val resolver = BoundedHostResolver(hostResolver)
+
     constructor() : this(OkHttpClient(), Clock.systemUTC())
 
     override suspend fun run(request: ProbeRunRequest, admission: ProbeAdmission): ProbeResult {
@@ -74,15 +82,15 @@ internal class HttpProbeRunner internal constructor(
         }
 
         val startNanos = System.nanoTime()
-        val phases = mutableMapOf<ProbePhase, Duration>()
+        val state = RunState()
         val result = withTimeoutOrNull(request.config.timeout) {
-            execute(request, probe, admission, startNanos, phases)
+            execute(request, probe, admission, startNanos, state)
         }
         currentCoroutineContext().ensureActive()
         return result ?: completed(
             request = request,
             startNanos = startNanos,
-            phases = phases,
+            state = state,
             outcome = ProbeOutcome.Failed(FailureReason.TIMEOUT),
         )
     }
@@ -92,9 +100,8 @@ internal class HttpProbeRunner internal constructor(
         probe: ProbeRequest.Http,
         admission: ProbeAdmission,
         startNanos: Long,
-        phases: MutableMap<ProbePhase, Duration>,
+        state: RunState,
     ): ProbeResult {
-        val client = clientFor(probe, phases)
         var current = probe.url
         var redirects = 0
 
@@ -103,14 +110,14 @@ internal class HttpProbeRunner internal constructor(
                 ?: return completed(
                     request,
                     startNanos,
-                    phases,
+                    state,
                     ProbeOutcome.Failed(FailureReason.DNS),
                 )
             if (probe.family != null && isIpLiteral(host) && !literalMatches(current, probe.family)) {
                 return completed(
                     request,
                     startNanos,
-                    phases,
+                    state,
                     ProbeOutcome.Failed(FailureReason.DNS),
                 )
             }
@@ -131,10 +138,20 @@ internal class HttpProbeRunner internal constructor(
                 return completed(
                     request,
                     startNanos,
-                    phases,
+                    state,
                     ProbeOutcome.Failed(FailureReason.HTTP),
                 )
             }
+            val dnsState = DnsState()
+            val client = clientFor(
+                probe = probe,
+                state = state,
+                admission = admission,
+                dnsState = dnsState,
+                startNanos = startNanos,
+                timeout = request.config.timeout,
+                useCustomDns = !isIpLiteral(host),
+            )
             val callClient = client.newBuilder()
                 .callTimeout(remainingMillis(startNanos, request.config.timeout), TimeUnit.MILLISECONDS)
                 .build()
@@ -145,12 +162,24 @@ internal class HttpProbeRunner internal constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
+                val admissionDenied = error.findAdmissionDenied() ?: dnsState.denied
+                if (admissionDenied != null) {
+                    return skipped(request, admissionDenied)
+                }
+                if (error.hasCause<DnsCapacityExceededException>()) {
+                    return completed(
+                        request,
+                        startNanos,
+                        state,
+                        ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION),
+                    )
+                }
                 val blocked = error.findBlockedResponse()
                 if (blocked != null) {
                     return completed(
                         request,
                         startNanos,
-                        phases,
+                        state,
                         blocked.outcome(),
                         http = HttpObservation(blocked.status),
                     )
@@ -158,7 +187,7 @@ internal class HttpProbeRunner internal constructor(
                 return completed(
                     request,
                     startNanos,
-                    phases,
+                    state,
                     classifyFailure(error),
                 )
             }
@@ -170,7 +199,7 @@ internal class HttpProbeRunner internal constructor(
                     return completed(
                         request,
                         startNanos,
-                        phases,
+                        state,
                         ProbeOutcome.Restricted(
                             reason = restriction,
                             retryAt = retryAt(received),
@@ -185,7 +214,7 @@ internal class HttpProbeRunner internal constructor(
                         return completed(
                             request,
                             startNanos,
-                            phases,
+                            state,
                             ProbeOutcome.Failed(FailureReason.HTTP),
                         )
                     }
@@ -193,7 +222,7 @@ internal class HttpProbeRunner internal constructor(
                         return completed(
                             request,
                             startNanos,
-                            phases,
+                            state,
                             ProbeOutcome.Failed(FailureReason.HTTP),
                         )
                     }
@@ -211,7 +240,7 @@ internal class HttpProbeRunner internal constructor(
                         return completed(
                             request,
                             startNanos,
-                            phases,
+                            state,
                             ProbeOutcome.Failed(FailureReason.HTTP),
                         )
                     }
@@ -224,12 +253,13 @@ internal class HttpProbeRunner internal constructor(
                     return completed(
                         request,
                         startNanos,
-                        phases,
+                        state,
                         ProbeOutcome.Failed(FailureReason.UNEXPECTED_HTTP_STATUS),
                         http = HttpObservation(status),
                     )
                 }
 
+                state.http = HttpObservation(status)
                 val marker = probe.expected.bodyMarker
                 val markerMatched = try {
                     marker?.let { expected ->
@@ -245,7 +275,7 @@ internal class HttpProbeRunner internal constructor(
                     return completed(
                         request,
                         startNanos,
-                        phases,
+                        state,
                         classifyFailure(error),
                         http = HttpObservation(status),
                     )
@@ -255,14 +285,19 @@ internal class HttpProbeRunner internal constructor(
                     markerMatched == false -> ProbeOutcome.Failed(FailureReason.UNEXPECTED_RESPONSE)
                     else -> ProbeOutcome.Matched
                 }
-                return completed(request, startNanos, phases, outcome, http = http)
+                return completed(request, startNanos, state, outcome, http = http)
             }
         }
     }
 
     private fun clientFor(
         probe: ProbeRequest.Http,
-        phases: MutableMap<ProbePhase, Duration>,
+        state: RunState,
+        admission: ProbeAdmission,
+        dnsState: DnsState,
+        startNanos: Long,
+        timeout: Duration,
+        useCustomDns: Boolean,
     ): OkHttpClient {
         val builder = baseClient.newBuilder()
             .followRedirects(false)
@@ -270,7 +305,7 @@ internal class HttpProbeRunner internal constructor(
             .retryOnConnectionFailure(false)
             .fastFallback(false)
             .protocols(listOf(Protocol.HTTP_1_1))
-            .eventListener(PhaseListener(phases))
+            .eventListener(PhaseListener(state))
             .addNetworkInterceptor { chain ->
                 val response = chain.proceed(chain.request())
                 if (response.code == 503) {
@@ -280,14 +315,43 @@ internal class HttpProbeRunner internal constructor(
                 }
                 response
             }
-        if (probe.family != null) {
-            val baseDns = baseClient.dns
+        if (useCustomDns) {
             builder.dns(Dns { hostname ->
-                val matching = baseDns.lookup(hostname).filter { address ->
-                    address.family() == probe.family
+                val host = normalizeHost(hostname) ?: throw UnknownHostException(hostname)
+                try {
+                runBlocking {
+                    withTimeout(remainingMillis(startNanos, timeout).milliseconds) {
+                        val dnsDecision = admission.authorize(
+                            ProbeAttempt(endpointKey = host, infrastructureKey = SYSTEM_DNS),
+                        )
+                        if (dnsDecision is AdmissionDecision.Denied) {
+                            throw AdmissionDeniedException(dnsDecision)
+                        }
+                        val addresses = resolver.resolve(host, probe.family)
+                            .filter { address -> probe.family == null || address.family() == probe.family }
+                        if (addresses.isEmpty()) throw UnknownHostException(hostname)
+                        val allowed = addresses.filter { address ->
+                            val transportDecision = admission.authorize(
+                                ProbeAttempt(endpointKey = host, infrastructureKey = host),
+                            )
+                            if (transportDecision is AdmissionDecision.Denied) {
+                                if (dnsState.denied == null) dnsState.denied = transportDecision
+                                false
+                            } else {
+                                true
+                            }
+                        }
+                        if (allowed.isEmpty()) {
+                            throw AdmissionDeniedException(
+                                dnsState.denied ?: AdmissionDecision.Denied(SkipReason.NOT_ALLOWED),
+                            )
+                        }
+                        allowed
+                    }
                 }
-                if (matching.isEmpty()) throw UnknownHostException(hostname)
-                matching
+            } catch (error: TimeoutCancellationException) {
+                throw SocketTimeoutException("DNS lookup timed out")
+            }
             })
         }
         return builder.build()
@@ -314,6 +378,7 @@ internal class HttpProbeRunner internal constructor(
         withContext(Dispatchers.IO) {
             // shortcut: only the first 64 KiB is searched; scanning the full body risks unbounded reads.
             suspendCancellableCoroutine { continuation ->
+                val context = continuation.context
                 continuation.invokeOnCancellation {
                     call.cancel()
                     runCatching { response.close() }
@@ -328,28 +393,44 @@ internal class HttpProbeRunner internal constructor(
                     var total = 0
                     val input = response.body.byteStream()
                     while (total < MAX_BODY_BYTES) {
+                        context.ensureActive()
                         val read = input.read(body, total, MAX_BODY_BYTES - total)
                         if (read < 0) break
                         total += read
                     }
-                    continuation.resumeWith(Result.success(indexOf(body, total, markerBytes) >= 0))
+                    continuation.resumeWith(
+                        Result.success(indexOfKmp(body, total, markerBytes, context) >= 0),
+                    )
                 } catch (error: Throwable) {
-                    continuation.resumeWith(Result.failure(error))
+                    if (continuation.isActive) continuation.resumeWith(Result.failure(error))
                 }
             }
         }
 
-    private fun indexOf(haystack: ByteArray, length: Int, needle: ByteArray): Int {
+    private fun indexOfKmp(
+        haystack: ByteArray,
+        length: Int,
+        needle: ByteArray,
+        context: kotlin.coroutines.CoroutineContext,
+    ): Int {
         if (needle.size > length) return -1
-        for (index in 0..length - needle.size) {
-            var matches = true
-            for (offset in needle.indices) {
-                if (haystack[index + offset] != needle[offset]) {
-                    matches = false
-                    break
-                }
+        val prefix = IntArray(needle.size)
+        var matched = 0
+        for (index in 1 until needle.size) {
+            while (matched > 0 && needle[index] != needle[matched]) {
+                matched = prefix[matched - 1]
             }
-            if (matches) return index
+            if (needle[index] == needle[matched]) matched += 1
+            prefix[index] = matched
+        }
+        matched = 0
+        for (index in 0 until length) {
+            if (index and 0xFFF == 0) context.ensureActive()
+            while (matched > 0 && haystack[index] != needle[matched]) {
+                matched = prefix[matched - 1]
+            }
+            if (haystack[index] == needle[matched]) matched += 1
+            if (matched == needle.size) return index - needle.size + 1
         }
         return -1
     }
@@ -380,8 +461,21 @@ internal class HttpProbeRunner internal constructor(
         val retryAfter: String?,
     ) : IOException("HTTP $status has an automatic follow-up")
 
+    private class AdmissionDeniedException(
+        val decision: AdmissionDecision.Denied,
+    ) : IOException("admission denied")
+
     private fun Throwable.findBlockedResponse(): BlockedResponseException? =
         generateSequence(this) { it.cause }.filterIsInstance<BlockedResponseException>().firstOrNull()
+
+    private fun Throwable.findAdmissionDenied(): AdmissionDecision.Denied? =
+        generateSequence(this) { it.cause }
+            .filterIsInstance<AdmissionDeniedException>()
+            .firstOrNull()
+            ?.decision
+
+    private inline fun <reified T : Throwable> Throwable.hasCause(): Boolean =
+        generateSequence(this) { it.cause }.any { it is T }
 
     private fun BlockedResponseException.outcome(): ProbeOutcome =
         ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, retryAt(retryAfter))
@@ -410,11 +504,11 @@ internal class HttpProbeRunner internal constructor(
     private fun completed(
         request: ProbeRunRequest,
         startNanos: Long,
-        phases: MutableMap<ProbePhase, Duration>,
+        state: RunState,
         outcome: ProbeOutcome,
         http: HttpObservation? = null,
     ): ProbeResult.Completed {
-        val snapshot = synchronized(phases) { phases.toMap() }
+        val snapshot = synchronized(state.phases) { state.phases.toMap() }
         val elapsed = (System.nanoTime() - startNanos).nanoseconds
         return ProbeResult.Completed(
             context = request.context,
@@ -424,7 +518,10 @@ internal class HttpProbeRunner internal constructor(
                 phases = snapshot,
             ),
             outcome = outcome,
-            observations = ProbeObservations(http = http),
+            observations = ProbeObservations(
+                connectedIpFamily = state.connectedIpFamily,
+                http = http ?: state.http,
+            ),
         )
     }
 
@@ -495,7 +592,7 @@ internal class HttpProbeRunner internal constructor(
             } == true)
 
     private class PhaseListener(
-        private val phases: MutableMap<ProbePhase, Duration>,
+        private val state: RunState,
     ) : EventListener() {
         private var dnsStart = 0L
         private var tcpStart = 0L
@@ -539,6 +636,11 @@ internal class HttpProbeRunner internal constructor(
             tlsStart = 0
         }
 
+        override fun connectionAcquired(call: Call, connection: Connection) {
+            val address = connection.route().socketAddress.address
+            state.connectedIpFamily = if (address is Inet4Address) IpFamily.IPV4 else IpFamily.IPV6
+        }
+
         override fun secureConnectStart(call: Call) {
             record(ProbePhase.TCP_CONNECT, tcpStart)
             tcpStart = 0
@@ -555,6 +657,9 @@ internal class HttpProbeRunner internal constructor(
         }
 
         override fun responseHeadersStart(call: Call) {
+            // OkHttp 5.5.1 calls this after readResponseHeaders parses the header block.
+            // The phase is therefore response-header latency, an approximation of TTFB,
+            // not the first response-body byte.
             record(ProbePhase.HTTP_FIRST_BYTE, firstByteStart)
             firstByteStart = 0
         }
@@ -562,14 +667,25 @@ internal class HttpProbeRunner internal constructor(
         private fun record(phase: ProbePhase, startNanos: Long) {
             if (startNanos == 0L) return
             val duration = (System.nanoTime() - startNanos).nanoseconds
-            synchronized(phases) {
-                phases[phase] = (phases[phase] ?: Duration.ZERO) + duration
+            synchronized(state.phases) {
+                state.phases[phase] = (state.phases[phase] ?: Duration.ZERO) + duration
             }
         }
     }
 
+    private class RunState {
+        val phases: MutableMap<ProbePhase, Duration> = mutableMapOf()
+        @Volatile var connectedIpFamily: IpFamily? = null
+        @Volatile var http: HttpObservation? = null
+    }
+
+    private class DnsState {
+        @Volatile var denied: AdmissionDecision.Denied? = null
+    }
+
     internal companion object {
         private const val MAX_REDIRECTS = 3
+        private const val SYSTEM_DNS = "system-dns"
         const val MAX_BODY_BYTES = 64 * 1024
         private val WEB_SCHEMES = setOf("http", "https")
         private val REDIRECT_STATUSES = setOf(301, 302, 303, 307, 308)

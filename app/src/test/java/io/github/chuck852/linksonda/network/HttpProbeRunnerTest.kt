@@ -34,7 +34,6 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import okhttp3.Dns
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -63,6 +62,7 @@ class HttpProbeRunnerTest {
             val completed = completed(result)
             assertEquals(ProbeOutcome.Matched, completed.outcome)
             assertEquals(HttpObservation(200, true), completed.observations.http)
+            assertEquals(IpFamily.IPV4, completed.observations.connectedIpFamily)
             assertNotNull(completed.timing.phases[ProbePhase.TCP_CONNECT])
             assertNotNull(completed.timing.phases[ProbePhase.HTTP_FIRST_BYTE])
             assertNull(completed.timing.phases[ProbePhase.TLS_HANDSHAKE])
@@ -356,20 +356,113 @@ class HttpProbeRunnerTest {
         LocalHttpServer { _ ->
             HttpResponseSpec(status = 200, body = "second-address".toByteArray())
         }.use { server ->
-            val dns = Dns {
-                listOf(InetAddress.getByName("127.0.0.2"), InetAddress.getByName("127.0.0.1"))
-            }
+            val admission = RecordingAdmission()
             val result = runProbe(
-                runner = runner(dns = dns),
+                runner = runner(
+                    hostResolver = HostResolver { _, _ ->
+                        listOf(InetAddress.getByName("127.0.0.2"), InetAddress.getByName("127.0.0.1"))
+                    },
+                ),
                 request = httpRequest("http://multi.test:${server.port}/"),
+                admission = admission,
             )
 
             val completed = completed(result)
             assertEquals(ProbeOutcome.Matched, completed.outcome)
             assertEquals(1, server.calls().size)
+            assertEquals(
+                listOf(
+                    ProbeAttempt("multi.test", "multi.test"),
+                    ProbeAttempt("multi.test", "system-dns"),
+                    ProbeAttempt("multi.test", "multi.test"),
+                    ProbeAttempt("multi.test", "multi.test"),
+                ),
+                admission.attempts,
+            )
             val tcp = completed.timing.phases[ProbePhase.TCP_CONNECT]
             assertNotNull(tcp)
             assertTrue(tcp!! <= completed.timing.elapsed)
+        }
+    }
+
+    @Test
+    fun denialOfNextResolvedAddressStopsFallback() {
+        LocalHttpServer { _ ->
+            HttpResponseSpec(status = 200, body = "must-not-run".toByteArray())
+        }.use { server ->
+            val admission = RecordingAdmission(
+                listOf(
+                    AdmissionDecision.Allowed,
+                    AdmissionDecision.Allowed,
+                    AdmissionDecision.Allowed,
+                    AdmissionDecision.Denied(SkipReason.COOLDOWN),
+                ),
+            )
+            val result = runProbe(
+                runner = runner(
+                    hostResolver = HostResolver { _, _ ->
+                        listOf(InetAddress.getByName("127.0.0.2"), InetAddress.getByName("127.0.0.1"))
+                    },
+                ),
+                request = httpRequest("http://multi.test:${server.port}/"),
+                admission = admission,
+            )
+
+            skipped(result, SkipReason.COOLDOWN)
+            assertTrue(server.calls().isEmpty())
+            assertEquals(4, admission.attempts.size)
+        }
+    }
+
+    @Test
+    fun bodyMarkerNearTheLimitIsFound() {
+        val marker = "needle-at-the-end"
+        val body = ByteArray(HttpProbeRunner.MAX_BODY_BYTES - marker.length) { 'a'.code.toByte() } +
+            marker.toByteArray()
+        LocalHttpServer { _ -> HttpResponseSpec(status = 200, body = body) }.use { server ->
+            val result = runProbe(
+                runner = runner(),
+                request = httpRequest(server.url("/"), bodyMarker = marker),
+            )
+
+            assertEquals(HttpObservation(200, true), completed(result).observations.http)
+            assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+        }
+    }
+
+    @Test
+    fun bodyMarkerWorstCaseMismatchIsRejected() {
+        val marker = "a".repeat(128) + "b"
+        val body = ByteArray(HttpProbeRunner.MAX_BODY_BYTES) { 'a'.code.toByte() }
+        LocalHttpServer { _ -> HttpResponseSpec(status = 200, body = body) }.use { server ->
+            val result = runProbe(
+                runner = runner(),
+                request = httpRequest(server.url("/"), bodyMarker = marker),
+            )
+
+            assertEquals(HttpObservation(200, false), completed(result).observations.http)
+            failed(result, FailureReason.UNEXPECTED_RESPONSE)
+        }
+    }
+
+    @Test
+    fun bodyTimeoutPreservesTheReceivedStatus() {
+        LocalHttpServer { _ ->
+            HttpResponseSpec(
+                status = 200,
+                body = ByteArray(10_000) { 'a'.code.toByte() },
+                bodyChunkSize = 100,
+                bodyChunkMillis = 100,
+            )
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(),
+                request = httpRequest(server.url("/"), bodyMarker = "never"),
+                timeout = 100.milliseconds,
+            )
+
+            val completed = failed(result, FailureReason.TIMEOUT)
+            assertEquals(HttpObservation(200), completed.observations.http)
         }
     }
 
@@ -500,9 +593,12 @@ class HttpProbeRunnerTest {
 
     @Test
     fun dnsFailureIsSeparateFromTcpFailure() {
-        val failingDns = Dns { throw UnknownHostException("unresolvable.test") }
         val result = runProbe(
-            runner = runner(dns = failingDns),
+            runner = runner(
+                hostResolver = HostResolver { _, _ ->
+                    throw UnknownHostException("unresolvable.test")
+                },
+            ),
             request = httpRequest("http://unresolvable.test/"),
         )
 
@@ -599,9 +695,10 @@ class HttpProbeRunnerTest {
 
     @Test
     fun familyFilterMakesAMismatchedDnsResultADnsFailure() {
-        val ipv6Only = Dns { listOf(InetAddress.getByName("::1")) }
         val result = runProbe(
-            runner = runner(dns = ipv6Only),
+            runner = runner(
+                hostResolver = HostResolver { _, _ -> listOf(InetAddress.getByName("::1")) },
+            ),
             request = httpRequest("http://family.test/", family = IpFamily.IPV4),
         )
 
@@ -643,14 +740,13 @@ class HttpProbeRunnerTest {
 
     private fun runner(
         trustTestTls: Boolean = false,
-        dns: Dns? = null,
+        hostResolver: HostResolver = SystemHostResolver(),
     ): HttpProbeRunner {
         val builder = OkHttpClient.Builder()
         if (trustTestTls) {
             builder.sslSocketFactory(TestTls.clientContext.socketFactory, TestTls.clientTrustManager)
         }
-        if (dns != null) builder.dns(dns)
-        return HttpProbeRunner(builder.build(), clock)
+        return HttpProbeRunner(builder.build(), clock, hostResolver)
     }
 
     private fun runProbe(
