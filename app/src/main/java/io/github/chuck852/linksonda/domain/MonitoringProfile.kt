@@ -71,6 +71,7 @@ data class Incident(
 ) {
     init {
         require(id.isNotBlank())
+        require(recoveredAt == null || !recoveredAt.isBefore(openedAt))
         require(hypotheses.all { hypothesis -> hypothesis.evidence.all { it.context.networkId == networkId } })
     }
 }

@@ -20,25 +20,22 @@ data class NetworkSnapshot(
 )
 
 /** A missing network ID represents a slot with no active network. */
-data class ProbeContext(val probeId: ProbeId, val networkId: NetworkId?)
+data class ProbeContext(val probe: ProbeKey, val networkId: NetworkId?)
 
-enum class FailureReason { DNS, TCP, TLS, HTTP, ICMP, TIMEOUT, REFUSED, UNREACHABLE, UNEXPECTED_RESPONSE }
-sealed interface ProbeFailure {
-    data class Execution(val reason: FailureReason) : ProbeFailure
-    data class UnexpectedHttpStatus(val code: Int) : ProbeFailure {
-        init { require(code in 100..599) }
-    }
-    data class UnexpectedDnsResponseCode(val code: Int) : ProbeFailure {
-        init { require(code in 0..4095) }
-    }
+enum class FailureReason {
+    DNS, TCP, TLS, HTTP, ICMP, TIMEOUT, REFUSED, UNREACHABLE, UNEXPECTED_RESPONSE,
+    UNEXPECTED_HTTP_STATUS, UNEXPECTED_DNS_RESPONSE_CODE,
 }
+
 enum class RestrictionReason { RATE_LIMITED, ACCESS_DENIED, CHALLENGE }
-enum class SkipReason { SLEEP, BUDGET, COOLDOWN, NOT_ALLOWED, NO_NETWORK, UNSUPPORTED, CANCELLED }
+enum class InconclusiveReason { OS_LIMITATION, DOZE, NETWORK_CHANGED, PERMISSION_DENIED }
+enum class SkipReason { SLEEP, BUDGET, COOLDOWN, NOT_ALLOWED, NO_NETWORK, UNSUPPORTED, CANCELLED, PERMISSION_DENIED }
 enum class ProbePhase { DNS, TCP_CONNECT, TLS_HANDSHAKE, HTTP_FIRST_BYTE }
 
 sealed interface ProbeOutcome {
     data object Matched : ProbeOutcome
-    data class Failed(val failure: ProbeFailure) : ProbeOutcome
+    data class Failed(val reason: FailureReason) : ProbeOutcome
+    data class Inconclusive(val reason: InconclusiveReason) : ProbeOutcome
     data class Restricted(val reason: RestrictionReason, val retryAt: Instant? = null) : ProbeOutcome
 }
 
@@ -61,6 +58,7 @@ sealed interface ProbeResult {
         override val recordedAt: Instant,
         val timing: ProbeTiming,
         val outcome: ProbeOutcome,
+        val observations: ProbeObservations = ProbeObservations(),
     ) : ProbeResult {
         init { require(context.networkId != null) }
     }

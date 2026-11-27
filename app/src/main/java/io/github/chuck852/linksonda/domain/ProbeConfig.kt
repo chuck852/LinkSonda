@@ -107,10 +107,49 @@ sealed interface ProbeRequest {
     }
 }
 
-data class ProbeConfig(val id: ProbeId, val name: String, val request: ProbeRequest, val timeout: Duration) {
+@JvmInline
+value class ProbeRevision(val value: Long) {
+    init { require(value > 0) }
+}
+
+data class ProbeKey(val id: ProbeId, val revision: ProbeRevision)
+
+@ConsistentCopyVisibility
+data class ProbeConfig private constructor(
+    val id: ProbeId,
+    val name: String,
+    val request: ProbeRequest,
+    val timeout: Duration,
+    val revision: ProbeRevision,
+) {
+    constructor(id: ProbeId, name: String, request: ProbeRequest, timeout: Duration) :
+        this(id, name, request, timeout, ProbeRevision(1))
+
     init {
         require(name.isNotBlank())
         require(timeout.isFinite() && timeout.isPositive())
+    }
+
+    val key: ProbeKey get() = ProbeKey(id, revision)
+
+    /** Edit the current persisted revision. Every change to execution semantics starts a new history. */
+    fun update(
+        name: String = this.name,
+        request: ProbeRequest = this.request,
+        timeout: Duration = this.timeout,
+    ): ProbeConfig {
+        val updatedRevision = if (request != this.request || timeout != this.timeout) {
+            ProbeRevision(Math.incrementExact(revision.value))
+        } else {
+            revision
+        }
+        return copy(name = name, request = request, timeout = timeout, revision = updatedRevision)
+    }
+
+    companion object {
+        /** Restore the definition already stored under this revision. */
+        fun restore(key: ProbeKey, name: String, request: ProbeRequest, timeout: Duration): ProbeConfig =
+            ProbeConfig(key.id, name, request, timeout, key.revision)
     }
 }
 
