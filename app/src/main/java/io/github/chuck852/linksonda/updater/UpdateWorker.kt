@@ -11,7 +11,7 @@ import androidx.work.WorkerParameters
 import io.github.chuck852.linksonda.LinkSondaApplication
 import java.util.concurrent.TimeUnit
 
-internal class UpdateWorker(
+class UpdateWorker(
     context: Context,
     params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
@@ -22,7 +22,7 @@ internal class UpdateWorker(
     }
 }
 
-internal object UpdaterScheduler {
+object UpdaterScheduler {
     private const val WORK_NAME = "linksonda-update-check"
 
     fun sync(context: Context, enabled: Boolean) {

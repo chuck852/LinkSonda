@@ -46,8 +46,15 @@ internal fun readInstalledApp(context: Context): InstalledApp? {
 }
 
 internal class ApkVerifier(private val context: Context) {
-    fun verify(file: File, update: OfferedUpdate, installedSignerSha256: String): UpdaterError? {
+    fun verify(
+        file: File,
+        update: OfferedUpdate,
+        installedSignerSha256: String,
+        installedVersionCode: Long,
+    ): UpdaterError? {
         val metadata = update.metadata
+        if (metadata.schemaVersion != 1 || metadata.testOnly) return UpdaterError.VERIFY_FAILED
+        if (metadata.versionCode <= installedVersionCode) return UpdaterError.VERIFY_FAILED
         if (!file.isFile || file.length() != metadata.apk.size) return UpdaterError.VERIFY_FAILED
         if (file.sha256() != ReleaseSelector.normalizeSha256(metadata.apk.sha256)) {
             return UpdaterError.VERIFY_FAILED
@@ -84,6 +91,9 @@ internal class ApkVerifier(private val context: Context) {
         if (versionCode != metadata.versionCode) return UpdaterError.VERIFY_FAILED
         val application = info.applicationInfo ?: return UpdaterError.VERIFY_FAILED
         if (application.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            return UpdaterError.VERIFY_FAILED
+        }
+        if (application.minSdkVersion > Build.VERSION.SDK_INT) {
             return UpdaterError.VERIFY_FAILED
         }
         if (info.signerSha256() != ReleaseSelector.normalizeSha256(metadata.signerCertificateSha256)) {

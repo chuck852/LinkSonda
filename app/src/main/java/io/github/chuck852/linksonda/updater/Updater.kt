@@ -35,6 +35,7 @@ internal class Updater(
     private val http: UpdaterHttpClient = HttpUpdaterHttpClient(),
     private val installed: InstalledApp? = readInstalledApp(context),
     private val clock: () -> Instant = Instant::now,
+    private val debugBuild: Boolean = BuildConfig.DEBUG,
 ) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -106,7 +107,12 @@ internal class Updater(
                     }
 
                     is UpdaterDownloadResult.Success -> {
-                        val verifyError = verifier.verify(destination, update, _state.value.installedSigner())
+                        val verifyError = verifier.verify(
+                            file = destination,
+                            update = update,
+                            installedSignerSha256 = _state.value.installedSigner(),
+                            installedVersionCode = installed?.versionCode ?: 0,
+                        )
                         if (verifyError != null) {
                             destination.delete()
                             _state.update {
@@ -143,7 +149,12 @@ internal class Updater(
     fun install() {
         val update = _state.value.available ?: return
         val file = readyFile?.takeIf { it.isFile } ?: return
-        val verifyError = verifier.verify(file, update, _state.value.installedSigner())
+        val verifyError = verifier.verify(
+            file = file,
+            update = update,
+            installedSignerSha256 = _state.value.installedSigner(),
+            installedVersionCode = installed?.versionCode ?: 0,
+        )
         if (verifyError != null) {
             _state.update { it.copy(error = verifyError, installState = InstallState.FAILED) }
             return
@@ -200,12 +211,13 @@ internal class Updater(
     }
 
     private suspend fun runCheck(): Unit = checkMutex.withLock {
-        if (BuildConfig.DEBUG) {
+        if (debugBuild) {
             _state.update { it.copy(status = UpdateCheckStatus.INVALID_RELEASE, error = UpdaterError.INVALID_RELEASE) }
             return@withLock
         }
         _state.update { it.copy(checking = true, error = null) }
         val settings = try {
+            settingsStore.initialize()
             settingsStore.current()
         } catch (_: Exception) {
             _state.update { it.copy(checking = false, status = UpdateCheckStatus.NETWORK_ERROR, error = UpdaterError.NETWORK) }
@@ -220,10 +232,11 @@ internal class Updater(
                 )
 
                 is UpdaterHttpResult.Failure -> finish(
-                    status = if (response.error == UpdaterError.RATE_LIMITED) {
-                        UpdateCheckStatus.RATE_LIMITED
-                    } else {
-                        UpdateCheckStatus.NETWORK_ERROR
+                    status = when (response.error) {
+                        UpdaterError.RATE_LIMITED -> UpdateCheckStatus.RATE_LIMITED
+                        UpdaterError.NO_RELEASE -> UpdateCheckStatus.NO_RELEASE
+                        UpdaterError.INVALID_RELEASE -> UpdateCheckStatus.INVALID_RELEASE
+                        else -> UpdateCheckStatus.NETWORK_ERROR
                     },
                     settings = settings,
                     etag = settings.updateEtag,

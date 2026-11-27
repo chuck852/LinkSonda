@@ -122,6 +122,9 @@ internal fun UpdatesSection(
                 actions = actions,
             )
         }
+        if (BuildConfig.DEBUG) {
+            SettingsNote(stringResource(R.string.settings_updates_disabled_debug))
+        }
         SettingsNote(stringResource(R.string.settings_updates_source))
     }
 }
@@ -140,6 +143,10 @@ private fun UpdateAvailableCard(
     ) {
         Text(
             text = stringResource(R.string.settings_updates_available, update.versionName),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = stringResource(R.string.settings_updates_notes),
             style = MaterialTheme.typography.titleSmall,
         )
         Text(
@@ -171,6 +178,10 @@ private fun UpdateAvailableCard(
                 )
                 if (state.installPermissionRequired) {
                     Text(
+                        text = stringResource(R.string.settings_updates_allow_install_body),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
                         text = stringResource(R.string.settings_updates_install_permission),
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -181,6 +192,12 @@ private fun UpdateAvailableCard(
                             .heightIn(min = LinkSondaSpacing.minTouchTarget),
                     ) {
                         Text(stringResource(R.string.settings_updates_allow_install))
+                    }
+                    TextButton(
+                        onClick = actions.install,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.settings_updates_install))
                     }
                 } else {
                     Button(

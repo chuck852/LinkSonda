@@ -16,13 +16,14 @@ Notifications are not requested during onboarding. Android asks for `POST_NOTIFI
 | Monitoring | Background-monitoring switch; disabled with an explanation until the monitoring engine is connected |
 | Notifications | Incident-notification switch; permission is requested only when enabling it |
 | History | 7, 30, 90 or 365 days; used by the local retention maintenance |
+| Updates | Automatic checks, Stable/Preview channel, manual check, current/available version, release notes and install actions |
 | Local data | A statement that settings and history are designed to stay on the device, plus the app version |
 
-If notification permission is denied, the switch remains off and Settings explains that other features continue to work and that permission can be changed in Android settings. The rationale is stored with the preference, so it survives leaving the screen and process recreation. On resume the app rechecks the OS permission: a revoked permission turns the effective switch off, keeps the user's preference and shows the same explanation. A denial does not block the editor, the checks list or any other screen.
+The Updates section is separate from monitoring: GitHub failures are shown as update status and never change a probe state. If notification permission is denied, the switch remains off and Settings explains that other features continue to work and that permission can be changed in Android settings. The rationale is stored with the preference, so it survives leaving the screen and process recreation. On resume the app rechecks the OS permission: a revoked permission turns the effective switch off, keeps the user's preference and shows the same explanation. A denial does not block the editor, the checks list or any other screen.
 
 ## Persistence boundary
 
-`AppSettings` is a UI-independent model. `SettingsStore` is the contract consumed by the app, and `SettingsStorage` isolates the platform key-value adapter. The production adapter is `DataStoreSettingsStorage`; it migrates the earlier SharedPreferences file once and keeps the same preference keys. DataStore is authoritative. A small synchronous startup snapshot is retained only because `MainActivity.attachBaseContext` must choose the locale before the first frame; it is read from the last successfully written SharedPreferences snapshot, so no DataStore read or `runBlocking` runs on the main thread. See [local storage](STORAGE.md).
+`AppSettings` is a UI-independent model. `SettingsStore` is the contract consumed by the app, and `SettingsStorage` isolates the platform key-value adapter. The production adapter is `DataStoreSettingsStorage`; it migrates the earlier SharedPreferences file once and keeps the same preference keys. DataStore is authoritative. A small synchronous startup snapshot is retained only because `MainActivity.attachBaseContext` must choose the locale before the first frame; it is read from the last successfully written SharedPreferences snapshot, so no DataStore read or `runBlocking` runs on the main thread. `SettingsStore.initialize()` asynchronously replaces it with DataStore values and blocks writes until that load completes; the startup snapshot is repaired from DataStore after an interrupted write. See [local storage](STORAGE.md).
 
 The selected language is applied in `MainActivity.attachBaseContext`, so resources are correct on the first frame after a cold start. Changing the language saves the setting and recreates the activity. On API 33+ `LocaleManager.setApplicationLocales` keeps the platform per-app language picker in sync; `SYSTEM` clears that override and follows the device or system picker locale. For an explicit app language, the in-app setting wins over a later system-picker change; the system picker is authoritative only in `SYSTEM`. `res/xml/locales_config.xml` exposes English and Russian to the platform picker. API 26–32 use only the configuration context.
 
@@ -34,7 +35,7 @@ Settings rows use selectable or toggleable semantics with radio/switch roles, se
 
 ## Verification
 
-- 135 JVM tests, 0 failures, including the storage tests listed in [local storage](STORAGE.md).
+- 217 JVM tests, 0 failures, including the storage and updater tests.
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` and `assembleRelease` passed.
 - Android 17 (API 37) emulator: first run, profile selection in the debug harness, completion, Russian/English switch, platform app-locale synchronization, language and dark-theme persistence after force-stop, notification permission denial and rationale persistence, permission revocation while enabled, editor access after denial, and 200% font scale.
 - Release APK contains the Russian resources and no demo screens or demo settings data.

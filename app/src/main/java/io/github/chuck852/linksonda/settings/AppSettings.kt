@@ -40,7 +40,7 @@ data class AppSettings(
     val historyRetentionDays: Int = DEFAULT_HISTORY_RETENTION_DAYS,
     val selectedProfileId: String? = null,
     val onboardingCompleted: Boolean = false,
-    /** Reserved for #57; no updater exists yet. */
+    /** Local updater preferences; network checks are separate from monitoring. */
     val updateChecksEnabled: Boolean = false,
     val updateChannel: UpdateChannel = UpdateChannel.STABLE,
     val lastUpdateCheckAt: Instant? = null,

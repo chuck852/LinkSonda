@@ -7,7 +7,7 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import io.github.chuck852.linksonda.LinkSondaApplication
 
-internal class InstallResultReceiver : BroadcastReceiver() {
+class InstallResultReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_INSTALL_STATUS) return
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)

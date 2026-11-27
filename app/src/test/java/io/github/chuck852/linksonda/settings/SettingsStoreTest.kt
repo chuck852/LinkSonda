@@ -185,6 +185,28 @@ class SettingsStoreTest {
         assertEquals(ThemeMode.STATIC, SettingsCodec.decode(storage.values).themeMode)
     }
 
+    @Test
+    fun updateWaitsForAuthoritativeInitializationBeforeWriting() = runBlocking {
+        val storage = GatedInitializationStorage(
+            startup = mapOf(SettingsCodec.KEY_THEME_MODE to "STATIC"),
+            authoritative = mapOf(SettingsCodec.KEY_THEME_MODE to "ACCENTS"),
+        )
+        val store = PersistentSettingsStore(storage)
+        val job = launch(Dispatchers.Default) {
+            checkNotNull(store.update { it.copy(historyRetentionDays = 90) })
+        }
+
+        storage.awaitAuthoritativeRead()
+        assertEquals(0, storage.writeCount)
+        storage.releaseAuthoritativeRead()
+        job.join()
+
+        assertEquals(ThemeMode.ACCENTS, store.current().themeMode)
+        assertEquals(90, store.current().historyRetentionDays)
+        assertEquals(ThemeMode.ACCENTS, SettingsCodec.decode(storage.values).themeMode)
+        assertEquals(90, SettingsCodec.decode(storage.values).historyRetentionDays)
+    }
+
     private class FakeStorage(
         initial: Map<String, String?>,
         private val writeResult: Boolean = true,
@@ -221,6 +243,39 @@ class SettingsStoreTest {
         }
 
         fun releaseWrite() = writeRelease.countDown()
+    }
+
+    private class GatedInitializationStorage(
+        private val startup: Map<String, String?>,
+        private val authoritative: Map<String, String?>,
+    ) : SettingsStorage {
+        private val authoritativeStarted = CountDownLatch(1)
+        private val authoritativeRelease = CountDownLatch(1)
+
+        var values: Map<String, String?> = startup
+            private set
+        var writeCount = 0
+            private set
+
+        override fun read(): Map<String, String?> = startup
+
+        override suspend fun readAuthoritative(): Map<String, String?> {
+            authoritativeStarted.countDown()
+            check(authoritativeRelease.await(5, TimeUnit.SECONDS)) { "authoritative read was not released" }
+            return authoritative
+        }
+
+        override suspend fun write(values: Map<String, String>): Boolean {
+            writeCount++
+            this.values = values
+            return true
+        }
+
+        fun awaitAuthoritativeRead() {
+            check(authoritativeStarted.await(5, TimeUnit.SECONDS)) { "authoritative read did not start" }
+        }
+
+        fun releaseAuthoritativeRead() = authoritativeRelease.countDown()
     }
 
     private class GatedStorage : SettingsStorage {

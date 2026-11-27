@@ -1,6 +1,6 @@
 # Network transports
 
-`SocketProbeRunner` and `DnsProbeRunner` are transport implementations of the domain `ProbeRunner` contract. They are not connected to production UI. The manifest still has no `INTERNET` permission, the app sends no probe traffic, and no public endpoint is activated. Tests use loopback servers only.
+`SocketProbeRunner` and `DnsProbeRunner` are transport implementations of the domain `ProbeRunner` contract. They are not connected to production UI. The manifest's `INTERNET` permission is currently used only by the GitHub Releases updater; the app sends no probe traffic and no public diagnostic endpoint is activated. Tests use loopback servers only.
 
 `SocketProbeRunner` handles `ProbeRequest.TcpConnect` and `ProbeRequest.TlsHandshake`; `DnsProbeRunner` handles `ProbeRequest.SystemDns` and `ProbeRequest.DirectDns`. Every other request family returns `ProbeResult.Skipped` with `SkipReason.UNSUPPORTED` without calling admission.
 
@@ -79,4 +79,4 @@ All test servers are local. The TLS certificate is generated at test runtime, an
 
 ## Current limits
 
-HTTP and ICMP runners, DoH and DoT, Android network binding, the `INTERNET` permission, and production UI integration are not part of this implementation. A later integration issue must add the permission and connect the runners to the monitoring engine without weakening admission or TLS verification. EDNS is limited to reading the extended RCODE field from an OPT record; options, version negotiation, and full EDNS semantics are not implemented, and an extended expected RCODE still skips as unsupported. A platform DNS lookup that ignores interruption can keep its bounded worker thread until the resolver returns; the probe result itself is still bounded by the configured timeout, and further lookups return `Inconclusive(OS_LIMITATION)` when the pool is full.
+HTTP and ICMP runners, DoH and DoT, Android network binding, and production UI integration are not part of this implementation. The updater's `INTERNET` permission must not be reused for diagnostic traffic without a separate security and admission review. A later integration issue must connect the runners to the monitoring engine without weakening admission or TLS verification. EDNS is limited to reading the extended RCODE field from an OPT record; options, version negotiation, and full EDNS semantics are not implemented, and an extended expected RCODE still skips as unsupported. A platform DNS lookup that ignores interruption can keep its bounded worker thread until the resolver returns; the probe result itself is still bounded by the configured timeout, and further lookups return `Inconclusive(OS_LIMITATION)` when the pool is full.

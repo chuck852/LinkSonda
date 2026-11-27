@@ -9,6 +9,8 @@ import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.URL
 import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -176,8 +178,13 @@ internal class HttpUpdaterHttpClient : UpdaterHttpClient {
     }
 
     private fun HttpURLConnection.retryAt(): Instant? {
-        getHeaderField("Retry-After")?.trim()?.toLongOrNull()?.let { seconds ->
-            return Instant.now().plusSeconds(seconds.coerceAtLeast(0))
+        getHeaderField("Retry-After")?.trim()?.let { value ->
+            value.toLongOrNull()?.let { seconds ->
+                return Instant.now().plusSeconds(seconds.coerceAtLeast(0))
+            }
+            runCatching {
+                ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()
+            }.getOrNull()?.let { return it }
         }
         getHeaderField("X-RateLimit-Reset")?.trim()?.toLongOrNull()?.let { epochSeconds ->
             return Instant.ofEpochSecond(epochSeconds)
@@ -187,14 +194,6 @@ internal class HttpUpdaterHttpClient : UpdaterHttpClient {
 
     private val HttpURLConnection.etag: String?
         get() = getHeaderField("ETag")
-
-    private fun HttpURLConnection.disconnectQuietly() {
-        try {
-            disconnect()
-        } catch (_: Exception) {
-            // Nothing else to release.
-        }
-    }
 
     private companion object {
         const val USER_AGENT = "LinkSonda-Updater"

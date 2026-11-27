@@ -67,6 +67,12 @@ data class OfferedUpdate(
     val notes: String = "",
     val publishedAt: String? = null,
 ) {
+    init {
+        require(metadata.channel == "stable" || metadata.channel == "preview") {
+            "Unsupported update channel"
+        }
+    }
+
     val versionCode: Long get() = metadata.versionCode
     val versionName: String get() = metadata.versionName
     val channel: UpdateChannel get() = UpdateChannel.valueOf(metadata.channel.uppercase())
