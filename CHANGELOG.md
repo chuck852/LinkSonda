@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added a domain-backed Checks list with search, group/status/protocol filters and an explicit unknown/stale/timeout/inconclusive/restricted/skipped presentation.
+- Added a check details screen with protocol-specific configuration, preserved revisions, latest result, measured phases and observations. Missing measurements are shown as not observed, never as zero.
+- Prepared retry and edit through `ProbeKey` callbacks; production keeps them disabled until the runner and editor are connected.
 - Added the four-tab navigation shell with Overview, Checks, Presets and History, a saveable back stack, group filtering and a settings entry point.
 - Added the overview with aggregate state, freshness, monitoring, network and VPN context, active profile, availability bars and manual-check state. Production remains empty until real monitoring is connected.
 - Added explicit empty, unknown, running, partial, down and up states plus a debug-only demo harness and Compose previews.
