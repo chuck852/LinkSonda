@@ -249,7 +249,13 @@ internal class DnsProbeRunner internal constructor(
         }
 
         var lastFailure: DirectAttempt.Done? = null
-        for (address in addresses) {
+        for ((index, address) in addresses.withIndex()) {
+            val now = System.nanoTime()
+            val remaining = request.config.timeout.inWholeNanoseconds - (now - startNanos)
+            val addressCount = addresses.size - index
+            val budget = (remaining.coerceAtLeast(MIN_ATTEMPT_NANOS) / addressCount)
+                .coerceAtLeast(MIN_ATTEMPT_NANOS)
+            val deadlineNanos = now + budget
             val attempt = when (probe.transport) {
                 DnsTransport.UDP -> runUdp(
                     address = address,
@@ -260,7 +266,7 @@ internal class DnsProbeRunner internal constructor(
                     resolverKey = resolverKey,
                     admission = admission,
                     phases = phases,
-                    timeout = request.config.timeout,
+                    deadlineNanos = deadlineNanos,
                 )
                 DnsTransport.TCP -> runTcp(
                     address = address,
@@ -271,7 +277,7 @@ internal class DnsProbeRunner internal constructor(
                     resolverKey = resolverKey,
                     admission = admission,
                     phases = phases,
-                    timeout = request.config.timeout,
+                    deadlineNanos = deadlineNanos,
                     fallback = null,
                 )
             }
@@ -319,7 +325,7 @@ internal class DnsProbeRunner internal constructor(
         resolverKey: String,
         admission: ProbeAdmission,
         phases: MutableMap<ProbePhase, Duration>,
-        timeout: Duration,
+        deadlineNanos: Long,
     ): DirectAttempt {
         val decision = admission.authorize(
             ProbeAttempt(endpointKey = questionHost, infrastructureKey = resolverKey),
@@ -334,7 +340,7 @@ internal class DnsProbeRunner internal constructor(
         try {
             try {
                 socket.connect(InetSocketAddress(address, port))
-                socket.soTimeout = timeoutMillis(timeout)
+                socket.soTimeout = remainingMillis(deadlineNanos)
             } catch (error: Exception) {
                 return DirectAttempt.Done(classifyDnsIo(error), retryable = true)
             }
@@ -371,7 +377,7 @@ internal class DnsProbeRunner internal constructor(
                     resolverKey = resolverKey,
                     admission = admission,
                     phases = phases,
-                    timeout = timeout,
+                    deadlineNanos = deadlineNanos,
                     fallback = DnsObservation(
                         responseCode = message.responseCode,
                         answerCount = message.answerCount,
@@ -394,7 +400,7 @@ internal class DnsProbeRunner internal constructor(
         resolverKey: String,
         admission: ProbeAdmission,
         phases: MutableMap<ProbePhase, Duration>,
-        timeout: Duration,
+        deadlineNanos: Long,
         fallback: DnsObservation?,
     ): DirectAttempt {
         val decision = admission.authorize(
@@ -413,7 +419,7 @@ internal class DnsProbeRunner internal constructor(
                 socket.connectCancellable(
                     address = address,
                     port = port,
-                    timeoutMillis = timeoutMillis(timeout),
+                    timeoutMillis = remainingMillis(deadlineNanos),
                 )
             } catch (cancelled: CancellationException) {
                 record(phases, ProbePhase.TCP_CONNECT, connectStart)
@@ -423,7 +429,7 @@ internal class DnsProbeRunner internal constructor(
                 return DirectAttempt.Done(classifyConnectFailure(error), fallback, retryable = true)
             }
             record(phases, ProbePhase.TCP_CONNECT, connectStart)
-            socket.soTimeout = timeoutMillis(timeout)
+            socket.soTimeout = remainingMillis(deadlineNanos)
 
             val query = DnsWire.query(random.nextInt(0x10000), question)
             val dnsStart = System.nanoTime()
@@ -615,8 +621,10 @@ internal class DnsProbeRunner internal constructor(
     private fun queryId(query: ByteArray): Int =
         ((query[0].toInt() and 0xFF) shl 8) or (query[1].toInt() and 0xFF)
 
-    private fun timeoutMillis(timeout: Duration): Int =
-        timeout.inWholeMilliseconds.coerceIn(1, Int.MAX_VALUE.toLong()).toInt()
+    private fun remainingMillis(deadlineNanos: Long): Int =
+        ((deadlineNanos - System.nanoTime()).coerceAtLeast(MIN_ATTEMPT_NANOS) / 1_000_000L)
+            .coerceAtMost(Int.MAX_VALUE.toLong())
+            .toInt()
 
     private fun Socket.closeQuietly() {
         runCatching { close() }
@@ -656,6 +664,7 @@ internal class DnsProbeRunner internal constructor(
         const val A = 1
         const val AAAA = 28
         const val MAX_DNS_RCODE = 15
+        const val MIN_ATTEMPT_NANOS = 1_000_000L
         const val SYSTEM_DNS = "system-dns"
         const val MAX_DNS_MESSAGE = 65_535
         val IPV4 = Regex("""\d{1,3}(\.\d{1,3}){3}""")

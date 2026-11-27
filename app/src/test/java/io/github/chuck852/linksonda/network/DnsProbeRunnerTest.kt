@@ -520,6 +520,35 @@ class DnsProbeRunnerTest {
     }
 
     @Test
+    fun directUdpRetriesTheNextAddressAfterASilentTimeout() {
+        UdpDnsServer(bindAddress = "127.0.0.2", handler = { null }).use { silent ->
+            UdpDnsServer(
+                bindAddress = "127.0.0.1",
+                port = silent.port,
+                handler = { query -> dnsResponse(query, answerCount = 1, answerBytes = aRecord()) },
+            ).use { server ->
+                val result = runProbe(
+                    runner = runner { host, family ->
+                        assertEquals("resolver.test", host)
+                        assertNull(family)
+                        listOf(InetAddress.getByName("127.0.0.2"), loopbackV4())
+                    },
+                    request = directRequest(
+                        server.port,
+                        DnsTransport.UDP,
+                        resolverHost = "resolver.test",
+                    ),
+                    timeout = 1.seconds,
+                )
+
+                assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+                assertTrue(silent.awaitReceived())
+                assertTrue(server.awaitReceived())
+            }
+        }
+    }
+
+    @Test
     fun directUdpCnameOnlyDoesNotSatisfyARequiredAddressAnswer() {
         UdpDnsServer(handler = { query ->
             dnsResponse(query, answerCount = 1, answerBytes = cnameRecord())
