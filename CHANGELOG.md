@@ -1,6 +1,8 @@
 # Changelog
 
-## v0.2.0 — 2026-11-27
+## [v0.2.0](https://github.com/chuck852/LinkSonda/releases/tag/v0.2.0) — 2026-11-27
+
+Published as a debug-signed pre-release. Real manual and background checks are not available yet.
 
 - Added persisted settings for adaptive, accents-only and static color modes, system/light/dark brightness, system/English/Russian language, monitoring and notification preferences, history retention and the selected profile.
 - Added a localized settings screen and a first-run flow that explains local monitoring and offers manual checks or an available profile.
