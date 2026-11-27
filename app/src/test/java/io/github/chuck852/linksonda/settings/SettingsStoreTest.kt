@@ -2,6 +2,11 @@ package io.github.chuck852.linksonda.settings
 
 import io.github.chuck852.linksonda.ui.theme.ThemeBrightness
 import io.github.chuck852.linksonda.ui.theme.ThemeMode
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -66,11 +71,29 @@ class SettingsStoreTest {
             historyRetentionDays = 365,
             selectedProfileId = "profile-2",
         )
-        assertEquals(true, store.save(updated))
+        assertEquals(updated, store.update { updated }?.current)
 
         assertEquals(updated, store.settings.value)
         assertEquals(updated, SettingsCodec.decode(storage.values))
         assertEquals(updated, PersistentSettingsStore(storage).current())
+    }
+
+    @Test
+    fun updateAppliesTransformToCurrentStateAndPersistsResult() = runBlocking {
+        val storage = FakeStorage(emptyMap())
+        val store = PersistentSettingsStore(storage)
+
+        val update = requireNotNull(
+            store.update { current ->
+                current.copy(themeMode = ThemeMode.STATIC, historyRetentionDays = 90)
+            },
+        )
+
+        assertEquals(AppSettings.Default, update.previous)
+        assertEquals(ThemeMode.STATIC, update.current.themeMode)
+        assertEquals(90, update.current.historyRetentionDays)
+        assertEquals(update.current, store.current())
+        assertEquals(update.current, SettingsCodec.decode(storage.values))
     }
 
     @Test
@@ -80,12 +103,12 @@ class SettingsStoreTest {
 
         assertEquals(
             true,
-            store.save(
+            store.update {
                 AppSettings.Default.copy(
                     onboardingCompleted = true,
                     selectedProfileId = null,
-                ),
-            ),
+                )
+            } != null,
         )
 
         assertNull(SettingsCodec.decode(storage.values).selectedProfileId)
@@ -96,11 +119,34 @@ class SettingsStoreTest {
     fun failedWriteDoesNotAdvanceInMemoryState() = runBlocking {
         val storage = FakeStorage(emptyMap(), writeResult = false)
         val store = PersistentSettingsStore(storage)
-        val changed = AppSettings.Default.copy(onboardingCompleted = true)
 
-        assertEquals(false, store.save(changed))
+        assertNull(store.update { it.copy(onboardingCompleted = true) })
         assertEquals(AppSettings.Default, store.current())
         assertEquals(emptyMap<String, String?>(), storage.values)
+    }
+
+    @Test
+    fun concurrentUpdatesToDifferentSettingsBothPersist() = runBlocking {
+        val storage = GatedStorage()
+        val store = PersistentSettingsStore(storage)
+
+        val first = launch(Dispatchers.Default) {
+            checkNotNull(store.update { it.copy(themeMode = ThemeMode.STATIC) })
+        }
+        storage.awaitFirstWrite()
+
+        // Starts while the first commit is blocked: it must transform the state it will actually replace.
+        val second = launch(start = CoroutineStart.UNDISPATCHED) {
+            checkNotNull(store.update { it.copy(themeBrightness = ThemeBrightness.DARK) })
+        }
+
+        storage.releaseFirstWrite()
+        first.join()
+        second.join()
+
+        assertEquals(ThemeMode.STATIC, store.current().themeMode)
+        assertEquals(ThemeBrightness.DARK, store.current().themeBrightness)
+        assertEquals(store.current(), SettingsCodec.decode(storage.values))
     }
 
     private class FakeStorage(
@@ -116,5 +162,31 @@ class SettingsStoreTest {
             if (writeResult) this.values = values
             return writeResult
         }
+    }
+
+    private class GatedStorage : SettingsStorage {
+        private val firstWriteStarted = CountDownLatch(1)
+        private val firstWriteRelease = CountDownLatch(1)
+        private var writeCount = 0
+
+        var values: Map<String, String?> = emptyMap()
+            private set
+
+        override fun read(): Map<String, String?> = values
+
+        override fun write(values: Map<String, String>): Boolean {
+            if (writeCount++ == 0) {
+                firstWriteStarted.countDown()
+                check(firstWriteRelease.await(5, TimeUnit.SECONDS)) { "first write was not released" }
+            }
+            this.values = values
+            return true
+        }
+
+        fun awaitFirstWrite() {
+            check(firstWriteStarted.await(5, TimeUnit.SECONDS)) { "first write did not start" }
+        }
+
+        fun releaseFirstWrite() = firstWriteRelease.countDown()
     }
 }

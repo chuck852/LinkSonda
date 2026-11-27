@@ -21,9 +21,15 @@ import kotlinx.coroutines.withContext
 interface SettingsStore {
     val settings: StateFlow<AppSettings>
     fun current(): AppSettings
-    /** Returns false when the platform write fails and the in-memory state was not advanced. */
-    suspend fun save(settings: AppSettings): Boolean
+    /** Applies [transform] to the current state under the write lock; null means the write failed. */
+    suspend fun update(transform: (AppSettings) -> AppSettings): SettingsUpdate?
 }
+
+/** Actual states around a successful update, used to react only to real changes. */
+data class SettingsUpdate(
+    val previous: AppSettings,
+    val current: AppSettings,
+)
 
 /** Minimal platform boundary so the settings logic is testable without Android. */
 interface SettingsStorage {
@@ -64,14 +70,21 @@ class PersistentSettingsStore(
 
     override fun current(): AppSettings = state.value
 
-    override suspend fun save(settings: AppSettings): Boolean {
-        val encoded = SettingsCodec.encode(settings)
-        return writeMutex.withLock {
-            val stored = withContext(Dispatchers.IO) { storage.write(encoded) }
-            if (stored) state.value = settings
-            stored
+    override suspend fun update(transform: (AppSettings) -> AppSettings): SettingsUpdate? =
+        writeMutex.withLock {
+            val previous = state.value
+            val updated = transform(previous)
+            if (updated == previous) {
+                return@withLock SettingsUpdate(previous, updated)
+            }
+            val stored = withContext(Dispatchers.IO) { storage.write(SettingsCodec.encode(updated)) }
+            if (stored) {
+                state.value = updated
+                SettingsUpdate(previous, updated)
+            } else {
+                null
+            }
         }
-    }
 }
 
 /** Stable preference keys and tolerant decoding for values written by older or newer builds. */

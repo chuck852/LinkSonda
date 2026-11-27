@@ -66,7 +66,7 @@ import io.github.chuck852.linksonda.ui.theme.ThemeMode
 fun SettingsScreen(
     settings: AppSettings,
     monitoringAvailable: Boolean,
-    onSettingsChange: (AppSettings) -> Unit,
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -108,7 +108,7 @@ fun SettingsScreen(
 @Composable
 private fun AppearanceSection(
     settings: AppSettings,
-    onSettingsChange: (AppSettings) -> Unit,
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
 ) {
     SettingsCard {
         SectionHeader(stringResource(R.string.settings_appearance_title))
@@ -122,7 +122,7 @@ private fun AppearanceSection(
                     selected = settings.themeMode == mode,
                     onClick = {
                         if (settings.themeMode != mode) {
-                            onSettingsChange(settings.copy(themeMode = mode))
+                            onSettingsChange { it.copy(themeMode = mode) }
                         }
                     },
                 )
@@ -137,7 +137,7 @@ private fun AppearanceSection(
                     selected = settings.themeBrightness == brightness,
                     onClick = {
                         if (settings.themeBrightness != brightness) {
-                            onSettingsChange(settings.copy(themeBrightness = brightness))
+                            onSettingsChange { it.copy(themeBrightness = brightness) }
                         }
                     },
                 )
@@ -152,7 +152,7 @@ private fun AppearanceSection(
                     selected = settings.language == language,
                     onClick = {
                         if (settings.language != language) {
-                            onSettingsChange(settings.copy(language = language))
+                            onSettingsChange { it.copy(language = language) }
                         }
                     },
                 )
@@ -166,7 +166,7 @@ private fun AppearanceSection(
 private fun MonitoringSection(
     settings: AppSettings,
     monitoringAvailable: Boolean,
-    onSettingsChange: (AppSettings) -> Unit,
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
 ) {
     SettingsCard {
         SectionHeader(stringResource(R.string.settings_monitoring_title))
@@ -175,7 +175,7 @@ private fun MonitoringSection(
             checked = settings.monitoringEnabled,
             enabled = monitoringAvailable,
             onCheckedChange = { enabled ->
-                onSettingsChange(settings.copy(monitoringEnabled = enabled))
+                onSettingsChange { it.copy(monitoringEnabled = enabled) }
             },
         )
         if (!monitoringAvailable) {
@@ -188,7 +188,7 @@ private fun MonitoringSection(
 @Composable
 private fun NotificationsSection(
     settings: AppSettings,
-    onSettingsChange: (AppSettings) -> Unit,
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -203,9 +203,13 @@ private fun NotificationsSection(
                 permissionGranted = granted
                 if (!granted && latestSettings.notificationsEnabled) {
                     // Keep the user's preference; only persist that a request was shown.
-                    latestOnSettingsChange(
-                        latestSettings.copy(notificationsPermissionRequested = true),
-                    )
+                    latestOnSettingsChange { current ->
+                        if (current.notificationsEnabled) {
+                            current.copy(notificationsPermissionRequested = true)
+                        } else {
+                            current
+                        }
+                    }
                 }
             }
         }
@@ -217,12 +221,12 @@ private fun NotificationsSection(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         permissionGranted = granted
-        latestOnSettingsChange(
-            latestSettings.copy(
+        latestOnSettingsChange {
+            it.copy(
                 notificationsEnabled = granted,
                 notificationsPermissionRequested = true,
-            ),
-        )
+            )
+        }
     }
 
     val openNotificationSettings: () -> Unit = {
@@ -245,14 +249,14 @@ private fun NotificationsSection(
             checked = permissionUi.effectiveEnabled,
             onCheckedChange = { enabled ->
                 when {
-                    !enabled -> onSettingsChange(settings.copy(notificationsEnabled = false))
+                    !enabled -> onSettingsChange { it.copy(notificationsEnabled = false) }
 
-                    permissionGranted -> onSettingsChange(
-                        settings.copy(
+                    permissionGranted -> onSettingsChange {
+                        it.copy(
                             notificationsEnabled = true,
                             notificationsPermissionRequested = true,
-                        ),
-                    )
+                        )
+                    }
 
                     else -> permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
@@ -278,7 +282,7 @@ private fun NotificationsSection(
 @Composable
 private fun HistorySection(
     settings: AppSettings,
-    onSettingsChange: (AppSettings) -> Unit,
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
 ) {
     SettingsCard {
         SectionHeader(stringResource(R.string.settings_history_title))
@@ -290,7 +294,7 @@ private fun HistorySection(
                     selected = settings.historyRetentionDays == days,
                     onClick = {
                         if (settings.historyRetentionDays != days) {
-                            onSettingsChange(settings.copy(historyRetentionDays = days))
+                            onSettingsChange { it.copy(historyRetentionDays = days) }
                         }
                     },
                 )

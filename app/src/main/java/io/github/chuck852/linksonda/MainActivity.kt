@@ -10,19 +10,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import io.github.chuck852.linksonda.settings.AppLanguage
-import io.github.chuck852.linksonda.settings.PersistentSettingsStore
 import io.github.chuck852.linksonda.settings.SettingsStore
-import io.github.chuck852.linksonda.settings.SharedPreferencesSettingsStorage
 import io.github.chuck852.linksonda.settings.applySystemAppLanguage
 import io.github.chuck852.linksonda.settings.withAppLanguage
 import io.github.chuck852.linksonda.ui.LinkSondaApp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var settingsStore: SettingsStore
 
     override fun attachBaseContext(newBase: Context) {
-        settingsStore = PersistentSettingsStore(SharedPreferencesSettingsStorage(newBase))
+        settingsStore = (newBase.applicationContext as LinkSondaApplication).settingsStore
         super.attachBaseContext(newBase.withAppLanguage(settingsStore.current().language))
     }
 
@@ -39,22 +38,23 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             LinkSondaApp(
                 settings = settings,
-                onSettingsChange = { updated ->
+                onSettingsChange = { transform ->
                     scope.launch {
-                        val languageChanged = updated.language != settings.language
-                        val saved = try {
-                            settingsStore.save(updated)
+                        val update = try {
+                            settingsStore.update(transform)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
                         } catch (_: Exception) {
-                            false
+                            null
                         }
-                        if (!saved) {
+                        if (update == null) {
                             Toast.makeText(
                                 this@MainActivity,
                                 R.string.settings_save_failed,
                                 Toast.LENGTH_SHORT,
                             ).show()
-                        } else if (languageChanged) {
-                            applySystemAppLanguage(updated.language)
+                        } else if (update.previous.language != update.current.language) {
+                            applySystemAppLanguage(update.current.language)
                             recreate()
                         }
                     }

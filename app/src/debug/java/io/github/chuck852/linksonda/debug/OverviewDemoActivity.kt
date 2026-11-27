@@ -93,7 +93,8 @@ class OverviewDemoActivity : ComponentActivity() {
                     settings = appSettings.value.copy(
                         onboardingCompleted = !current.showOnboarding,
                     ),
-                    onSettingsChange = { updated ->
+                    onSettingsChange = { transform ->
+                        val updated = transform(appSettings.value)
                         appSettings.value = updated
                         if (updated.onboardingCompleted && current.showOnboarding) {
                             config.value = current.copy(showOnboarding = false)

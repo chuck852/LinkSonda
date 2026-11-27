@@ -93,7 +93,7 @@ fun LinkSondaApp(
     initialNavigation: AppNavigationState = AppNavigationState(),
     editorActions: ProbeEditorActions = ProbeEditorActions(),
     settings: AppSettings = AppSettings.Default,
-    onSettingsChange: (AppSettings) -> Unit = {},
+    onSettingsChange: ((AppSettings) -> AppSettings) -> Unit = {},
     firstRunProfiles: List<FirstRunProfile> = emptyList(),
 ) {
     LinkSondaTheme(
@@ -120,12 +120,12 @@ fun LinkSondaApp(
             FirstRunScreen(
                 profiles = availableProfiles,
                 onComplete = { profileId ->
-                    onSettingsChange(
-                        settings.copy(
+                    onSettingsChange {
+                        it.copy(
                             onboardingCompleted = true,
                             selectedProfileId = profileId,
-                        ),
-                    )
+                        )
+                    }
                 },
             )
             return@LinkSondaTheme
