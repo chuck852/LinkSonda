@@ -8,11 +8,13 @@ import io.github.chuck852.linksonda.domain.HttpMethod
 import io.github.chuck852.linksonda.domain.IpFamily
 import io.github.chuck852.linksonda.domain.ProbeConfig
 import io.github.chuck852.linksonda.domain.ProbeId
+import io.github.chuck852.linksonda.domain.ProbeOutcome
 import io.github.chuck852.linksonda.domain.ProbeRequest
 import io.github.chuck852.linksonda.domain.ProbeRevision
 import io.github.chuck852.linksonda.domain.SocketEndpoint
 import io.github.chuck852.linksonda.domain.TlsVersion
 import java.net.URI
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -135,6 +137,7 @@ class ProbeEditorStateTest {
             ipFamily = io.github.chuck852.linksonda.domain.IpFamily.IPV4,
         )
 
+        assertEquals(http, http.withProtocol(ProbeProtocol.HTTPS))
         val tcp = http.withProtocol(ProbeProtocol.TCP)
         assertEquals("", tcp.url)
         assertEquals("", tcp.bodyMarker)
@@ -152,6 +155,37 @@ class ProbeEditorStateTest {
         assertEquals("1", dns.recordType)
         assertEquals("0", dns.expectedRcode)
         assertTrue(dns.requiresAnswer)
+    }
+
+    @Test
+    fun completedTestIsHiddenAfterExecutionParametersChange() {
+        val base = ProbeConfig(
+            id = ProbeId("https"),
+            name = "HTTPS",
+            request = ProbeRequest.Http(
+                url = URI("https://example.test/"),
+                method = HttpMethod.GET,
+                expected = HttpExpectation(200..299),
+            ),
+            timeout = 5.seconds,
+        )
+        val changed = base.update(
+            request = ProbeRequest.Http(
+                url = URI("https://example.test/health"),
+                method = HttpMethod.GET,
+                expected = HttpExpectation(200..299),
+            ),
+        )
+        val status = ProbeEditorStatus.TestCompleted(
+            configKey = base.key,
+            outcome = ProbeOutcome.Matched,
+            elapsed = 35.milliseconds,
+            isDemo = true,
+        )
+
+        assertEquals(status, status.forConfiguration(base))
+        assertNull(status.forConfiguration(changed))
+        assertEquals(ProbeEditorStatus.Running, ProbeEditorStatus.Running.forConfiguration(changed))
     }
 
     @Test

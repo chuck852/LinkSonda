@@ -168,7 +168,7 @@ fun LinkSondaApp(
                 editorStatus = if (result == null) {
                     ProbeEditorStatus.TestFailed
                 } else {
-                    ProbeEditorStatus.TestCompleted(result.outcome, result.elapsed, result.isDemo)
+                    ProbeEditorStatus.TestCompleted(probe.key, result.outcome, result.elapsed, result.isDemo)
                 }
             }
         }

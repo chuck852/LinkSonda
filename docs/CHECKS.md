@@ -65,7 +65,7 @@ Useful demo IDs include `https-global` (revision 2, matched HTTPS with phases), 
 
 ## Verification
 
-- 73 JVM tests, including editor validation, every protocol round-trip, revision changes, protocol field resets, navigation and demo save/test contracts.
+- 74 JVM tests, including editor validation, every protocol round-trip, revision changes, protocol field resets, navigation and demo save/test contracts.
 - Android 17 (API 37): search, group/status/protocol filters, filtered empty state, details navigation, back stack, light and dark themes checked.
 - 320 dp width at 200% font scale: no horizontal overflow; labels and fields wrap; controls remain reachable.
 - Release build excludes the demo activity, domain-backed demo catalog and demo resources.

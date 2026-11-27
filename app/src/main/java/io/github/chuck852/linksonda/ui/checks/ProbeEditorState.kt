@@ -95,24 +95,28 @@ data class ProbeEditorState(
         require(probeId.isNotBlank())
     }
 
-    fun withProtocol(protocol: ProbeProtocol): ProbeEditorState = copy(
-        protocol = protocol,
-        host = "",
-        port = defaultPort(protocol),
-        url = "",
-        method = HttpMethod.GET,
-        expectedStatus = DEFAULT_STATUS_RANGE,
-        bodyMarker = "",
-        serverName = "",
-        minimumTls = null,
-        dnsName = "",
-        recordType = "1",
-        expectedRcode = "0",
-        requiresAnswer = true,
-        ipFamily = null,
-        packetCount = "4",
-        minimumReplies = "3",
-    )
+    fun withProtocol(protocol: ProbeProtocol): ProbeEditorState = if (protocol == this.protocol) {
+        this
+    } else {
+        copy(
+            protocol = protocol,
+            host = "",
+            port = defaultPort(protocol),
+            url = "",
+            method = HttpMethod.GET,
+            expectedStatus = DEFAULT_STATUS_RANGE,
+            bodyMarker = "",
+            serverName = "",
+            minimumTls = null,
+            dnsName = "",
+            recordType = "1",
+            expectedRcode = "0",
+            requiresAnswer = true,
+            ipFamily = null,
+            packetCount = "4",
+            minimumReplies = "3",
+        )
+    }
 
     fun withExpectedRcode(value: String): ProbeEditorState {
         val parsed = value.trim().toIntOrNull()

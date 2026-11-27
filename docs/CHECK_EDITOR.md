@@ -19,7 +19,7 @@ The protocol selector covers all current P0 request families:
 | DNS over TLS | resolver host, port, server name, DNS name | record type, expected RCODE, answer requirement |
 | ICMP | host | packet count and minimum replies |
 
-Changing the protocol clears fields that belong to the previous protocol and sets the new protocol defaults. The check name, group and timeout are preserved.
+Changing the protocol clears fields that belong to the previous protocol and sets the new protocol defaults. Selecting the already active protocol leaves the draft unchanged. The check name, group and timeout are preserved.
 
 HTTP/3, raw UDP, WebSocket and gRPC are not offered. The editor names them explicitly and does not simulate an unsupported protocol. Redirects are controlled by the shared endpoint policy, not by a per-check switch. Schedule, notification thresholds and group monitoring are profile settings.
 
@@ -44,7 +44,7 @@ TLS certificate and hostname verification are always required. The editor has no
 
 ## Revisions and field reset
 
-A new check starts at revision 1. Editing a name only keeps the revision and its existing result. Changing the request or timeout calls `ProbeConfig.update`, which advances the revision and starts a new history key. The editor rebuilds the visible state from UNKNOWN when the revision changes, so a result from the previous definition is not shown as the current result.
+A new check starts at revision 1. Editing a name only keeps the revision and its existing result. Changing the request or timeout calls `ProbeConfig.update`, which advances the revision and starts a new history key. The editor rebuilds the visible state from UNKNOWN when the revision changes, so a result from the previous definition is not shown as the current result. A completed test result is associated with the tested configuration key and disappears when an execution parameter changes.
 
 ## Contracts and current limits
 
@@ -95,7 +95,7 @@ Useful edit IDs include `https-global` (URL, status and body marker), `tls-globa
 
 ## Verification
 
-- 73 JVM tests, 0 failures. Editor coverage includes all ten protocols, invalid host/URL/port/status/timeout, TLS server-name rules, protocol reset, revision changes and save/test contracts.
+- 74 JVM tests, 0 failures. Editor coverage includes all ten protocols, invalid host/URL/port/status/timeout, TLS server-name rules, protocol reset, revision changes and save/test contracts.
 - `clean testDebugUnitTest lintDebug assembleDebug assembleRelease` passes; lint reports 0 errors and the same 6 pre-existing warnings.
 - Android 17 (API 37): new check from the empty production list, edit from details, protocol-specific fields, validation errors, test through the demo runner and save into the demo session.
 - 320 dp at 200% font scale: no horizontal overflow; fields and action buttons wrap and remain reachable.

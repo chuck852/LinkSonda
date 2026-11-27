@@ -1,6 +1,7 @@
 package io.github.chuck852.linksonda.ui.checks
 
 import io.github.chuck852.linksonda.domain.ProbeConfig
+import io.github.chuck852.linksonda.domain.ProbeKey
 import io.github.chuck852.linksonda.domain.ProbeOutcome
 import kotlin.time.Duration
 
@@ -23,6 +24,7 @@ data class ProbeTestOutcome(
 sealed interface ProbeEditorStatus {
     data object Running : ProbeEditorStatus
     data class TestCompleted(
+        val configKey: ProbeKey,
         val outcome: ProbeOutcome,
         val elapsed: Duration,
         val isDemo: Boolean,
@@ -43,3 +45,9 @@ data class ProbeEditorActions(
     val onSave: (suspend (ProbeDraft) -> ProbeConfig?)? = null,
     val onTest: (suspend (ProbeConfig) -> ProbeTestOutcome)? = null,
 )
+
+/** Hide a completed test when the draft no longer has the tested configuration key. */
+fun ProbeEditorStatus.forConfiguration(config: ProbeConfig?): ProbeEditorStatus? = when (this) {
+    is ProbeEditorStatus.TestCompleted -> takeIf { config?.key == configKey }
+    else -> this
+}

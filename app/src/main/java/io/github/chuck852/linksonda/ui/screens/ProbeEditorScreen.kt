@@ -60,6 +60,7 @@ import io.github.chuck852.linksonda.ui.checks.ProbeEditorState
 import io.github.chuck852.linksonda.ui.checks.ProbeEditorStateSaver
 import io.github.chuck852.linksonda.ui.checks.ProbeEditorStatus
 import io.github.chuck852.linksonda.ui.checks.ProbeEditorValidation
+import io.github.chuck852.linksonda.ui.checks.forConfiguration
 import io.github.chuck852.linksonda.ui.checks.ProbeProtocol
 import io.github.chuck852.linksonda.ui.checks.display
 import io.github.chuck852.linksonda.ui.checks.label
@@ -94,6 +95,7 @@ fun ProbeEditorScreen(
     val validation = state.validate(baseConfig)
     val errors = if (showValidation) validation.errors else emptyMap()
     val advancedErrors = errors.keys.any { it in ADVANCED_FIELDS }
+    val visibleStatus = status?.forConfiguration(validation.config)
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -142,7 +144,7 @@ fun ProbeEditorScreen(
                 canTest = canTest,
                 showValidation = showValidation,
                 validation = validation,
-                status = status,
+                status = visibleStatus,
                 onSave = {
                     showValidation = true
                     val config = validation.config
