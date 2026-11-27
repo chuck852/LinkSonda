@@ -767,6 +767,28 @@ class DnsProbeRunnerTest {
     }
 
     @Test
+    fun directUdpTruncationPreservesUdpFactsWhenTcpFallbackTimesOut() {
+        TcpDnsServer(handler = { null }).use { tcp ->
+            UdpDnsServer(port = tcp.port, handler = { query ->
+                dnsResponse(query, truncated = true, answerCount = 1, answerBytes = aRecord())
+            }).use { udp ->
+                val result = runProbe(
+                    runner = runner { _, _ -> error("unexpected resolver call") },
+                    request = directRequest(udp.port, DnsTransport.UDP),
+                    timeout = 250.milliseconds,
+                )
+
+                failed(result, FailureReason.TIMEOUT)
+                assertEquals(
+                    DnsObservation(0, 1, true),
+                    completed(result).observations.dns,
+                )
+                assertTrue(tcp.awaitAccepted())
+            }
+        }
+    }
+
+    @Test
     fun directDnsPhaseDurationsSumAcrossAddressAttempts() {
         val slowMalformed = UdpDnsServer(
             bindAddress = "127.0.0.2",

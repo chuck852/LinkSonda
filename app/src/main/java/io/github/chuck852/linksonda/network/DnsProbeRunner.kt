@@ -70,10 +70,18 @@ internal class DnsProbeRunner internal constructor(
 
         val startNanos = System.nanoTime()
         val phases = mutableMapOf<ProbePhase, Duration>()
+        var timeoutObservation: DnsObservation? = null
         val result = withTimeoutOrNull(request.config.timeout) {
             when (probe) {
                 is ProbeRequest.SystemDns -> runSystem(request, probe, admission, startNanos, phases)
-                is ProbeRequest.DirectDns -> runDirect(request, probe, admission, startNanos, phases)
+                is ProbeRequest.DirectDns -> runDirect(
+                    request = request,
+                    probe = probe,
+                    admission = admission,
+                    startNanos = startNanos,
+                    phases = phases,
+                    onObservation = { timeoutObservation = it },
+                )
             }
         }
         currentCoroutineContext().ensureActive()
@@ -82,6 +90,7 @@ internal class DnsProbeRunner internal constructor(
             startNanos = startNanos,
             phases = phases,
             outcome = ProbeOutcome.Failed(FailureReason.TIMEOUT),
+            dns = timeoutObservation,
         )
     }
 
@@ -164,6 +173,7 @@ internal class DnsProbeRunner internal constructor(
         admission: ProbeAdmission,
         startNanos: Long,
         phases: MutableMap<ProbePhase, Duration>,
+        onObservation: (DnsObservation) -> Unit,
     ): ProbeResult {
         if (probe.expected.responseCode > MAX_DNS_RCODE) {
             return skipped(request, SkipReason.UNSUPPORTED)
@@ -268,6 +278,7 @@ internal class DnsProbeRunner internal constructor(
                     admission = admission,
                     phases = phases,
                     deadlineNanos = deadlineNanos,
+                    onObservation = onObservation,
                 )
                 DnsTransport.TCP -> runTcp(
                     address = address,
@@ -327,6 +338,7 @@ internal class DnsProbeRunner internal constructor(
         admission: ProbeAdmission,
         phases: MutableMap<ProbePhase, Duration>,
         deadlineNanos: Long,
+        onObservation: (DnsObservation) -> Unit,
     ): DirectAttempt {
         val decision = admission.authorize(
             ProbeAttempt(endpointKey = questionHost, infrastructureKey = resolverKey),
@@ -369,6 +381,12 @@ internal class DnsProbeRunner internal constructor(
             }
             if (message.truncated) {
                 socket.closeQuietly()
+                val fallbackObservation = DnsObservation(
+                    responseCode = message.responseCode,
+                    answerCount = message.answerCount,
+                    truncated = true,
+                )
+                onObservation(fallbackObservation)
                 return runTcp(
                     address = address,
                     port = port,
@@ -379,11 +397,7 @@ internal class DnsProbeRunner internal constructor(
                     admission = admission,
                     phases = phases,
                     deadlineNanos = deadlineNanos,
-                    fallback = DnsObservation(
-                        responseCode = message.responseCode,
-                        answerCount = message.answerCount,
-                        truncated = true,
-                    ),
+                    fallback = fallbackObservation,
                 )
             }
             return evaluate(message, expected, truncated = false)
