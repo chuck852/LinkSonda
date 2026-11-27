@@ -31,7 +31,9 @@ import java.net.SocketException
 import java.net.URI
 import java.net.UnknownHostException
 import java.time.Instant
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import kotlin.time.Duration
@@ -39,14 +41,18 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -69,7 +75,8 @@ class SocketProbeRunnerTest {
             val connect = requireNotNull(completed.timing.phases[ProbePhase.TCP_CONNECT])
             assertTrue(connect <= completed.timing.elapsed)
             assertEquals(1, admission.attempts.size)
-            assertTrue(admission.attempts.single().endpointKey.startsWith("tcp:"))
+            assertEquals("127.0.0.1", admission.attempts.single().endpointKey)
+            assertEquals("127.0.0.1", admission.attempts.single().infrastructureKey)
             assertTrue(server.awaitFinished())
             assertNull(server.failure())
         }
@@ -92,8 +99,47 @@ class SocketProbeRunnerTest {
             assertEquals(IpFamily.IPV4, completed.observations.connectedIpFamily)
             assertNotNull(completed.timing.phases[ProbePhase.DNS])
             assertEquals(2, admission.attempts.size)
-            assertTrue(admission.attempts[0].endpointKey.startsWith("dns:"))
-            assertTrue(admission.attempts[1].endpointKey.startsWith("tcp:"))
+            assertEquals("localhost", admission.attempts[0].endpointKey)
+            assertEquals("system-dns", admission.attempts[0].infrastructureKey)
+            assertEquals("localhost", admission.attempts[1].endpointKey)
+            assertEquals("localhost", admission.attempts[1].infrastructureKey)
+        }
+    }
+
+    @Test
+    fun transportAdmissionKeysUseNormalizedHostOnly() {
+        TcpServer().use { tcpServer ->
+            TlsServer().use { tlsServer ->
+                val resolver = HostResolver { _, _ -> listOf(InetAddress.getByName("127.0.0.1")) }
+                val tcpAdmission = RecordingAdmission()
+                val tlsAdmission = RecordingAdmission()
+
+                val tcpResult = runProbe(
+                    runner = runner(hostResolver = resolver),
+                    request = ProbeRequest.TcpConnect(
+                        SocketEndpoint("Identity.TEST", tcpServer.port, IpFamily.IPV4),
+                    ),
+                    admission = tcpAdmission,
+                )
+                val tlsResult = runProbe(
+                    runner = runner(hostResolver = resolver),
+                    request = ProbeRequest.TlsHandshake(
+                        endpoint = SocketEndpoint("Identity.TEST", tlsServer.port, IpFamily.IPV4),
+                        serverName = "localhost",
+                    ),
+                    admission = tlsAdmission,
+                )
+
+                assertEquals(ProbeOutcome.Matched, completed(tcpResult).outcome)
+                assertEquals(ProbeOutcome.Matched, completed(tlsResult).outcome)
+
+                val tcpSocketAttempt = tcpAdmission.attempts.single { it.infrastructureKey == "identity.test" }
+                val tlsSocketAttempt = tlsAdmission.attempts.single { it.infrastructureKey == "identity.test" }
+                assertEquals("identity.test", tcpSocketAttempt.endpointKey)
+                assertEquals(tcpSocketAttempt, tlsSocketAttempt)
+                assertEquals("identity.test", tcpAdmission.attempts.first().endpointKey)
+                assertEquals("system-dns", tcpAdmission.attempts.first().infrastructureKey)
+            }
         }
     }
 
@@ -112,7 +158,8 @@ class SocketProbeRunnerTest {
         assertNotNull(completed.timing.phases[ProbePhase.DNS])
         assertNull(completed.timing.phases[ProbePhase.TCP_CONNECT])
         assertEquals(1, admission.attempts.size)
-        assertTrue(admission.attempts.single().endpointKey.startsWith("dns:"))
+        assertEquals("missing.test", admission.attempts.single().endpointKey)
+        assertEquals("system-dns", admission.attempts.single().infrastructureKey)
     }
 
     @Test
@@ -138,9 +185,12 @@ class SocketProbeRunnerTest {
             assertEquals(ProbeOutcome.Matched, completed.outcome)
             assertEquals(IpFamily.IPV4, completed.observations.connectedIpFamily)
             assertEquals(3, admission.attempts.size)
-            assertTrue(admission.attempts[0].endpointKey.startsWith("dns:"))
-            assertTrue(admission.attempts[1].endpointKey.startsWith("tcp:"))
-            assertTrue(admission.attempts[2].endpointKey.startsWith("tcp:"))
+            assertEquals("dual.test", admission.attempts[0].endpointKey)
+            assertEquals("system-dns", admission.attempts[0].infrastructureKey)
+            assertEquals("dual.test", admission.attempts[1].endpointKey)
+            assertEquals("dual.test", admission.attempts[1].infrastructureKey)
+            assertEquals("dual.test", admission.attempts[2].endpointKey)
+            assertEquals("dual.test", admission.attempts[2].infrastructureKey)
         }
     }
 
@@ -159,6 +209,129 @@ class SocketProbeRunnerTest {
 
         val completed = failed(result, FailureReason.TIMEOUT)
         assertTrue(completed.timing.elapsed < 1.seconds)
+    }
+
+    @Test
+    fun externalCancellationPropagatesInsteadOfBeingReportedAsTimeout() {
+        val resolver = HostResolver { _, _ ->
+            Thread.sleep(2_000)
+            emptyList()
+        }
+        var returned: ProbeResult? = null
+
+        assertThrows(TimeoutCancellationException::class.java) {
+            runBlocking {
+                withTimeout(100.milliseconds) {
+                    returned = runner(hostResolver = resolver).run(
+                        probeRunRequest(
+                            ProbeRequest.TcpConnect(SocketEndpoint("external-timeout.test", 80)),
+                            5.seconds,
+                        ),
+                        RecordingAdmission(),
+                    )
+                }
+            }
+        }
+        assertNull(returned)
+    }
+
+    @Test
+    fun dnsResolutionIgnoringInterruptionStillHonorsTheProbeTimeout() {
+        val executor = boundedDnsExecutor(1, 1)
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val resolver = HostResolver { _, _ ->
+            started.countDown()
+            release.await()
+            emptyList()
+        }
+        val runner = runner(hostResolver = resolver, dnsExecutor = executor)
+
+        try {
+            runBlocking {
+                val result = async(Dispatchers.Default) {
+                    runner.run(
+                        probeRunRequest(
+                            ProbeRequest.TcpConnect(SocketEndpoint("stuck-dns.test", 80)),
+                            100.milliseconds,
+                        ),
+                        RecordingAdmission(),
+                    )
+                }
+
+                assertTrue(started.await(1, TimeUnit.SECONDS))
+                val completed = completed(withTimeout(1.seconds) { result.await() })
+                assertEquals(ProbeOutcome.Failed(FailureReason.TIMEOUT), completed.outcome)
+                assertTrue(completed.timing.elapsed < 1.seconds)
+            }
+        } finally {
+            release.countDown()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun dnsExecutorExhaustionIsInconclusive() {
+        val executor = boundedDnsExecutor(1, 1)
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val resolver = HostResolver { _, _ ->
+            started.countDown()
+            release.await()
+            emptyList()
+        }
+        val runner = runner(hostResolver = resolver, dnsExecutor = executor)
+
+        try {
+            runBlocking {
+                val first = launch(Dispatchers.Default) {
+                    runner.run(
+                        probeRunRequest(
+                            ProbeRequest.TcpConnect(SocketEndpoint("blocked-dns.test", 80)),
+                            10.seconds,
+                        ),
+                        RecordingAdmission(),
+                    )
+                }
+                assertTrue(started.await(1, TimeUnit.SECONDS))
+
+                val second = launch(Dispatchers.Default) {
+                    runner.run(
+                        probeRunRequest(
+                            ProbeRequest.TcpConnect(SocketEndpoint("queued-dns.test", 80)),
+                            10.seconds,
+                        ),
+                        RecordingAdmission(),
+                    )
+                }
+                withTimeout(1.seconds) {
+                    while (executor.queue.isEmpty()) {
+                        yield()
+                    }
+                }
+
+                val result = runner.run(
+                    probeRunRequest(
+                        ProbeRequest.TcpConnect(SocketEndpoint("rejected-dns.test", 80)),
+                        1.seconds,
+                    ),
+                    RecordingAdmission(),
+                )
+
+                val completed = completed(result)
+                assertEquals(
+                    ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION),
+                    completed.outcome,
+                )
+
+                release.countDown()
+                first.cancelAndJoin()
+                second.cancelAndJoin()
+            }
+        } finally {
+            release.countDown()
+            executor.shutdownNow()
+        }
     }
 
     @Test
@@ -192,7 +365,8 @@ class SocketProbeRunnerTest {
             assertEquals(retryAt, skipped.nextAllowedAt)
             assertFalse(server.awaitAccepted(300))
             assertEquals(1, admission.attempts.size)
-            assertTrue(admission.attempts.single().endpointKey.startsWith("dns:"))
+            assertEquals("localhost", admission.attempts.single().endpointKey)
+            assertEquals("system-dns", admission.attempts.single().infrastructureKey)
         }
     }
 
@@ -212,8 +386,10 @@ class SocketProbeRunnerTest {
             skipped(result, SkipReason.BUDGET)
             assertFalse(server.awaitAccepted(300))
             assertEquals(2, admission.attempts.size)
-            assertTrue(admission.attempts[0].endpointKey.startsWith("dns:"))
-            assertTrue(admission.attempts[1].endpointKey.startsWith("tcp:"))
+            assertEquals("localhost", admission.attempts[0].endpointKey)
+            assertEquals("system-dns", admission.attempts[0].infrastructureKey)
+            assertEquals("localhost", admission.attempts[1].endpointKey)
+            assertEquals("localhost", admission.attempts[1].infrastructureKey)
         }
     }
 
@@ -239,7 +415,8 @@ class SocketProbeRunnerTest {
             assertNotNull(completed.timing.phases[ProbePhase.TCP_CONNECT])
             assertNotNull(completed.timing.phases[ProbePhase.TLS_HANDSHAKE])
             assertEquals(1, admission.attempts.size)
-            assertTrue(admission.attempts.single().endpointKey.startsWith("tls:"))
+            assertEquals("127.0.0.1", admission.attempts.single().endpointKey)
+            assertEquals("127.0.0.1", admission.attempts.single().infrastructureKey)
             assertTrue(server.awaitHandshake())
             assertEquals("localhost", server.sni.get())
             assertNull(server.handshakeFailure())
@@ -492,7 +669,27 @@ class SocketProbeRunnerTest {
     private fun runner(
         hostResolver: HostResolver = SystemHostResolver(),
         sslContext: SSLContext = TestTls.clientContext,
-    ): SocketProbeRunner = SocketProbeRunner(hostResolver = hostResolver, sslContext = sslContext)
+        dnsExecutor: ThreadPoolExecutor? = null,
+    ): SocketProbeRunner = if (dnsExecutor == null) {
+        SocketProbeRunner(hostResolver = hostResolver, sslContext = sslContext)
+    } else {
+        SocketProbeRunner(
+            hostResolver = hostResolver,
+            sslContext = sslContext,
+            dnsExecutor = dnsExecutor,
+        )
+    }
+
+    private fun boundedDnsExecutor(workers: Int, queueCapacity: Int): ThreadPoolExecutor =
+        ThreadPoolExecutor(
+            workers,
+            workers,
+            0L,
+            TimeUnit.MILLISECONDS,
+            ArrayBlockingQueue<Runnable>(queueCapacity),
+        ) { runnable ->
+            Thread(runnable, "linksonda-test-dns").apply { isDaemon = true }
+        }
 
     private fun runProbe(
         runner: SocketProbeRunner,

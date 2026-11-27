@@ -29,7 +29,11 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.security.NoSuchAlgorithmException
 import java.time.Instant
-import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLHandshakeException
@@ -38,10 +42,11 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Bounded TCP Connect and TLS handshake runner.
@@ -52,6 +57,7 @@ import kotlinx.coroutines.withTimeout
 internal class SocketProbeRunner internal constructor(
     private val hostResolver: HostResolver,
     private val sslContext: SSLContext,
+    private val dnsExecutor: ExecutorService = DNS_EXECUTOR,
 ) : ProbeRunner {
     constructor() : this(SystemHostResolver(), defaultSslContext())
 
@@ -68,19 +74,17 @@ internal class SocketProbeRunner internal constructor(
         val startNanos = System.nanoTime()
         val phases = mutableMapOf<ProbePhase, Duration>()
         val state = RunState()
-        return try {
-            withTimeout(request.config.timeout) {
-                execute(request, probe, admission, startNanos, phases, state)
-            }
-        } catch (timeout: TimeoutCancellationException) {
-            completed(
-                request = request,
-                startNanos = startNanos,
-                phases = phases,
-                outcome = ProbeOutcome.Failed(FailureReason.TIMEOUT),
-                observations = ProbeObservations(connectedIpFamily = state.connectedIpFamily),
-            )
+        val result = withTimeoutOrNull(request.config.timeout) {
+            execute(request, probe, admission, startNanos, phases, state)
         }
+        currentCoroutineContext().ensureActive()
+        return result ?: completed(
+            request = request,
+            startNanos = startNanos,
+            phases = phases,
+            outcome = ProbeOutcome.Failed(FailureReason.TIMEOUT),
+            observations = ProbeObservations(connectedIpFamily = state.connectedIpFamily),
+        )
     }
 
     private suspend fun execute(
@@ -125,7 +129,7 @@ internal class SocketProbeRunner internal constructor(
             candidates = listOf(address)
         } else {
             val decision = admission.authorize(
-                ProbeAttempt(endpointKey = "dns:$host", infrastructureKey = "system-dns"),
+                ProbeAttempt(endpointKey = host, infrastructureKey = "system-dns"),
             )
             if (decision is AdmissionDecision.Denied) {
                 return skipped(request, decision)
@@ -137,6 +141,13 @@ internal class SocketProbeRunner internal constructor(
             } catch (cancelled: CancellationException) {
                 record(phases, ProbePhase.DNS, dnsStart)
                 throw cancelled
+            } catch (error: DnsCapacityExceededException) {
+                return completed(
+                    request,
+                    startNanos,
+                    phases,
+                    ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION),
+                )
             } catch (error: UnknownHostException) {
                 record(phases, ProbePhase.DNS, dnsStart)
                 return completed(request, startNanos, phases, ProbeOutcome.Failed(FailureReason.DNS))
@@ -170,15 +181,10 @@ internal class SocketProbeRunner internal constructor(
             }
         }
 
-        val target = if (tls != null) serverName else host
-        val scheme = if (tls != null) "tls" else "tcp"
         var lastFailure: ProbeOutcome? = null
         for (address in candidates) {
             val decision = admission.authorize(
-                ProbeAttempt(
-                    endpointKey = "$scheme:$target:${endpoint.port}",
-                    infrastructureKey = "$scheme:$target",
-                ),
+                ProbeAttempt(endpointKey = host, infrastructureKey = host),
             )
             if (decision is AdmissionDecision.Denied) {
                 return skipped(request, decision)
@@ -328,12 +334,16 @@ internal class SocketProbeRunner internal constructor(
 
     private suspend fun resolveBounded(host: String, family: IpFamily?): List<InetAddress> =
         suspendCancellableCoroutine { continuation ->
-            val future = DNS_EXECUTOR.submit {
-                try {
-                    continuation.resumeWith(Result.success(hostResolver.resolve(host, family)))
-                } catch (error: Throwable) {
-                    continuation.resumeWith(Result.failure(error))
+            val future = try {
+                dnsExecutor.submit {
+                    try {
+                        continuation.resumeWith(Result.success(hostResolver.resolve(host, family)))
+                    } catch (error: Throwable) {
+                        continuation.resumeWith(Result.failure(error))
+                    }
                 }
+            } catch (rejected: RejectedExecutionException) {
+                throw DnsCapacityExceededException()
             }
             continuation.invokeOnCancellation { future.cancel(true) }
         }
@@ -407,6 +417,8 @@ internal class SocketProbeRunner internal constructor(
 
 private class RunState(var connectedIpFamily: IpFamily? = null)
 
+private class DnsCapacityExceededException : Exception("DNS worker capacity exceeded")
+
 internal fun classifyConnectFailure(error: Throwable): ProbeOutcome = when {
     error.isPermissionDenied() -> ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
     error is SocketTimeoutException -> ProbeOutcome.Failed(FailureReason.TIMEOUT)
@@ -433,7 +445,16 @@ private fun Throwable.isPermissionDenied(): Boolean =
                 text.contains("permission denied", ignoreCase = true)
         } == true)
 
-private val DNS_EXECUTOR = Executors.newCachedThreadPool { runnable ->
+private const val DNS_WORKERS = 2
+private const val DNS_QUEUE_CAPACITY = 8
+
+private val DNS_EXECUTOR = ThreadPoolExecutor(
+    DNS_WORKERS,
+    DNS_WORKERS,
+    0L,
+    TimeUnit.MILLISECONDS,
+    ArrayBlockingQueue<Runnable>(DNS_QUEUE_CAPACITY),
+) { runnable ->
     Thread(runnable, "linksonda-dns").apply { isDaemon = true }
 }
 
