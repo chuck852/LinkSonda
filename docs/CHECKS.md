@@ -30,7 +30,7 @@ The result card shows the outcome, recorded time and elapsed duration. Restricte
 
 ## Demo harness
 
-`OverviewDemoActivity` contains 11 domain-backed checks covering all ten protocol variants and every presentation state. Every screen shows the demo banner; no network request is made and nothing is persisted.
+`OverviewDemoActivity` contains 12 domain-backed checks covering all ten protocol variants and every presentation state. Every screen shows the demo banner; no network request is made and nothing is persisted.
 
 ```bash
 adb shell am start -S -W -n io.github.chuck852.linksonda/.debug.OverviewDemoActivity \
@@ -39,7 +39,7 @@ adb shell am start -S -W -n io.github.chuck852.linksonda/.debug.OverviewDemoActi
   --es scenario PARTIAL --es probe https-global
 ```
 
-Useful demo IDs include `https-global` (revision 2, matched HTTPS with phases), `tls-global` (stale), `http-regional` (timeout), `dns-tcp` (skipped), `doh` (inconclusive) and `dot` (restricted).
+Useful demo IDs include `https-global` (revision 2, matched HTTPS with phases), `tls-global` (stale), `https-retained` (a completed result retained after a later skipped slot), `http-regional` (timeout), `dns-tcp` (skipped without data), `doh` (inconclusive) and `dot` (restricted).
 
 ![Checks list with demo data](design/checks-list.png)
 
@@ -55,13 +55,15 @@ Useful demo IDs include `https-global` (revision 2, matched HTTPS with phases), 
 
 ![Skipped result without phase measurements](design/check-details-skipped.png)
 
+![A completed result retained after a later skipped slot](design/check-details-retained.png)
+
 ![Checks at 320 dp and 200% font scale](design/checks-large-font.png)
 
 ![Checks in dark theme](design/checks-dark.png)
 
 ## Verification
 
-- 45 JVM tests: 15 domain, 2 build configuration, 8 palette, 3 contrast, 7 navigation, 5 filtering, 2 overview state and 3 demo-scenario tests.
+- 46 JVM tests: 15 domain, 2 build configuration, 8 palette, 3 contrast, 7 navigation, 6 filtering, 2 overview state and 3 demo-scenario tests.
 - Android 17 (API 37): search, group/status/protocol filters, filtered empty state, details navigation, back stack, light and dark themes checked.
 - 320 dp width at 200% font scale: no horizontal overflow; labels and fields wrap; controls remain reachable.
 - Release build excludes the demo activity, domain-backed demo catalog and demo resources.
