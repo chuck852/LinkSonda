@@ -29,11 +29,7 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.security.NoSuchAlgorithmException
 import java.time.Instant
-import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.RejectedExecutionException
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLHandshakeException
@@ -55,11 +51,13 @@ import kotlinx.coroutines.withTimeoutOrNull
  * names. The TLS handshake is part of the socket attempt authorized before connecting.
  */
 internal class SocketProbeRunner internal constructor(
-    private val hostResolver: HostResolver,
+    hostResolver: HostResolver,
     private val sslContext: SSLContext,
-    private val dnsExecutor: ExecutorService = DNS_EXECUTOR,
+    dnsExecutor: ExecutorService = DNS_EXECUTOR,
 ) : ProbeRunner {
     constructor() : this(SystemHostResolver(), defaultSslContext())
+
+    private val resolver = BoundedHostResolver(hostResolver, dnsExecutor)
 
     override suspend fun run(request: ProbeRunRequest, admission: ProbeAdmission): ProbeResult {
         val probe = request.config.request
@@ -137,7 +135,7 @@ internal class SocketProbeRunner internal constructor(
 
             val dnsStart = System.nanoTime()
             val addresses = try {
-                resolveBounded(host, endpoint.family)
+                resolver.resolve(host, endpoint.family)
             } catch (cancelled: CancellationException) {
                 record(phases, ProbePhase.DNS, dnsStart)
                 throw cancelled
@@ -332,22 +330,6 @@ internal class SocketProbeRunner internal constructor(
         nextAllowedAt = decision.nextAllowedAt,
     )
 
-    private suspend fun resolveBounded(host: String, family: IpFamily?): List<InetAddress> =
-        suspendCancellableCoroutine { continuation ->
-            val future = try {
-                dnsExecutor.submit {
-                    try {
-                        continuation.resumeWith(Result.success(hostResolver.resolve(host, family)))
-                    } catch (error: Throwable) {
-                        continuation.resumeWith(Result.failure(error))
-                    }
-                }
-            } catch (rejected: RejectedExecutionException) {
-                throw DnsCapacityExceededException()
-            }
-            continuation.invokeOnCancellation { future.cancel(true) }
-        }
-
     private fun record(phases: MutableMap<ProbePhase, Duration>, phase: ProbePhase, startNanos: Long) {
         phases[phase] = (System.nanoTime() - startNanos).nanoseconds
     }
@@ -417,8 +399,6 @@ internal class SocketProbeRunner internal constructor(
 
 private class RunState(var connectedIpFamily: IpFamily? = null)
 
-private class DnsCapacityExceededException : Exception("DNS worker capacity exceeded")
-
 internal fun classifyConnectFailure(error: Throwable): ProbeOutcome = when {
     error.isPermissionDenied() -> ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
     error is SocketTimeoutException -> ProbeOutcome.Failed(FailureReason.TIMEOUT)
@@ -444,19 +424,6 @@ private fun Throwable.isPermissionDenied(): Boolean =
                 text.contains("EPERM", ignoreCase = true) ||
                 text.contains("permission denied", ignoreCase = true)
         } == true)
-
-private const val DNS_WORKERS = 2
-private const val DNS_QUEUE_CAPACITY = 8
-
-private val DNS_EXECUTOR = ThreadPoolExecutor(
-    DNS_WORKERS,
-    DNS_WORKERS,
-    0L,
-    TimeUnit.MILLISECONDS,
-    ArrayBlockingQueue<Runnable>(DNS_QUEUE_CAPACITY),
-) { runnable ->
-    Thread(runnable, "linksonda-dns").apply { isDaemon = true }
-}
 
 private val IPV4 = Regex("""\d{1,3}(\.\d{1,3}){3}""")
 
