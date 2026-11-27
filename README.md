@@ -1,5 +1,7 @@
 # LinkSonda
 
+<img src="docs/branding/logo.png" alt="LinkSonda logo: a globe with a monitoring pulse" width="120">
+
 [На русском](docs/README.ru.md)
 
 LinkSonda is an Android project for diagnosing network and service availability. The current foundation (`0.1.0`) displays a starter screen and provides a build and test workflow. Network probes, background monitoring, and incident history are planned.
