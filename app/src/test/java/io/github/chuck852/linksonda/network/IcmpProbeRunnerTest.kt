@@ -67,6 +67,7 @@ class IcmpProbeRunnerTest {
             listOf("/system/bin/ping", "-c", "1", "-W", "2", "127.0.0.1"),
             process.commands.single(),
         )
+        assertEquals(IpFamily.IPV4, completed.observations.connectedIpFamily)
     }
 
     @Test
@@ -102,6 +103,125 @@ class IcmpProbeRunnerTest {
     }
 
     @Test
+    fun firstPacketTimeoutDoesNotAbortRemainingPackets() {
+        val process = FakePingProcessRunner(
+            PingExecution.TimedOut(""),
+            PingExecution.Completed("64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=1.000 ms", 0),
+        )
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("127.0.0.1", packets = 2, minimumReplies = 1),
+        )
+
+        assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+        assertEquals(2, completed(result).observations.icmp?.sentPackets)
+        assertEquals(1, completed(result).observations.icmp?.receivedReplies)
+        assertEquals(2, process.commands.size)
+    }
+
+    @Test
+    fun rttSummaryUsesAllReplies() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("64 bytes from 127.0.0.1: time=1.000 ms", 0),
+            PingExecution.Completed("64 bytes from 127.0.0.1: time=3.000 ms", 0),
+        )
+        val admission = RecordingAdmission()
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("127.0.0.1", packets = 2, minimumReplies = 2),
+            admission = admission,
+        )
+
+        assertEquals(
+            RttSummary(1.milliseconds, 2.milliseconds, 3.milliseconds),
+            completed(result).observations.icmp?.rtt,
+        )
+        assertEquals(2, completed(result).observations.icmp?.sentPackets)
+        assertEquals(2, admission.attempts.size)
+    }
+
+    @Test
+    fun toyboxDnsFailureIsDns() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("ping: missing.test: No address associated with hostname", 1),
+        )
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("missing.test"),
+        )
+
+        failed(result, FailureReason.DNS)
+        assertNull(completed(result).observations.icmp)
+    }
+
+    @Test
+    fun outputPermissionFailureIsInconclusiveWithoutObservation() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("ping: socket: Permission denied", 1),
+        )
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("127.0.0.1"),
+        )
+
+        assertEquals(
+            ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED),
+            completed(result).outcome,
+        )
+        assertNull(completed(result).observations.icmp)
+    }
+
+    @Test
+    fun ipv4FamilyAddsMinusFourForHostname() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("64 bytes from 192.0.2.1: time=1.000 ms", 0),
+        )
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("example.test", family = IpFamily.IPV4),
+        )
+
+        assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+        assertTrue("-4" in process.commands.single())
+    }
+
+    @Test
+    fun admissionKeyIsNormalized() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("64 bytes from 192.0.2.1: time=1.000 ms", 0),
+        )
+        val admission = RecordingAdmission()
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("Example.COM."),
+            admission = admission,
+        )
+
+        assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+        assertEquals(listOf(ProbeAttempt("example.com", "example.com")), admission.attempts)
+        assertEquals("example.com", process.commands.single().last())
+    }
+
+    @Test
+    fun denialAfterMinimumRepliesKeepsTheSuccessfulResult() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("64 bytes from 127.0.0.1: time=1.000 ms", 0),
+        )
+        val admission = RecordingAdmission(
+            listOf(AdmissionDecision.Allowed, AdmissionDecision.Denied(SkipReason.COOLDOWN)),
+        )
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("127.0.0.1", packets = 2, minimumReplies = 1),
+            admission = admission,
+        )
+
+        assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+        assertEquals(1, process.commands.size)
+        assertEquals(2, admission.attempts.size)
+    }
+
+    @Test
     fun noReplyTimesOutWithObservation() {
         val process = FakePingProcessRunner(PingExecution.TimedOut(""))
         val result = runProbe(
@@ -111,6 +231,18 @@ class IcmpProbeRunnerTest {
 
         val completed = failed(result, FailureReason.TIMEOUT)
         assertEquals(IcmpObservation(sentPackets = 1, receivedReplies = 0), completed.observations.icmp)
+    }
+
+    @Test
+    fun emptySuccessfulProcessWithoutReplyIsTimeout() {
+        val process = FakePingProcessRunner(PingExecution.Completed("", 1))
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("127.0.0.1"),
+        )
+
+        failed(result, FailureReason.TIMEOUT)
+        assertEquals(IcmpObservation(1, 0), completed(result).observations.icmp)
     }
 
     @Test

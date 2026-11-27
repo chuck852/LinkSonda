@@ -38,6 +38,9 @@ class PingOutputParserTest {
 
     @Test
     fun parsesMillisecondsWithSeveralDecimals() {
-        assertEquals(listOf(12.345.milliseconds), PingOutputParser.replyTimes("time=12.345 ms"))
+        assertEquals(
+            listOf(12.345.milliseconds),
+            PingOutputParser.replyTimes("64 bytes from 192.0.2.1: time=12.345 ms"),
+        )
     }
 }

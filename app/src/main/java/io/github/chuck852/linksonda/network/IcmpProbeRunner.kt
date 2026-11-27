@@ -17,10 +17,8 @@ import io.github.chuck852.linksonda.domain.ProbeTiming
 import io.github.chuck852.linksonda.domain.RttSummary
 import io.github.chuck852.linksonda.domain.SkipReason
 import java.io.FileNotFoundException
-import java.io.IOException
 import java.time.Instant
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -61,6 +59,7 @@ internal class IcmpProbeRunner internal constructor(
                 ProbeOutcome.Failed(FailureReason.DNS),
             )
         }
+        state.connectedIpFamily = literalFamily(host) ?: probe.family
 
         val result = withTimeoutOrNull(request.config.timeout) {
             execute(request, probe, host, admission, startNanos, state)
@@ -91,7 +90,11 @@ internal class IcmpProbeRunner internal constructor(
         for (index in 0 until probe.packetCount) {
             val decision = admission.authorize(ProbeAttempt(host, host))
             if (decision is AdmissionDecision.Denied) {
-                return skipped(request, decision)
+                return if (state.received >= probe.minimumReplies) {
+                    completed(request, startNanos, state, ProbeOutcome.Matched)
+                } else {
+                    skipped(request, decision)
+                }
             }
 
             val now = System.nanoTime()
@@ -99,7 +102,7 @@ internal class IcmpProbeRunner internal constructor(
             val packetsLeft = probe.packetCount - index
             val budget = (remaining.coerceAtLeast(MIN_PACKET_NANOS) / packetsLeft)
                 .coerceAtLeast(MIN_PACKET_NANOS)
-            val command = pingCommand(binary, host, budget)
+            val command = pingCommand(binary, host, budget, probe.family)
             state.sent += 1
             val execution = try {
                 ping.execute(command, budget.nanoseconds)
@@ -123,7 +126,6 @@ internal class IcmpProbeRunner internal constructor(
                         state.rtts += rtts.first()
                     }
                     state.timedOut = true
-                    if (state.received == 0) break
                 }
                 is PingExecution.Completed -> {
                     val rtts = PingOutputParser.replyTimes(execution.output)
@@ -133,6 +135,10 @@ internal class IcmpProbeRunner internal constructor(
                     } else {
                         val outputOutcome = outputOutcome(execution.output)
                         if (outputOutcome != null) {
+                            state.sent -= 1 // the ping process failed before sending an echo packet
+                            if (state.received >= probe.minimumReplies) {
+                                return completed(request, startNanos, state, ProbeOutcome.Matched)
+                            }
                             state.lastFailure = outputOutcome
                             return completed(request, startNanos, state, outputOutcome)
                         }
@@ -179,11 +185,18 @@ internal class IcmpProbeRunner internal constructor(
     }
 
     private fun outputOutcome(output: String): ProbeOutcome? {
-        val text = output.lowercase()
+        val text = output.lineSequence()
+            .map { it.trimStart() }
+            .filter { it.startsWith("ping:") || it.startsWith("connect:") || it.startsWith("sendto:") }
+            .joinToString("\n")
+            .lowercase()
         return when {
             text.contains("unknown host") ||
                 text.contains("cannot resolve") ||
-                text.contains("name or service not known") ->
+                text.contains("name or service not known") ||
+                text.contains("hostname nor servname provided") ||
+                text.contains("no address associated with hostname") ||
+                text.contains("temporary failure in name resolution") ->
                 ProbeOutcome.Failed(FailureReason.DNS)
             text.contains("network is unreachable") ||
                 text.contains("no route to host") ->
@@ -219,7 +232,10 @@ internal class IcmpProbeRunner internal constructor(
         recordedAt = Instant.now(),
         timing = ProbeTiming(elapsed = (System.nanoTime() - startNanos).nanoseconds),
         outcome = outcome,
-        observations = ProbeObservations(icmp = observation(state)),
+        observations = ProbeObservations(
+            connectedIpFamily = state.connectedIpFamily,
+            icmp = observation(state),
+        ),
     )
 
     private fun observation(state: RunState): IcmpObservation? {
@@ -254,9 +270,17 @@ internal class IcmpProbeRunner internal constructor(
         nextAllowedAt = decision.nextAllowedAt,
     )
 
-    private fun pingCommand(binary: String, host: String, budget: Long): List<String> {
+    private fun pingCommand(
+        binary: String,
+        host: String,
+        budget: Long,
+        family: IpFamily?,
+    ): List<String> {
         val seconds = ((budget + 999_999_999L) / 1_000_000_000L).coerceAtLeast(1L)
-        return listOf(binary, "-c", "1", "-W", seconds.toString(), host)
+        val command = mutableListOf(binary, "-c", "1", "-W", seconds.toString())
+        if (family == IpFamily.IPV4) command += "-4"
+        command += host
+        return command
     }
 
     private fun normalizeHost(value: String): String? {
@@ -266,7 +290,7 @@ internal class IcmpProbeRunner internal constructor(
         } else {
             trimmed
         }
-        return withoutBrackets.takeIf { it.isNotEmpty() }
+        return withoutBrackets.removeSuffix(".").lowercase().takeIf { it.isNotEmpty() }
     }
 
     private fun isSafeHost(host: String): Boolean =
@@ -292,6 +316,7 @@ internal class IcmpProbeRunner internal constructor(
     private class RunState {
         var sent = 0
         var received = 0
+        var connectedIpFamily: IpFamily? = null
         val rtts = mutableListOf<Duration>()
         var timedOut = false
         var lastFailure: ProbeOutcome? = null

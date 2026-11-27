@@ -6,7 +6,10 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
 
 internal object PingOutputParser {
-    private val REPLY_TIME = Regex("""\btime=([0-9]+(?:\.[0-9]+)?)\s*ms\b""", RegexOption.IGNORE_CASE)
+    private val REPLY_TIME = Regex(
+        """\bbytes from .*?\btime=([0-9]+(?:\.[0-9]+)?)\s*ms\b""",
+        RegexOption.IGNORE_CASE,
+    )
 
     fun replyTimes(output: String): List<Duration> =
         REPLY_TIME.findAll(output).map { match ->
