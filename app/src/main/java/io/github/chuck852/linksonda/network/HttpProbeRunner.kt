@@ -138,21 +138,23 @@ internal class HttpProbeRunner internal constructor(
             val callClient = client.newBuilder()
                 .callTimeout(remainingMillis(startNanos, request.config.timeout), TimeUnit.MILLISECONDS)
                 .build()
+            val call = callClient.newCall(httpRequest)
 
             val response = try {
-                executeCall(callClient, httpRequest)
+                executeCall(call)
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (error: NumberFormatException) {
-                // OkHttp parses Retry-After as Int before the response reaches us. A larger
-                // server value must stay a restriction, not become a transport failure.
-                return completed(
-                    request,
-                    startNanos,
-                    phases,
-                    ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED),
-                )
             } catch (error: Exception) {
+                val blocked = error.findBlockedResponse()
+                if (blocked != null) {
+                    return completed(
+                        request,
+                        startNanos,
+                        phases,
+                        blocked.outcome(),
+                        http = HttpObservation(blocked.status),
+                    )
+                }
                 return completed(
                     request,
                     startNanos,
@@ -179,12 +181,14 @@ internal class HttpProbeRunner internal constructor(
 
                 if (status in REDIRECT_STATUSES) {
                     val location = received.header("Location")
-                        ?: return completed(
+                    if (location.isNullOrBlank()) {
+                        return completed(
                             request,
                             startNanos,
                             phases,
                             ProbeOutcome.Failed(FailureReason.HTTP),
                         )
+                    }
                     if (redirects >= MAX_REDIRECTS) {
                         return completed(
                             request,
@@ -232,7 +236,7 @@ internal class HttpProbeRunner internal constructor(
                         if (probe.method == HttpMethod.HEAD || status == 204 || status == 304) {
                             false
                         } else {
-                            bodyMarkerMatched(received, expected)
+                            bodyMarkerMatched(received, call, expected)
                         }
                     }
                 } catch (cancelled: CancellationException) {
@@ -265,6 +269,16 @@ internal class HttpProbeRunner internal constructor(
             .followSslRedirects(false)
             .retryOnConnectionFailure(false)
             .eventListener(PhaseListener(phases))
+            .addNetworkInterceptor { chain ->
+                val response = chain.proceed(chain.request())
+                if (response.code in AUTO_FOLLOW_UP_STATUSES) {
+                    val status = response.code
+                    val retryAfter = response.header("Retry-After")
+                    response.close()
+                    throw BlockedResponseException(status, retryAfter)
+                }
+                response
+            }
         if (probe.family != null) {
             val baseDns = baseClient.dns
             builder.dns(Dns { hostname ->
@@ -278,9 +292,8 @@ internal class HttpProbeRunner internal constructor(
         return builder.build()
     }
 
-    private suspend fun executeCall(client: OkHttpClient, request: Request): Response =
+    private suspend fun executeCall(call: Call): Response =
         withContext(Dispatchers.IO) {
-            val call = client.newCall(request)
             suspendCancellableCoroutine { continuation ->
                 continuation.invokeOnCancellation { call.cancel() }
                 try {
@@ -291,20 +304,33 @@ internal class HttpProbeRunner internal constructor(
             }
         }
 
-    private suspend fun bodyMarkerMatched(response: Response, marker: String): Boolean =
+    private suspend fun bodyMarkerMatched(response: Response, call: Call, marker: String): Boolean =
         withContext(Dispatchers.IO) {
             // shortcut: only the first 64 KiB is searched; scanning the full body risks unbounded reads.
-            val markerBytes = marker.toByteArray(Charsets.UTF_8)
-            if (markerBytes.isEmpty() || markerBytes.size > MAX_BODY_BYTES) return@withContext false
-            val body = ByteArray(MAX_BODY_BYTES)
-            var total = 0
-            val input = response.body.byteStream()
-            while (total < MAX_BODY_BYTES) {
-                val read = input.read(body, total, MAX_BODY_BYTES - total)
-                if (read < 0) break
-                total += read
+            suspendCancellableCoroutine { continuation ->
+                continuation.invokeOnCancellation {
+                    call.cancel()
+                    runCatching { response.close() }
+                }
+                try {
+                    val markerBytes = marker.toByteArray(Charsets.UTF_8)
+                    if (markerBytes.isEmpty() || markerBytes.size > MAX_BODY_BYTES) {
+                        continuation.resumeWith(Result.success(false))
+                        return@suspendCancellableCoroutine
+                    }
+                    val body = ByteArray(MAX_BODY_BYTES)
+                    var total = 0
+                    val input = response.body.byteStream()
+                    while (total < MAX_BODY_BYTES) {
+                        val read = input.read(body, total, MAX_BODY_BYTES - total)
+                        if (read < 0) break
+                        total += read
+                    }
+                    continuation.resumeWith(Result.success(indexOf(body, total, markerBytes) >= 0))
+                } catch (error: Throwable) {
+                    continuation.resumeWith(Result.failure(error))
+                }
             }
-            indexOf(body, total, markerBytes) >= 0
         }
 
     private fun indexOf(haystack: ByteArray, length: Int, needle: ByteArray): Int {
@@ -322,8 +348,11 @@ internal class HttpProbeRunner internal constructor(
         return -1
     }
 
-    private fun retryAt(response: Response): Instant? {
-        val value = response.header("Retry-After")?.trim() ?: return null
+    private fun retryAt(response: Response): Instant? =
+        retryAt(response.header("Retry-After"))
+
+    private fun retryAt(header: String?): Instant? {
+        val value = header?.trim() ?: return null
         value.toLongOrNull()?.let { seconds ->
             if (seconds >= 0) {
                 return try {
@@ -338,6 +367,20 @@ internal class HttpProbeRunner internal constructor(
         } catch (error: Exception) {
             null
         }
+    }
+
+    private class BlockedResponseException(
+        val status: Int,
+        val retryAfter: String?,
+    ) : IOException("HTTP $status has an automatic follow-up")
+
+    private fun Throwable.findBlockedResponse(): BlockedResponseException? =
+        generateSequence(this) { it.cause }.filterIsInstance<BlockedResponseException>().firstOrNull()
+
+    private fun BlockedResponseException.outcome(): ProbeOutcome = when (status) {
+        503 -> ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, retryAt(retryAfter))
+        408 -> ProbeOutcome.Failed(FailureReason.TIMEOUT)
+        else -> ProbeOutcome.Failed(FailureReason.HTTP)
     }
 
     private fun classifyFailure(error: Throwable): ProbeOutcome {
@@ -364,19 +407,23 @@ internal class HttpProbeRunner internal constructor(
     private fun completed(
         request: ProbeRunRequest,
         startNanos: Long,
-        phases: Map<ProbePhase, Duration>,
+        phases: MutableMap<ProbePhase, Duration>,
         outcome: ProbeOutcome,
         http: HttpObservation? = null,
-    ): ProbeResult.Completed = ProbeResult.Completed(
-        context = request.context,
-        recordedAt = Instant.now(),
-        timing = ProbeTiming(
-            elapsed = (System.nanoTime() - startNanos).nanoseconds,
-            phases = phases.toMap(),
-        ),
-        outcome = outcome,
-        observations = ProbeObservations(http = http),
-    )
+    ): ProbeResult.Completed {
+        val snapshot = synchronized(phases) { phases.toMap() }
+        val elapsed = (System.nanoTime() - startNanos).nanoseconds
+        return ProbeResult.Completed(
+            context = request.context,
+            recordedAt = Instant.now(),
+            timing = ProbeTiming(
+                elapsed = elapsed,
+                phases = snapshot,
+            ),
+            outcome = outcome,
+            observations = ProbeObservations(http = http),
+        )
+    }
 
     private fun skipped(request: ProbeRunRequest, reason: SkipReason): ProbeResult.Skipped =
         ProbeResult.Skipped(
@@ -448,7 +495,7 @@ internal class HttpProbeRunner internal constructor(
         private val phases: MutableMap<ProbePhase, Duration>,
     ) : EventListener() {
         private var dnsStart = 0L
-        private var connectStart = 0L
+        private var tcpStart = 0L
         private var tlsStart = 0L
         private var firstByteStart = 0L
 
@@ -462,7 +509,7 @@ internal class HttpProbeRunner internal constructor(
         }
 
         override fun connectStart(call: Call, inetSocketAddress: java.net.InetSocketAddress, proxy: java.net.Proxy) {
-            connectStart = System.nanoTime()
+            tcpStart = System.nanoTime()
         }
 
         override fun connectEnd(
@@ -471,11 +518,27 @@ internal class HttpProbeRunner internal constructor(
             proxy: java.net.Proxy,
             protocol: Protocol?,
         ) {
-            record(ProbePhase.TCP_CONNECT, connectStart)
-            connectStart = 0
+            // For TLS, TCP is recorded at secureConnectStart so the handshake is not counted twice.
+            record(ProbePhase.TCP_CONNECT, tcpStart)
+            tcpStart = 0
+        }
+
+        override fun connectFailed(
+            call: Call,
+            inetSocketAddress: java.net.InetSocketAddress,
+            proxy: java.net.Proxy,
+            protocol: Protocol?,
+            ioe: IOException,
+        ) {
+            record(ProbePhase.TCP_CONNECT, tcpStart)
+            tcpStart = 0
+            record(ProbePhase.TLS_HANDSHAKE, tlsStart)
+            tlsStart = 0
         }
 
         override fun secureConnectStart(call: Call) {
+            record(ProbePhase.TCP_CONNECT, tcpStart)
+            tcpStart = 0
             tlsStart = System.nanoTime()
         }
 
@@ -507,6 +570,7 @@ internal class HttpProbeRunner internal constructor(
         const val MAX_BODY_BYTES = 64 * 1024
         private val WEB_SCHEMES = setOf("http", "https")
         private val REDIRECT_STATUSES = setOf(301, 302, 303, 307, 308)
+        private val AUTO_FOLLOW_UP_STATUSES = setOf(408, 421, 503)
         private val IPV4 = Regex("""\d{1,3}(\.\d{1,3}){3}""")
     }
 }

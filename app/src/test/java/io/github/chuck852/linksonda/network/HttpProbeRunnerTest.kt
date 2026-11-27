@@ -37,11 +37,11 @@ import kotlinx.coroutines.withTimeout
 import okhttp3.Dns
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class HttpProbeRunnerTest {
@@ -254,6 +254,38 @@ class HttpProbeRunnerTest {
     }
 
     @Test
+    fun serviceUnavailableWithZeroRetryAfterIsNotRetried() {
+        var requests = 0
+        LocalHttpServer { _ ->
+            requests += 1
+            if (requests == 1) {
+                HttpResponseSpec(status = 503, headers = mapOf("Retry-After" to "0"))
+            } else {
+                HttpResponseSpec(status = 200, body = "recovered".toByteArray())
+            }
+        }.use { server ->
+            val admission = RecordingAdmission()
+            val result = runProbe(
+                runner = runner(),
+                request = httpRequest(server.url("/")),
+                admission = admission,
+            )
+
+            val completed = completed(result)
+            assertEquals(
+                ProbeOutcome.Restricted(
+                    RestrictionReason.RATE_LIMITED,
+                    fixedNow,
+                ),
+                completed.outcome,
+            )
+            assertEquals(HttpObservation(503), completed.observations.http)
+            assertEquals(1, server.calls().size)
+            assertEquals(1, admission.attempts.size)
+        }
+    }
+
+    @Test
     fun tooManyRequestsAcceptsHttpDateRetryAfter() {
         val retryAt = Instant.parse("2026-11-28T12:30:00Z")
         LocalHttpServer { _ ->
@@ -288,10 +320,12 @@ class HttpProbeRunnerTest {
             )
 
             assertNull(server.failure())
+            val completed = completed(result)
             assertEquals(
                 ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, null),
-                completed(result).outcome,
+                completed.outcome,
             )
+            assertEquals(HttpObservation(503), completed.observations.http)
         }
     }
 
@@ -352,13 +386,17 @@ class HttpProbeRunnerTest {
 
             val completed = completed(result)
             assertEquals(ProbeOutcome.Matched, completed.outcome)
-            assertNotNull(completed.timing.phases[ProbePhase.TLS_HANDSHAKE])
+            val tls = completed.timing.phases[ProbePhase.TLS_HANDSHAKE]
+            val tcp = completed.timing.phases[ProbePhase.TCP_CONNECT]
+            assertNotNull(tls)
+            assertNotNull(tcp)
+            assertTrue(tcp!! + tls!! <= completed.timing.elapsed)
         }
     }
 
     @Test
     fun ipv6LiteralIsSupportedWithoutDns() {
-        if (!ipv6LoopbackAvailable()) return
+        assumeTrue(ipv6LoopbackAvailable())
         LocalHttpServer(bindAddress = "::1") { _ ->
             HttpResponseSpec(status = 200, body = "v6".toByteArray())
         }.use { server ->
@@ -401,6 +439,34 @@ class HttpProbeRunnerTest {
             assertNull(second.timing.phases[ProbePhase.TCP_CONNECT])
             assertNull(second.timing.phases[ProbePhase.DNS])
             assertNull(second.timing.phases[ProbePhase.TLS_HANDSHAKE])
+        }
+    }
+
+    @Test
+    fun externalCancellationDuringSlowBodyIsPrompt() {
+        LocalHttpServer { _ ->
+            HttpResponseSpec(
+                status = 200,
+                body = ByteArray(1024 * 1024) { 'a'.code.toByte() },
+                bodyChunkMillis = 50,
+                bodyChunkSize = 1024,
+            )
+        }.use { server ->
+            val started = System.nanoTime()
+            assertThrows(TimeoutCancellationException::class.java) {
+                runBlocking {
+                    withTimeout(100.milliseconds) {
+                        runner().run(
+                            probeRunRequest(
+                                httpRequest(server.url("/"), bodyMarker = "absent"),
+                                5.seconds,
+                            ),
+                            RecordingAdmission(),
+                        )
+                    }
+                }
+            }
+            assertTrue(System.nanoTime() - started < 1_000_000_000L)
         }
     }
 
