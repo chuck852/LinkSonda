@@ -2,6 +2,7 @@ package io.github.chuck852.linksonda
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.lifecycleScope
 import io.github.chuck852.linksonda.settings.AppLanguage
 import io.github.chuck852.linksonda.settings.SettingsStore
 import io.github.chuck852.linksonda.settings.applySystemAppLanguage
@@ -27,10 +29,26 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val storedLanguage = settingsStore.current().language
-        if (storedLanguage != AppLanguage.SYSTEM) {
+        val startupLanguage = settingsStore.current().language
+        if (startupLanguage != AppLanguage.SYSTEM) {
             // SYSTEM is left to the platform picker; an explicit choice is restored here.
-            applySystemAppLanguage(storedLanguage)
+            applySystemAppLanguage(startupLanguage)
+        }
+        // The startup snapshot can be stale after process death; DataStore wins once it is read.
+        lifecycleScope.launch {
+            try {
+                settingsStore.initialize()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w(TAG, "Could not load authoritative settings", error)
+                return@launch
+            }
+            val loadedLanguage = settingsStore.current().language
+            if (loadedLanguage != startupLanguage) {
+                applySystemAppLanguage(loadedLanguage)
+                recreate()
+            }
         }
         enableEdgeToEdge()
         setContent {
@@ -61,5 +79,9 @@ class MainActivity : ComponentActivity() {
                 },
             )
         }
+    }
+
+    private companion object {
+        const val TAG = "LinkSondaSettings"
     }
 }

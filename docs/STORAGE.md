@@ -13,6 +13,7 @@ The production adapter is `DataStoreSettingsStorage`:
 - all values are strings encoded by `SettingsCodec`, so missing, unknown or corrupt values fall back to product defaults;
 - `MainActivity.attachBaseContext` reads a small synchronous startup snapshot from the previous `linksonda_settings` SharedPreferences file, because it must choose the locale before the first frame;
 - DataStore remains authoritative. Construction does not read it and does not block the main thread. Every successful DataStore write also refreshes the startup snapshot, and the old file is the source of the one-time migration;
+- `SettingsStore.initialize()` asynchronously reads DataStore, replaces the in-memory state and refreshes the startup snapshot. Writes wait for this load, so a stale snapshot cannot overwrite DataStore. If the process dies between the DataStore commit and the snapshot refresh, the next initialization restores the authoritative values and repairs the snapshot;
 - `PersistentSettingsStore` serializes updates. A cancellation before the write leaves the state unchanged; once the write starts it completes non-cancellably, so a committed DataStore value is also published to the `StateFlow`. A regression test covers cancellation after the write.
 
 The model also reserves the fields needed by the future updater (#57): whether automatic checks are enabled, the selected channel (`STABLE` or `PREVIEW`), the last check time, the last ETag and the last offered versionCode. No updater, notification, download or installation code exists yet.
@@ -68,7 +69,7 @@ The settings migration from SharedPreferences to DataStore is covered by a Robol
 
 - `RoomStorageTest`: profile CRUD, relations, stale/conflicting revisions, results, incidents, network snapshots, on-disk reopen.
 - `HistoryMaintenanceTest`: retention cutoff, open-incident preservation, network cleanup, full history deletion.
-- `DataStoreSettingsStorageTest`: legacy SharedPreferences migration, authoritative DataStore writes and startup snapshot.
-- `SettingsStoreTest`/`AppSettingsTest`: codec round-trip, corrupt-value fallback, cancellation after the write and updater-reserved fields.
-- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (135 JVM tests).
+- `DataStoreSettingsStorageTest`: legacy SharedPreferences migration, authoritative DataStore writes, startup snapshot repair after an interrupted write.
+- `SettingsStoreTest`/`AppSettingsTest`: codec round-trip, corrupt-value fallback, initialization-before-write, cancellation after the write and updater-reserved fields.
+- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (137 JVM tests).
 - API 36 emulator: changing History retention to 90 days survives force-stop and relaunch; the DataStore preferences file is present in app-private storage.
