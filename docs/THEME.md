@@ -79,6 +79,7 @@ The same pairs are checked at 101 points of every ordered transition between the
 Device checks on Android 17 (API 37) confirmed:
 
 - all eight light/dark status screenshots use the same 1080 × 2400 surface and identical bounds for the title, surface card, semantic section and footer;
+- at 200% font scale the showcase controls and status badges wrap through `FlowRow` without clipping or horizontal overflow;
 - with animations enabled, the root primary color changed over about 0.6 s of a 60 fps screen recording, consistent with the 650 ms tween;
 - with `animator_duration_scale=0`, the same change completed between adjacent frames in at most 17 ms.
 
