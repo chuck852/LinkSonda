@@ -25,7 +25,7 @@ The APK supports Android 8.0 and later (min API 26, target API 37). Choose a dev
 ## Project resources
 
 - [Roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
-- [Architecture](docs/ARCHITECTURE.md) and [contributing guide](CONTRIBUTING.md)
+- [Architecture](docs/ARCHITECTURE.md), [theme and design system](docs/THEME.md), and [contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md) and [code of conduct](CODE_OF_CONDUCT.md)
 
 LinkSonda is licensed under the [Apache License 2.0](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for dependencies and distributed build tooling.

@@ -2,7 +2,11 @@
 
 ## Current build
 
-`:app` is a native Android application written in Kotlin with Jetpack Compose and Material 3. `MainActivity` displays the starter screen. The project currently has one Android module, JVM tests for the debug build configuration and domain model, and an Android CI workflow. It uses no backend or account system.
+`:app` is a native Android application written in Kotlin with Jetpack Compose and Material 3. `MainActivity` displays the starter screen with the adaptive theme. The project currently has one Android module, JVM tests for the debug build configuration, domain model and theme, and an Android CI workflow. It uses no backend or account system.
+
+## Theme and design system
+
+`LinkSondaTheme` owns the root Material 3 color scheme, shapes and semantic result colors. It accepts light, dark or system brightness and adaptive, accents or static color modes. Only a `ConfirmedAggregateStatus` can change the adaptive palette; probe lifecycle is rendered separately, including a local blue running state. All root roles animate together for 650 ms with ease-in-out, while sizes and positions stay fixed. Compose's duration scale disables the transition when system animations are off. Contrast tests cover static schemes and sampled transitions. See [theme and design system](THEME.md) for tokens, previews, screenshots and verification.
 
 ## Domain contracts
 
