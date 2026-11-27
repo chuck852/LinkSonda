@@ -12,6 +12,9 @@ data class CheckGroupFilter(val groupId: String) {
 sealed interface AppRoute {
     data class Tab(val tab: AppTab) : AppRoute
     data class FilteredChecks(val filter: CheckGroupFilter) : AppRoute
+    data class ProbeDetails(val probeId: String) : AppRoute {
+        init { require(probeId.isNotBlank()) }
+    }
     data object Settings : AppRoute
 }
 
@@ -33,7 +36,7 @@ data class AppNavigationState(
     val selectedTab: AppTab
         get() = when (val route = current) {
             is AppRoute.Tab -> route.tab
-            is AppRoute.FilteredChecks -> AppTab.CHECKS
+            is AppRoute.FilteredChecks, is AppRoute.ProbeDetails -> AppTab.CHECKS
             AppRoute.Settings -> stack.asReversed().drop(1).firstNotNullOfOrNull(AppRoute::tabOrNull)
                 ?: AppTab.OVERVIEW
         }
@@ -47,6 +50,9 @@ data class AppNavigationState(
     fun openChecks(filter: CheckGroupFilter): AppNavigationState =
         copy(stack = stack + AppRoute.FilteredChecks(filter))
 
+    fun openProbeDetails(probeId: String): AppNavigationState =
+        copy(stack = stack + AppRoute.ProbeDetails(probeId))
+
     fun openSettings(): AppNavigationState =
         copy(stack = stack + AppRoute.Settings)
 
@@ -58,7 +64,7 @@ data class AppNavigationState(
 
 fun AppRoute.tabOrNull(): AppTab? = when (this) {
     is AppRoute.Tab -> tab
-    is AppRoute.FilteredChecks -> AppTab.CHECKS
+    is AppRoute.FilteredChecks, is AppRoute.ProbeDetails -> AppTab.CHECKS
     AppRoute.Settings -> null
 }
 
@@ -75,6 +81,7 @@ val AppNavigationStateSaver: Saver<AppNavigationState, Any> = listSaver(
 private fun AppRoute.toSaveableKey(): String = when (this) {
     is AppRoute.Tab -> "tab:${tab.name}"
     is AppRoute.FilteredChecks -> "checks:${filter.groupId}"
+    is AppRoute.ProbeDetails -> "details:${probeId}"
     AppRoute.Settings -> "settings"
 }
 
@@ -87,10 +94,15 @@ private fun routeFromSaveableKey(key: String): AppRoute? = when {
         .takeIf(String::isNotBlank)
         ?.let { AppRoute.FilteredChecks(CheckGroupFilter(it)) }
 
+    key.startsWith(DETAILS_PREFIX) -> key.removePrefix(DETAILS_PREFIX)
+        .takeIf(String::isNotBlank)
+        ?.let(AppRoute::ProbeDetails)
+
     key == SETTINGS_KEY -> AppRoute.Settings
     else -> null
 }
 
 private const val TAB_PREFIX = "tab:"
 private const val CHECKS_PREFIX = "checks:"
+private const val DETAILS_PREFIX = "details:"
 private const val SETTINGS_KEY = "settings"
