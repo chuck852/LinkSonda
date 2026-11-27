@@ -4,9 +4,9 @@
 
 [На русском](docs/README.ru.md)
 
-LinkSonda is an Android project for diagnosing network and service availability. The UI Developer Preview candidate (`0.2.0`) has the approved Material 3 design system, a four-tab navigation shell, a domain-backed checks list and details screen, a universal check editor for all P0 protocols, and localized settings with a first-run flow. The production overview stays empty until real monitoring is connected. There is no network permission, no probe engine, no background monitoring and no incident history yet.
+LinkSonda is an Android project for diagnosing network and service availability. The published UI Developer Preview [`0.2.0`](https://github.com/chuck852/LinkSonda/releases/tag/v0.2.0) has the approved Material 3 design system, a four-tab navigation shell, a domain-backed checks list and details screen, a universal check editor for all P0 protocols, and localized settings with a first-run flow. The production overview stays empty until real monitoring is connected. There is no network permission, no probe engine, no background monitoring and no incident history yet.
 
-The [technical Developer Preview v0.1.0-dev.1](https://github.com/chuck852/LinkSonda/releases/tag/v0.1.0-dev.1) is the currently published preview. The UI Developer Preview v0.2.0 candidate is prepared for separate owner acceptance; see the [release notes](docs/releases/v0.2.0.md) for scope, signature and limitations.
+The [UI Developer Preview v0.2.0](https://github.com/chuck852/LinkSonda/releases/tag/v0.2.0) is the current published preview. The earlier [technical Developer Preview v0.1.0-dev.1](https://github.com/chuck852/LinkSonda/releases/tag/v0.1.0-dev.1) remains available. See the [v0.2.0 release notes](docs/releases/v0.2.0.md) for scope, signature and limitations.
 
 ## Build and install
 
