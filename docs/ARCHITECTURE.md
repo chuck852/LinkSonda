@@ -50,9 +50,9 @@ An attempted check whose outcome is obscured by OS limits, Doze, or a network ch
 
 ## TCP and TLS transport — public #10
 
-`SocketProbeRunner` implements `ProbeRunner` for TCP Connect and TLS handshake. It authorizes DNS resolution for hostnames and one socket attempt before opening it; the TLS handshake is part of that socket attempt. IPv4 and IPv6 literals and hostname resolution with an optional family filter are supported. DNS, TCP and TLS failures stay separate, and all elapsed and phase durations use a monotonic clock.
+`SocketProbeRunner` implements `ProbeRunner` for TCP Connect and TLS handshake. It authorizes DNS resolution for hostnames and each resolved-address socket attempt before opening it; the TLS handshake is part of that socket attempt. IPv4 and IPv6 literals and hostname resolution with an optional family filter are supported. Matching addresses are tried in order, preferring families present in the network snapshot. DNS, TCP and TLS failures stay separate, and all elapsed and phase durations use a monotonic clock.
 
-TLS uses the platform trust store and HTTPS endpoint identification. Certificate and hostname verification cannot be disabled. SNI is sent only for DNS names, and negotiated TLS 1.2 or 1.3 is recorded. Timeouts and cancellation close the active socket promptly.
+TLS uses the platform trust store and HTTPS endpoint identification. Certificate and hostname verification cannot be disabled. SNI is sent only for DNS names, and negotiated TLS 1.2 or 1.3 is recorded. DNS resolution runs on a worker so timeouts and cancellation are not delayed by a blocking resolver. Timeouts and cancellation close the active socket promptly.
 
 The runner is internal to the app and is not connected to production UI. The manifest still has no `INTERNET` permission and no public endpoint is activated. HTTP, DNS and ICMP runners, Android network binding and engine integration remain planned. See [TCP Connect and TLS](NETWORK.md).
 
