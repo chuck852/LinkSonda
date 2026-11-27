@@ -2,7 +2,7 @@
 
 ## Current build
 
-`:app` is a native Android application written in Kotlin with Jetpack Compose and Material 3. `MainActivity` hosts `LinkSondaApp`, which owns the four-tab navigation shell and the overview. The project currently has one Android module, JVM tests for the debug build configuration, domain model, theme, navigation and overview state, and an Android CI workflow. It uses no backend or account system.
+`:app` is a native Android application written in Kotlin with Jetpack Compose and Material 3. `MainActivity` hosts `LinkSondaApp`, which owns the four-tab navigation shell and the overview. The project currently has one Android module, JVM tests for the debug build configuration, domain model, theme, navigation, overview state and check editor, and an Android CI workflow. It uses no backend or account system.
 
 ## Navigation and presentation
 
@@ -14,9 +14,15 @@ The debug source set contains `OverviewDemoActivity`, demo scenarios and Compose
 
 ## Checks and details — public #16
 
-The Checks tab keeps `ProbeConfig` and `ProbeState` in `ProbeListItem`, so the list and details screen preserve the configuration revision and every optional observation. Search and filters are a pure function over the list and are unit-tested separately from Compose. All P0 request families are mapped to a presentation protocol: TCP, TLS, HTTP, HTTPS, system DNS, DNS over UDP/TCP, DoH, DoT and ICMP.
+The Checks tab keeps `ProbeConfig` and `ProbeState` in `ProbeListItem`, so the list and details screen preserve the configuration revision and every optional observation. `ProbeListItem` rejects a state whose context key differs from the configuration revision. Search and filters are a pure function over the list and are unit-tested separately from Compose. All P0 request families are mapped to a presentation protocol: TCP, TLS, HTTP, HTTPS, system DNS, DNS over UDP/TCP, DoH, DoT and ICMP. IPv6 endpoints with ports use brackets.
 
-The details screen renders protocol-specific configuration, the latest `ProbeResult.Completed` or `Skipped`, freshness, outcome, measured phases and optional observations. Missing facts are rendered as not observed or not measured; the UI never substitutes zero. Retry and edit use nullable callbacks with a `ProbeKey`; production keeps them disabled until the runner and profile editor are connected, while demo callbacks only show a banner. See [checks and details](CHECKS.md).
+The details screen renders protocol-specific configuration, the latest `ProbeResult.Completed` or `Skipped`, freshness, outcome, measured phases and optional observations. Missing facts are rendered as not observed or not measured; the UI never substitutes zero. Retry and edit use nullable callbacks with a `ProbeKey`; edit opens the check editor, while retry stays disabled until the runner is connected. See [checks and details](CHECKS.md).
+
+## Check editor — public #19
+
+`ProbeEditorState` is a pure, saveable presentation model for all supported request families. It keeps partially typed values as strings, validates hosts, IPv4/IPv6, ports, URLs, timeouts, HTTP status ranges, DNS fields and TLS server names, and is the only place that constructs `ProbeConfig`. A protocol change resets fields that do not apply to the new request family. Editing a request or timeout delegates to `ProbeConfig.update`, which advances the revision; renaming keeps it. TLS and DoT require a DNS server name and certificate verification cannot be disabled.
+
+`ProbeEditorActions` is the UI boundary: `onSave` receives a `ProbeDraft` and `onTest` receives a `ProbeConfig`. Production leaves both null until `ProfileRepository` storage and `ProbeRunner` transport are connected, so the editor shows the exact limitation instead of adding a temporary repository. The debug harness implements the callbacks with `DemoProfileRepository` and `DemoProbeRunner`; the demo runner authorizes through `ProbeAdmission`, returns a domain result and sends no traffic. Neither demo class is present in release builds. See [the check editor](CHECK_EDITOR.md).
 
 ## Theme and design system
 

@@ -9,6 +9,7 @@ The app shell implements the four approved top-level destinations: Overview, Che
 - selecting a bottom-bar tab returns to that tab's root;
 - a group card opens the Checks tab filtered to that group;
 - the filter chip clears the filter and stays on Checks;
+- a check row opens details, and `Edit check` or `Add check` opens the check editor above Checks;
 - Settings opens above the current tab;
 - the top-bar back action and the Android system back action pop one entry;
 - at a tab root, system back leaves the activity.
@@ -30,7 +31,7 @@ The production state is `OverviewUiState.Empty`: UNKNOWN availability, no result
 
 ## Checks, presets, history and settings
 
-Checks shows all probes or a filtered subset. Search covers names, groups, targets and protocols; filters cover group, status and protocol. Each row contains the name, protocol, target, result badge and latency, failure, skip or inconclusive reason. Opening a row shows the full configuration, result, measured phases and observations. See [checks and details](CHECKS.md).
+Checks shows all probes or a filtered subset. Search covers names, groups, targets and protocols; filters cover group, status and protocol. Each row contains the name, protocol, target, result badge and latency, failure, skip or inconclusive reason. Opening a row shows the full configuration, result, measured phases and observations. The `Add check` action is available from the empty and populated list, and `Edit check` opens the same editor. See [checks and details](CHECKS.md) and [the check editor](CHECK_EDITOR.md).
 
 Presets and History currently show honest empty states. Settings opens a placeholder until the settings and localization issue is implemented. The empty states do not imply that monitoring is running.
 
@@ -56,7 +57,7 @@ adb shell am start -S -W -n io.github.chuck852.linksonda/.debug.OverviewDemoActi
   --es scenario PARTIAL --es tab OVERVIEW
 ```
 
-Supported scenarios are `EMPTY`, `UNKNOWN`, `RUNNING`, `PARTIAL`, `DOWN` and `UP`. `--es tab CHECKS|PRESETS|HISTORY` opens a tab, and `--es filter regional` opens the filtered Checks screen. Every demo screen displays the banner “Demo data. No network requests are made.”
+Supported scenarios are `EMPTY`, `UNKNOWN`, `RUNNING`, `PARTIAL`, `DOWN` and `UP`. `--es tab CHECKS|PRESETS|HISTORY` opens a tab, `--es filter regional` opens the filtered Checks screen, `--es edit <id>` opens an existing check in the editor and `--es editor <PROTOCOL>` starts a new check. Every demo screen displays the banner “Demo data. No network requests are made.”
 
 ![Six overview states with demo data](design/overview-states.png)
 
@@ -74,7 +75,7 @@ Supported scenarios are `EMPTY`, `UNKNOWN`, `RUNNING`, `PARTIAL`, `DOWN` and `UP
 
 ## Verification
 
-- 38 JVM tests cover the domain model, build configuration, theme contrast and palettes, navigation stack, overview state filtering and demo-scenario consistency.
+- 73 JVM tests cover the domain model, build configuration, theme contrast and palettes, navigation stack, overview state filtering, editor validation and demo-scenario consistency.
 - Android 17 (API 37) emulator: all six states rendered at 1080 × 2400; group tap opened the filtered Checks screen and system back returned to Overview; tabs and Settings navigation were exercised.
 - Small screen: 320 dp width with 200% font scale has no horizontal overflow; status labels wrap and bottom-bar icons retain content descriptions.
 - Lint reports 0 errors and 6 pre-existing warnings. No dependency versions were changed.

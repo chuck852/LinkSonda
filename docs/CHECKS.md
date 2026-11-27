@@ -9,7 +9,7 @@ The Checks tab is backed by the real domain models. Each row keeps a `ProbeConfi
 - All P0 request families are represented: TCP connect, TLS, HTTP, HTTPS, system DNS, DNS over UDP, DNS over TCP, DoH, DoT and ICMP.
 - Each row shows status, freshness when it is stale or missing, an explicit `Skipped`/`Inconclusive`/`Restricted` badge where applicable, group, protocol, a monospaced target and the last elapsed time or error.
 - Search and filter state survives navigation to details and back.
-- `Add check` is shown disabled with an explanation until the check editor is connected.
+- `Add check` opens the check editor from both the empty and populated list. Every supported P0 protocol can be configured there; see [the check editor](CHECK_EDITOR.md).
 
 ## Details
 
@@ -17,7 +17,7 @@ The header shows the result status, freshness, presentation outcome and lifecycl
 
 The result card shows the outcome, recorded time and elapsed duration. Restricted results include `retryAt`; skipped results include the reason and next allowed time. A completed result retained after a later skipped slot keeps both records. A skipped slot older than a newer completed result is history, not the latest state, and is not shown as such. The phase card lists only phases reported by the runner and states that missing phases are not zero. The observations card shows connected IP family, HTTP status and body-marker state, DNS RCODE/answer count/truncation, negotiated TLS, and ICMP packets/loss/RTT. A null fact is rendered as `Not observed`, `Not checked` or `Not measured`, never as `0`.
 
-`Run again` and `Edit check` are wired through nullable `ProbeActions` callbacks with a `ProbeKey`. Production leaves them disabled with an explanation until the runner and profile editor are connected. The debug harness enables them only to show a demo message; it sends no request and saves nothing. History is an explicit placeholder until local storage is implemented.
+`Run again` and `Edit check` are wired through nullable `ProbeActions` callbacks with a `ProbeKey`. `Edit check` opens the editor; production disables only saving and test requests until local storage and the network engine are connected. `Run again` remains disabled until the runner is connected. The debug harness uses an in-memory runner and profile repository for the editor demo; it sends no network request and persists nothing. History is an explicit placeholder until local storage is implemented.
 
 | Presentation | What is shown |
 | --- | --- |
@@ -30,7 +30,7 @@ The result card shows the outcome, recorded time and elapsed duration. Restricte
 
 ## Demo harness
 
-`OverviewDemoActivity` contains 12 domain-backed checks covering all ten protocol variants and every presentation state. Every screen shows the demo banner; no network request is made and nothing is persisted.
+`OverviewDemoActivity` contains 12 domain-backed checks covering all ten protocol variants and every presentation state. Every screen shows the demo banner; the editor demo can save into the activity session, but sends no network request and persists nothing.
 
 ```bash
 adb shell am start -S -W -n io.github.chuck852.linksonda/.debug.OverviewDemoActivity \
@@ -39,7 +39,7 @@ adb shell am start -S -W -n io.github.chuck852.linksonda/.debug.OverviewDemoActi
   --es scenario PARTIAL --es probe https-global
 ```
 
-Useful demo IDs include `https-global` (revision 2, matched HTTPS with phases), `tls-global` (stale), `https-retained` (a completed result retained after a later skipped slot), `http-regional` (timeout), `dns-tcp` (skipped without data), `doh` (inconclusive) and `dot` (restricted).
+Useful demo IDs include `https-global` (revision 2, matched HTTPS with phases), `tls-global` (stale), `https-retained` (a completed result retained after a later skipped slot), `http-regional` (timeout), `dns-tcp` (skipped without data), `doh` (inconclusive) and `dot` (restricted). Use `--es edit <id>` to open the editor for a demo check or `--es editor <PROTOCOL>` for a new check.
 
 ![Checks list with demo data](design/checks-list.png)
 
@@ -65,7 +65,7 @@ Useful demo IDs include `https-global` (revision 2, matched HTTPS with phases), 
 
 ## Verification
 
-- 52 JVM tests: 15 domain, 2 build configuration, 8 palette, 3 contrast, 7 navigation, 6 filtering, 6 check-item invariants/formatting, 2 overview state and 3 demo-scenario tests.
+- 73 JVM tests, including editor validation, every protocol round-trip, revision changes, protocol field resets, navigation and demo save/test contracts.
 - Android 17 (API 37): search, group/status/protocol filters, filtered empty state, details navigation, back stack, light and dark themes checked.
 - 320 dp width at 200% font scale: no horizontal overflow; labels and fields wrap; controls remain reachable.
 - Release build excludes the demo activity, domain-backed demo catalog and demo resources.
