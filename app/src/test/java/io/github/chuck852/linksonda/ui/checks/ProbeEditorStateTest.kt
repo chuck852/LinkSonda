@@ -211,6 +211,17 @@ class ProbeEditorStateTest {
     }
 
     @Test
+    fun bodyMarkerWhitespaceIsPreserved() {
+        val marker = "  Example Domain  "
+        val state = validHttps().copy(bodyMarker = marker)
+        val config = requireNotNull(state.validate().config)
+        val request = config.request as ProbeRequest.Http
+
+        assertEquals(marker, request.expected.bodyMarker)
+        assertEquals(request, ProbeEditorState.from(config, "global", "Global").validate(config).config?.request)
+    }
+
+    @Test
     fun headRequestRejectsABodyMarker() {
         val validation = validHttps().copy(
             method = HttpMethod.HEAD,
@@ -266,11 +277,13 @@ class ProbeEditorStateTest {
     }
 
     @Test
-    fun acceptsCompressedIpv6WithEightGroups() {
-        assertTrue(isValidHost("1::2:3:4:5:6:7:8"))
+    fun rejectsCompressedIpv6WithEightExplicitGroups() {
+        assertTrue(isValidHost("1:2:3:4:5:6:7:8"))
+        assertTrue(isValidHost("1::2:3:4:5:6:7"))
         assertTrue(isValidHost("2001:db8::1"))
         assertTrue(isValidHost("::1"))
         assertTrue(isValidHost("::"))
+        assertTrue(isValidHost("1::2:3:4:5:6:7:8").not())
         assertTrue(isValidHost("2001:db8::1::2").not())
     }
 

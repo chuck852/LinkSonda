@@ -891,7 +891,7 @@ private fun ProbeProtocol.isDns(): Boolean = when (this) {
 private fun ProbeEditorState.advancedConfiguredCount(): Int {
     var count = 0
     if (protocol.supportsIpFamily() && ipFamily != null) count++
-    if ((protocol == ProbeProtocol.HTTP || protocol == ProbeProtocol.HTTPS) && bodyMarker.isNotBlank()) count++
+    if ((protocol == ProbeProtocol.HTTP || protocol == ProbeProtocol.HTTPS) && bodyMarker.isNotEmpty()) count++
     if (protocol == ProbeProtocol.TLS && minimumTls != null) count++
     if (protocol.isDns() && (expectedRcode.trim() != "0" || !requiresAnswer)) count++
     return count

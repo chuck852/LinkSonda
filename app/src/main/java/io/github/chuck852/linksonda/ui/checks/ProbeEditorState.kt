@@ -180,7 +180,7 @@ data class ProbeEditorState(
                 val status = parseStatusRange(expectedStatus)
                 if (status == null) {
                     errors[ProbeEditorField.EXPECTED_STATUS] = ProbeEditorError.INVALID_STATUS_RANGE
-                } else if (method == HttpMethod.HEAD && bodyMarker.trim().isNotEmpty()) {
+                } else if (method == HttpMethod.HEAD && bodyMarker.isNotEmpty()) {
                     errors[ProbeEditorField.BODY_MARKER] = ProbeEditorError.HEAD_WITH_BODY_MARKER
                 }
                 if (parsedUrl == null || status == null ||
@@ -192,7 +192,7 @@ data class ProbeEditorState(
                     ProbeRequest.Http(
                         url = parsedUrl,
                         method = method,
-                        expected = HttpExpectation(status, bodyMarker.trim().ifEmpty { null }),
+                        expected = HttpExpectation(status, bodyMarker.ifEmpty { null }),
                         family = ipFamily,
                     )
                 }
@@ -575,7 +575,7 @@ private fun isValidIpv6(value: String): Boolean {
             groups += 1
         }
     }
-    return if (firstDoubleColon >= 0) groups <= 8 else groups == 8
+    return if (firstDoubleColon >= 0) groups < 8 else groups == 8
 }
 
 private fun parseUrl(value: String, expectedScheme: String): URI? {

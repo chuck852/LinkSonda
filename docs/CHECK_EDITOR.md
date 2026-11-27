@@ -32,7 +32,7 @@ The editor validates input before constructing `ProbeConfig`:
 - Absolute HTTP/HTTPS URLs with a host and without credentials or fragments. DoH requires HTTPS.
 - Timeouts from 0.1 to 120 seconds.
 - HTTP status ranges from 100 to 599, in forms such as `204` or `200-299`.
-- `HEAD` requests cannot use a body marker.
+- `HEAD` requests cannot use a body marker. A body marker is preserved verbatim, including leading or trailing whitespace; only an empty string means it is not configured.
 - DNS names, record types from 1 to 65535, RCODE from 0 to 4095, and the rule that a non-zero RCODE cannot require an answer.
 - TLS and DoT server names must be DNS names. IP addresses are rejected as the TLS server name.
 - ICMP packet count from 1 to 10 with at least one reply and no more replies than packets.
@@ -95,7 +95,7 @@ Useful edit IDs include `https-global` (URL, status and body marker), `tls-globa
 
 ## Verification
 
-- 74 JVM tests, 0 failures. Editor coverage includes all ten protocols, invalid host/URL/port/status/timeout, TLS server-name rules, protocol reset, revision changes and save/test contracts.
+- 75 JVM tests, 0 failures. Editor coverage includes all ten protocols, invalid host/URL/port/status/timeout, TLS server-name rules, protocol reset, revision changes and save/test contracts.
 - `clean testDebugUnitTest lintDebug assembleDebug assembleRelease` passes; lint reports 0 errors and the same 6 pre-existing warnings.
 - Android 17 (API 37): new check from the empty production list, edit from details, protocol-specific fields, validation errors, test through the demo runner and save into the demo session.
 - 320 dp at 200% font scale: no horizontal overflow; fields and action buttons wrap and remain reachable.
