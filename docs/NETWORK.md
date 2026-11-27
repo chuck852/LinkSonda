@@ -1,8 +1,8 @@
 # Network transports
 
-`SocketProbeRunner` and `DnsProbeRunner` are transport implementations of the domain `ProbeRunner` contract. They are not connected to production UI. The manifest still has no `INTERNET` permission, the app sends no probe traffic, and no public endpoint is activated. Tests use loopback servers only.
+`SocketProbeRunner`, `DnsProbeRunner` and `HttpProbeRunner` are transport implementations of the domain `ProbeRunner` contract. They are not connected to production UI. The manifest still has no `INTERNET` permission, the app sends no probe traffic, and no public endpoint is activated. Tests use loopback servers only.
 
-`SocketProbeRunner` handles `ProbeRequest.TcpConnect` and `ProbeRequest.TlsHandshake`; `DnsProbeRunner` handles `ProbeRequest.SystemDns` and `ProbeRequest.DirectDns`. Every other request family returns `ProbeResult.Skipped` with `SkipReason.UNSUPPORTED` without calling admission.
+`SocketProbeRunner` handles `ProbeRequest.TcpConnect` and `ProbeRequest.TlsHandshake`; `DnsProbeRunner` handles `ProbeRequest.SystemDns` and `ProbeRequest.DirectDns`; `HttpProbeRunner` handles `ProbeRequest.Http`. Every other request family returns `ProbeResult.Skipped` with `SkipReason.UNSUPPORTED` without calling admission.
 
 ## TCP and TLS targets and DNS
 
@@ -40,6 +40,20 @@ TLS uses the platform trust store and HTTPS endpoint identification. Certificate
 - TLS 1.2 is the default minimum; a request can require TLS 1.3. Negotiated TLS 1.2 and 1.3 are recorded as a `TlsObservation`.
 - Certificates, raw handshake data, and peer addresses are not persisted.
 
+## HTTP and HTTPS
+
+`HttpProbeRunner` supports GET and HEAD for `http` and `https` URLs. It uses OkHttp and the existing `ProbeRequest.Http` contract. It has no public endpoint or production UI wiring.
+
+- Each HTTP hop is authorized as one attempt with the normalized host as both endpoint and infrastructure key. DNS, TCP, TLS and the request belong to that grant. A redirect target is a new hop and is separately authorized; changing port or scheme does not create a new identity in this runner. A denied hop returns `Skipped` with the denial reason and `nextAllowedAt`, and no request is sent for it.
+- Redirects are followed manually, at most three times. Missing or malformed `Location`, a non-HTTP(S) target, user info in the target, and an HTTPS-to-HTTP downgrade fail as `HTTP`. There are no automatic retries; `retryOnConnectionFailure` is disabled. A future controller may schedule a new run under the shared policy.
+- HTTPS uses OkHttp's platform trust store, certificate validation and hostname verification. The production constructor exposes no opt-out. HTTP is possible only for a request explicitly configured with an `http` URL; the manifest permission and cleartext policy remain for the integration issue.
+- 429 and 503 are `Restricted(RATE_LIMITED)` regardless of the expected status; 403 is `Restricted(ACCESS_DENIED)`. `Retry-After` accepts seconds or an RFC 1123 date; a missing or invalid value leaves `retryAt` unset for the controller's conservative backoff. HTTP 503 is a server restriction, not evidence that the transport is absent.
+- A status outside `HttpExpectation.status` is `Failed(UNEXPECTED_HTTP_STATUS)` with `HttpObservation.statusCode`. A required marker that is absent from the first 64 KiB of the body is `Failed(UNEXPECTED_RESPONSE)` with `bodyMarkerMatched = false`. HEAD, 204 and 304 responses are never read for a marker. The response body is always closed.
+- Markers are compared as UTF-8 bytes. Raw bodies, headers, cookies, authorization values and secrets are not persisted. The domain `HttpObservation` has no reuse or cache fields, so the runner does not invent them; cache is not configured and the phase map simply omits DNS/TCP/TLS for a reused connection.
+- `Retry-After` values larger than OkHttp's integer parser can represent are treated as a rate restriction with no invented `retryAt`; the controller applies its conservative backoff. They do not become a transport failure.
+- Phases use OkHttp `EventListener`: DNS, TCP connect, TLS handshake and time from request headers end to response headers start (TTFB). Durations are summed across redirects, and total elapsed uses `System.nanoTime()`. A reused connection has no new DNS/TCP/TLS phase.
+- The run timeout bounds each hop through `callTimeout` and the outer coroutine timeout. Timeout is `Failed(TIMEOUT)`; external cancellation propagates and cancels the OkHttp call.
+
 ## System DNS and direct DNS
 
 `DnsProbeRunner` keeps the system resolver and explicit DNS requests separate. It uses `System.nanoTime()` for elapsed and phase durations and closes UDP and TCP sockets on timeout, cancellation, and completion.
@@ -74,9 +88,10 @@ Transport tests cover:
 
 - TCP and TLS: IPv4 and IPv6 loopback, success/refusal, fallback across resolved addresses, DNS timeout and failure, blocking DNS that ignores interruption, DNS executor exhaustion, hostname admission order, stable host admission keys across port/transport/SNI, denied admission, TLS with SNI and TLS 1.2/1.3, untrusted certificate, hostname mismatch, negative IP subject alternative name verification, handshake timeout, external cancellation propagation, and prompt cancellation with socket release.
 - DNS: system A/AAAA counts and missing answers (including `requiresAnswer = false`), unsupported types and RCODE expectations, admission denial, timeout and external cancellation, permission and capacity failures, direct UDP success, NXDOMAIN, SERVFAIL mismatch, missing and CNAME-only answers, wrong transaction ID, malformed and truncated responses, malformed A/AAAA RDATA, wrong answer class, unrelated owner, a valid CNAME chain, EDNS extended RCODE, retry of another resolved address after a malformed response and after a silent timeout, TC fallback and its separate admission, partial TC sections and actual answer counts, failed, timed-out and denied fallback, direct TCP success/refusal/truncation, slow-drip exchange budget, hostname resolver admission order, IPv6 loopback, invalid question names, extended expected RCODE, phase summation, and cancellation.
+- HTTP: GET marker and phases, HEAD, 204, redirects with separate admission, redirect denial, downgrade and user-info rejection, unexpected status and marker, 503/429 Retry-After (seconds and HTTP date), 403, header and slow-body timeout, redirect limit, family mismatch, external cancellation, untrusted and trusted TLS, IPv6, DNS failure, connection reuse without invented phases, and marker beyond the body limit.
 
 All test servers are local. The TLS certificate is generated at test runtime, and no public endpoint is contacted.
 
 ## Current limits
 
-HTTP and ICMP runners, DoH and DoT, Android network binding, the `INTERNET` permission, and production UI integration are not part of this implementation. A later integration issue must add the permission and connect the runners to the monitoring engine without weakening admission or TLS verification. EDNS is limited to reading the extended RCODE field from an OPT record; options, version negotiation, and full EDNS semantics are not implemented, and an extended expected RCODE still skips as unsupported. A platform DNS lookup that ignores interruption can keep its bounded worker thread until the resolver returns; the probe result itself is still bounded by the configured timeout, and further lookups return `Inconclusive(OS_LIMITATION)` when the pool is full.
+The ICMP runner, DoH and DoT, Android network binding, the `INTERNET` permission, and production UI integration are not part of this implementation. HTTP has no automatic retries, no cache, and no reuse/cache marker in `HttpObservation`; the controller owns any later retry schedule. A later integration issue must add the permission and connect the runners to the monitoring engine without weakening admission or TLS verification. EDNS is limited to reading the extended RCODE field from an OPT record; options, version negotiation, and full EDNS semantics are not implemented, and an extended expected RCODE still skips as unsupported. A platform DNS lookup that ignores interruption can keep its bounded worker thread until the resolver returns; the probe result itself is still bounded by the configured timeout, and further lookups return `Inconclusive(OS_LIMITATION)` when the pool is full.
