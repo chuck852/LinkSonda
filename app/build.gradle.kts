@@ -58,6 +58,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.5")
     implementation("androidx.room:room-runtime:2.8.5")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     ksp("androidx.room:room-compiler:2.8.5")
 

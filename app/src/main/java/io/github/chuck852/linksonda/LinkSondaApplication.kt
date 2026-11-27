@@ -9,6 +9,7 @@ import io.github.chuck852.linksonda.storage.HistoryMaintenance
 import io.github.chuck852.linksonda.storage.LinkSondaDatabase
 import io.github.chuck852.linksonda.storage.RoomProfileRepository
 import io.github.chuck852.linksonda.storage.RoomResultRepository
+import io.github.chuck852.linksonda.updater.Updater
 
 /** Owns the process-wide stores so every Activity reads and writes the same state. */
 class LinkSondaApplication : Application() {
@@ -23,6 +24,7 @@ class LinkSondaApplication : Application() {
     val profileRepository by lazy { RoomProfileRepository(database) }
     val resultRepository by lazy { RoomResultRepository(database) }
     val historyMaintenance by lazy { HistoryMaintenance(database) }
+    internal val updater by lazy { Updater(this, settingsStore) }
 
     private companion object {
         const val DATABASE_NAME = "linksonda.db"

@@ -13,6 +13,17 @@ enum class AppLanguage(val languageTag: String?) {
 
 enum class UpdateChannel { STABLE, PREVIEW }
 
+enum class UpdateCheckStatus {
+    NEVER,
+    UP_TO_DATE,
+    UPDATE_AVAILABLE,
+    NOT_MODIFIED,
+    RATE_LIMITED,
+    NETWORK_ERROR,
+    INVALID_RELEASE,
+    NO_RELEASE,
+}
+
 /**
  * User-visible settings that are independent of the monitoring engine and history storage.
  *
@@ -35,12 +46,25 @@ data class AppSettings(
     val lastUpdateCheckAt: Instant? = null,
     val updateEtag: String? = null,
     val lastOfferedVersionCode: Long? = null,
+    val lastOfferedVersionName: String? = null,
+    val lastOfferedReleaseNotes: String? = null,
+    val lastOfferedChannel: UpdateChannel? = null,
+    val lastOfferedUpdateJson: String? = null,
+    val lastUpdateStatus: UpdateCheckStatus = UpdateCheckStatus.NEVER,
+    val lastUpdateRetryAt: Instant? = null,
+    val lastNotifiedVersionCode: Long? = null,
 ) {
     init {
         require(historyRetentionDays in HISTORY_RETENTION_DAYS)
         require(selectedProfileId == null || selectedProfileId.isNotBlank())
         require(updateEtag == null || updateEtag.isNotBlank())
         require(lastOfferedVersionCode == null || lastOfferedVersionCode > 0)
+        require(lastOfferedVersionName == null || lastOfferedVersionName.isNotBlank())
+        require(lastOfferedReleaseNotes == null || lastOfferedReleaseNotes.isNotBlank())
+        require((lastOfferedVersionCode == null) == (lastOfferedVersionName == null))
+        require((lastOfferedVersionCode == null) == (lastOfferedChannel == null))
+        require(lastOfferedUpdateJson == null || lastOfferedUpdateJson.isNotBlank())
+        require(lastNotifiedVersionCode == null || lastNotifiedVersionCode > 0)
     }
 
     companion object {
