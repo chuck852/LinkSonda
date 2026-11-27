@@ -4,6 +4,7 @@ import io.github.chuck852.linksonda.domain.AdmissionDecision
 import io.github.chuck852.linksonda.domain.FailureReason
 import io.github.chuck852.linksonda.domain.HttpExpectation
 import io.github.chuck852.linksonda.domain.HttpMethod
+import io.github.chuck852.linksonda.domain.InconclusiveReason
 import io.github.chuck852.linksonda.domain.IpFamily
 import io.github.chuck852.linksonda.domain.NetworkId
 import io.github.chuck852.linksonda.domain.NetworkSnapshot
@@ -22,8 +23,11 @@ import io.github.chuck852.linksonda.domain.ProbeRunRequest
 import io.github.chuck852.linksonda.domain.SkipReason
 import io.github.chuck852.linksonda.domain.SocketEndpoint
 import io.github.chuck852.linksonda.domain.TlsVersion
+import java.net.ConnectException
 import java.net.Inet4Address
 import java.net.InetAddress
+import java.net.NoRouteToHostException
+import java.net.SocketException
 import java.net.URI
 import java.net.UnknownHostException
 import java.time.Instant
@@ -33,6 +37,7 @@ import javax.net.ssl.SSLContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -108,6 +113,52 @@ class SocketProbeRunnerTest {
         assertNull(completed.timing.phases[ProbePhase.TCP_CONNECT])
         assertEquals(1, admission.attempts.size)
         assertTrue(admission.attempts.single().endpointKey.startsWith("dns:"))
+    }
+
+    @Test
+    fun dualStackHostnameFallsBackToTheNextAddress() {
+        TcpServer().use { server ->
+            val resolver = HostResolver { _, _ ->
+                listOf(
+                    InetAddress.getByName("127.0.0.2"),
+                    InetAddress.getByName("127.0.0.1"),
+                )
+            }
+            val admission = RecordingAdmission()
+
+            val result = runProbe(
+                runner = runner(hostResolver = resolver),
+                request = ProbeRequest.TcpConnect(
+                    SocketEndpoint("dual.test", server.port, IpFamily.IPV4),
+                ),
+                admission = admission,
+            )
+
+            val completed = completed(result)
+            assertEquals(ProbeOutcome.Matched, completed.outcome)
+            assertEquals(IpFamily.IPV4, completed.observations.connectedIpFamily)
+            assertEquals(3, admission.attempts.size)
+            assertTrue(admission.attempts[0].endpointKey.startsWith("dns:"))
+            assertTrue(admission.attempts[1].endpointKey.startsWith("tcp:"))
+            assertTrue(admission.attempts[2].endpointKey.startsWith("tcp:"))
+        }
+    }
+
+    @Test
+    fun blockingDnsResolutionDoesNotEscapeTheOverallTimeout() {
+        val resolver = HostResolver { _, _ ->
+            Thread.sleep(2_000)
+            emptyList()
+        }
+
+        val result = runProbe(
+            runner = runner(hostResolver = resolver),
+            request = ProbeRequest.TcpConnect(SocketEndpoint("blocked.test", 80)),
+            timeout = 100.milliseconds,
+        )
+
+        val completed = failed(result, FailureReason.TIMEOUT)
+        assertTrue(completed.timing.elapsed < 1.seconds)
     }
 
     @Test
@@ -247,6 +298,39 @@ class SocketProbeRunnerTest {
     }
 
     @Test
+    fun tlsRejectsIpAddressWithoutIpSan() {
+        TlsServer(serverContext = TestTls.serverContextWithoutIpSan).use { server ->
+            val result = runProbe(
+                runner = runner(sslContext = TestTls.clientContextWithoutIpSan),
+                request = ProbeRequest.TlsHandshake(
+                    endpoint = SocketEndpoint("127.0.0.1", server.port),
+                    serverName = null,
+                ),
+            )
+
+            failed(result, FailureReason.TLS)
+            assertTrue(server.awaitFinished())
+        }
+    }
+
+    @Test
+    fun tlsReportsTls13WhenItIsNegotiated() {
+        TlsServer().use { server ->
+            val result = runProbe(
+                runner = runner(),
+                request = ProbeRequest.TlsHandshake(
+                    endpoint = SocketEndpoint("127.0.0.1", server.port),
+                    serverName = "localhost",
+                    minimumVersion = TlsVersion.TLS_1_3,
+                ),
+            )
+
+            val completed = completed(result)
+            assertEquals(TlsVersion.TLS_1_3, completed.observations.tls?.negotiatedVersion)
+        }
+    }
+
+    @Test
     fun tlsReportsTls12WhenItIsNegotiated() {
         TlsServer(enabledProtocols = arrayOf("TLSv1.2")).use { server ->
             val result = runProbe(
@@ -298,6 +382,7 @@ class SocketProbeRunnerTest {
             )
 
             val completed = failed(result, FailureReason.TIMEOUT)
+            assertEquals(IpFamily.IPV4, completed.observations.connectedIpFamily)
             assertTrue(completed.timing.elapsed < 2.seconds)
             assertTrue(server.awaitFinished())
         }
@@ -316,16 +401,19 @@ class SocketProbeRunnerTest {
             }
         }).use { server ->
             runBlocking {
+                val returned = CompletableDeferred<ProbeResult>()
                 val job = launch(Dispatchers.Default) {
-                    runner().run(
-                        probeRunRequest(
-                            ProbeRequest.TlsHandshake(
-                                endpoint = SocketEndpoint("127.0.0.1", server.port),
-                                serverName = "localhost",
+                    returned.complete(
+                        runner().run(
+                            probeRunRequest(
+                                ProbeRequest.TlsHandshake(
+                                    endpoint = SocketEndpoint("127.0.0.1", server.port),
+                                    serverName = "localhost",
+                                ),
+                                timeout = 10.seconds,
                             ),
-                            timeout = 10.seconds,
+                            RecordingAdmission(),
                         ),
-                        RecordingAdmission(),
                     )
                 }
 
@@ -333,6 +421,7 @@ class SocketProbeRunnerTest {
                 assertTrue(clientHelloReceived.await(3, TimeUnit.SECONDS))
                 withTimeout(1.seconds) { job.cancelAndJoin() }
                 assertTrue(job.isCancelled)
+                assertFalse(returned.isCompleted)
             }
             assertTrue(server.awaitFinished())
         }
@@ -352,6 +441,35 @@ class SocketProbeRunnerTest {
             assertEquals(ProbeOutcome.Matched, completed.outcome)
             assertEquals(IpFamily.IPV6, completed.observations.connectedIpFamily)
         }
+    }
+
+    @Test
+    fun permissionFailuresAreInconclusive() {
+        val expected = ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
+
+        assertEquals(expected, classifyConnectFailure(SecurityException("denied")))
+        assertEquals(expected, classifyConnectFailure(SocketException("socket failed: EACCES (Permission denied)")))
+        assertEquals(expected, classifyTlsFailure(SocketException("socket failed: EPERM (Operation not permitted)")))
+    }
+
+    @Test
+    fun connectFailuresAreClassified() {
+        assertEquals(
+            ProbeOutcome.Failed(FailureReason.UNREACHABLE),
+            classifyConnectFailure(NoRouteToHostException("No route to host")),
+        )
+        assertEquals(
+            ProbeOutcome.Failed(FailureReason.TIMEOUT),
+            classifyConnectFailure(ConnectException("Connection timed out")),
+        )
+        assertEquals(
+            ProbeOutcome.Failed(FailureReason.UNREACHABLE),
+            classifyConnectFailure(ConnectException("Network is unreachable")),
+        )
+        assertEquals(
+            ProbeOutcome.Failed(FailureReason.REFUSED),
+            classifyConnectFailure(ConnectException("Connection refused")),
+        )
     }
 
     @Test

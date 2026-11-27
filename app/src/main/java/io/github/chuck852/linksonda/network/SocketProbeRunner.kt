@@ -24,10 +24,12 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.NoRouteToHostException
 import java.net.Socket
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.security.NoSuchAlgorithmException
 import java.time.Instant
+import java.util.concurrent.Executors
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLHandshakeException
@@ -47,7 +49,7 @@ import kotlinx.coroutines.withTimeout
  * TLS uses the platform trust store and HTTPS endpoint identification. SNI is sent only for DNS
  * names. The TLS handshake is part of the socket attempt authorized before connecting.
  */
-class SocketProbeRunner internal constructor(
+internal class SocketProbeRunner internal constructor(
     private val hostResolver: HostResolver,
     private val sslContext: SSLContext,
 ) : ProbeRunner {
@@ -65,12 +67,19 @@ class SocketProbeRunner internal constructor(
 
         val startNanos = System.nanoTime()
         val phases = mutableMapOf<ProbePhase, Duration>()
+        val state = RunState()
         return try {
             withTimeout(request.config.timeout) {
-                execute(request, probe, admission, startNanos, phases)
+                execute(request, probe, admission, startNanos, phases, state)
             }
         } catch (timeout: TimeoutCancellationException) {
-            completed(request, startNanos, phases, ProbeOutcome.Failed(FailureReason.TIMEOUT))
+            completed(
+                request = request,
+                startNanos = startNanos,
+                phases = phases,
+                outcome = ProbeOutcome.Failed(FailureReason.TIMEOUT),
+                observations = ProbeObservations(connectedIpFamily = state.connectedIpFamily),
+            )
         }
     }
 
@@ -80,6 +89,7 @@ class SocketProbeRunner internal constructor(
         admission: ProbeAdmission,
         startNanos: Long,
         phases: MutableMap<ProbePhase, Duration>,
+        state: RunState,
     ): ProbeResult {
         val endpoint = when (probe) {
             is ProbeRequest.TcpConnect -> probe.endpoint
@@ -95,16 +105,24 @@ class SocketProbeRunner internal constructor(
             ?.takeIf { it.isNotEmpty() }
             ?: host
 
-        val address: InetAddress
+        val candidates: List<InetAddress>
         if (isIpLiteral(host)) {
-            address = try {
+            val address = try {
                 InetAddress.getByName(host)
+            } catch (error: SecurityException) {
+                return completed(
+                    request,
+                    startNanos,
+                    phases,
+                    ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED),
+                )
             } catch (error: UnknownHostException) {
                 return completed(request, startNanos, phases, ProbeOutcome.Failed(FailureReason.DNS))
             }
             if (!address.matches(endpoint.family)) {
                 return completed(request, startNanos, phases, ProbeOutcome.Failed(FailureReason.DNS))
             }
+            candidates = listOf(address)
         } else {
             val decision = admission.authorize(
                 ProbeAttempt(endpointKey = "dns:$host", infrastructureKey = "system-dns"),
@@ -115,7 +133,7 @@ class SocketProbeRunner internal constructor(
 
             val dnsStart = System.nanoTime()
             val addresses = try {
-                hostResolver.resolve(host, endpoint.family)
+                resolveBounded(host, endpoint.family)
             } catch (cancelled: CancellationException) {
                 record(phases, ProbePhase.DNS, dnsStart)
                 throw cancelled
@@ -132,103 +150,128 @@ class SocketProbeRunner internal constructor(
                 )
             } catch (error: IOException) {
                 record(phases, ProbePhase.DNS, dnsStart)
-                return completed(request, startNanos, phases, ProbeOutcome.Failed(FailureReason.DNS))
+                return completed(
+                    request,
+                    startNanos,
+                    phases,
+                    if (error.isPermissionDenied()) {
+                        ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
+                    } else {
+                        ProbeOutcome.Failed(FailureReason.DNS)
+                    },
+                )
             }
             record(phases, ProbePhase.DNS, dnsStart)
-            address = addresses.firstOrNull { it.matches(endpoint.family) }
-                ?: return completed(request, startNanos, phases, ProbeOutcome.Failed(FailureReason.DNS))
+            candidates = addresses
+                .filter { it.matches(endpoint.family) }
+                .sortedBy { it.family() !in request.network.ipFamilies }
+            if (candidates.isEmpty()) {
+                return completed(request, startNanos, phases, ProbeOutcome.Failed(FailureReason.DNS))
+            }
         }
 
         val target = if (tls != null) serverName else host
         val scheme = if (tls != null) "tls" else "tcp"
-        val decision = admission.authorize(
-            ProbeAttempt(
-                endpointKey = "$scheme:$target:${endpoint.port}",
-                infrastructureKey = "$scheme:$target",
-            ),
-        )
-        if (decision is AdmissionDecision.Denied) {
-            return skipped(request, decision)
-        }
+        var lastFailure: ProbeOutcome? = null
+        for (address in candidates) {
+            val decision = admission.authorize(
+                ProbeAttempt(
+                    endpointKey = "$scheme:$target:${endpoint.port}",
+                    infrastructureKey = "$scheme:$target",
+                ),
+            )
+            if (decision is AdmissionDecision.Denied) {
+                return skipped(request, decision)
+            }
 
-        val socket = try {
-            Socket()
-        } catch (error: Exception) {
-            return completed(request, startNanos, phases, ProbeOutcome.Failed(FailureReason.TCP))
-        }
-        try {
-            val connectStart = System.nanoTime()
-            try {
-                socket.connectCancellable(
-                    address = address,
-                    port = endpoint.port,
-                    timeoutMillis = timeoutMillis(request.config.timeout),
-                )
-            } catch (cancelled: CancellationException) {
-                record(phases, ProbePhase.TCP_CONNECT, connectStart)
-                throw cancelled
+            val socket = try {
+                Socket()
             } catch (error: Exception) {
-                record(phases, ProbePhase.TCP_CONNECT, connectStart)
-                return completed(
-                    request,
-                    startNanos,
-                    phases,
-                    connectFailure(error),
-                )
+                return completed(request, startNanos, phases, classifyConnectFailure(error))
             }
-            record(phases, ProbePhase.TCP_CONNECT, connectStart)
-
-            val family = address.family()
-            if (tls == null) {
-                return completed(
-                    request,
-                    startNanos,
-                    phases,
-                    ProbeOutcome.Matched,
-                    ProbeObservations(connectedIpFamily = family),
-                )
-            }
-
-            val handshakeStart = System.nanoTime()
+            var sslSocket: SSLSocket? = null
             try {
-                socket.soTimeout = timeoutMillis(request.config.timeout)
-                val sslSocket = createSslSocket(socket, serverName, endpoint.port, tls.minimumVersion)
-                sslSocket.startHandshakeCancellable()
-                record(phases, ProbePhase.TLS_HANDSHAKE, handshakeStart)
-                val version = tlsVersion(sslSocket.session.protocol)
-                    ?: return completed(
+                val connectStart = System.nanoTime()
+                try {
+                    socket.connectCancellable(
+                        address = address,
+                        port = endpoint.port,
+                        timeoutMillis = timeoutMillis(request.config.timeout),
+                    )
+                } catch (cancelled: CancellationException) {
+                    record(phases, ProbePhase.TCP_CONNECT, connectStart)
+                    throw cancelled
+                } catch (error: Exception) {
+                    record(phases, ProbePhase.TCP_CONNECT, connectStart)
+                    val failure = classifyConnectFailure(error)
+                    lastFailure = failure
+                    if (failure is ProbeOutcome.Inconclusive) {
+                        return completed(request, startNanos, phases, failure)
+                    }
+                    continue
+                }
+                record(phases, ProbePhase.TCP_CONNECT, connectStart)
+
+                val family = address.family()
+                state.connectedIpFamily = family
+                if (tls == null) {
+                    return completed(
                         request,
                         startNanos,
                         phases,
-                        ProbeOutcome.Failed(FailureReason.TLS),
+                        ProbeOutcome.Matched,
                         ProbeObservations(connectedIpFamily = family),
                     )
-                return completed(
-                    request,
-                    startNanos,
-                    phases,
-                    ProbeOutcome.Matched,
-                    ProbeObservations(
-                        connectedIpFamily = family,
-                        tls = TlsObservation(version),
-                    ),
-                )
-            } catch (cancelled: CancellationException) {
-                record(phases, ProbePhase.TLS_HANDSHAKE, handshakeStart)
-                throw cancelled
-            } catch (error: Exception) {
-                record(phases, ProbePhase.TLS_HANDSHAKE, handshakeStart)
-                return completed(
-                    request,
-                    startNanos,
-                    phases,
-                    tlsFailure(error),
-                    ProbeObservations(connectedIpFamily = family),
-                )
+                }
+
+                val handshakeStart = System.nanoTime()
+                try {
+                    socket.soTimeout = timeoutMillis(request.config.timeout)
+                    sslSocket = createSslSocket(socket, serverName, endpoint.port, tls.minimumVersion)
+                    sslSocket.startHandshakeCancellable()
+                    record(phases, ProbePhase.TLS_HANDSHAKE, handshakeStart)
+                    val version = tlsVersion(sslSocket.session.protocol)
+                        ?: return completed(
+                            request,
+                            startNanos,
+                            phases,
+                            ProbeOutcome.Failed(FailureReason.TLS),
+                            ProbeObservations(connectedIpFamily = family),
+                        )
+                    return completed(
+                        request,
+                        startNanos,
+                        phases,
+                        ProbeOutcome.Matched,
+                        ProbeObservations(
+                            connectedIpFamily = family,
+                            tls = TlsObservation(version),
+                        ),
+                    )
+                } catch (cancelled: CancellationException) {
+                    record(phases, ProbePhase.TLS_HANDSHAKE, handshakeStart)
+                    throw cancelled
+                } catch (error: Exception) {
+                    record(phases, ProbePhase.TLS_HANDSHAKE, handshakeStart)
+                    return completed(
+                        request,
+                        startNanos,
+                        phases,
+                        classifyTlsFailure(error),
+                        ProbeObservations(connectedIpFamily = family),
+                    )
+                }
+            } finally {
+                sslSocket?.closeQuietly()
+                socket.closeQuietly()
             }
-        } finally {
-            socket.closeQuietly()
         }
+        return completed(
+            request,
+            startNanos,
+            phases,
+            lastFailure ?: ProbeOutcome.Failed(FailureReason.TCP),
+        )
     }
 
     private fun createSslSocket(
@@ -283,19 +326,17 @@ class SocketProbeRunner internal constructor(
         nextAllowedAt = decision.nextAllowedAt,
     )
 
-    private fun connectFailure(error: Throwable): ProbeOutcome = when (error) {
-        is SocketTimeoutException -> ProbeOutcome.Failed(FailureReason.TIMEOUT)
-        is NoRouteToHostException -> ProbeOutcome.Failed(FailureReason.UNREACHABLE)
-        is ConnectException -> ProbeOutcome.Failed(FailureReason.REFUSED)
-        is SecurityException -> ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
-        else -> ProbeOutcome.Failed(FailureReason.TCP)
-    }
-
-    private fun tlsFailure(error: Throwable): ProbeOutcome = when (error) {
-        is SocketTimeoutException -> ProbeOutcome.Failed(FailureReason.TIMEOUT)
-        is SecurityException -> ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
-        else -> ProbeOutcome.Failed(FailureReason.TLS)
-    }
+    private suspend fun resolveBounded(host: String, family: IpFamily?): List<InetAddress> =
+        suspendCancellableCoroutine { continuation ->
+            val future = DNS_EXECUTOR.submit {
+                try {
+                    continuation.resumeWith(Result.success(hostResolver.resolve(host, family)))
+                } catch (error: Throwable) {
+                    continuation.resumeWith(Result.failure(error))
+                }
+            }
+            continuation.invokeOnCancellation { future.cancel(true) }
+        }
 
     private fun record(phases: MutableMap<ProbePhase, Duration>, phase: ProbePhase, startNanos: Long) {
         phases[phase] = (System.nanoTime() - startNanos).nanoseconds
@@ -353,7 +394,8 @@ class SocketProbeRunner internal constructor(
 
     private fun isIpLiteral(value: String): Boolean {
         val host = normalizeHost(value)
-        return host.contains(':') || IPV4.matches(host)
+        val ipv4 = IPV4.matches(host) && host.split('.').all { it.toInt() in 0..255 }
+        return host.count { it == ':' } >= 2 || ipv4
     }
 
     private fun tlsVersion(protocol: String): TlsVersion? = when (protocol) {
@@ -361,6 +403,38 @@ class SocketProbeRunner internal constructor(
         "TLSv1.3" -> TlsVersion.TLS_1_3
         else -> null
     }
+}
+
+private class RunState(var connectedIpFamily: IpFamily? = null)
+
+internal fun classifyConnectFailure(error: Throwable): ProbeOutcome = when {
+    error.isPermissionDenied() -> ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
+    error is SocketTimeoutException -> ProbeOutcome.Failed(FailureReason.TIMEOUT)
+    error is NoRouteToHostException -> ProbeOutcome.Failed(FailureReason.UNREACHABLE)
+    error is ConnectException && error.message?.contains("timed out", ignoreCase = true) == true ->
+        ProbeOutcome.Failed(FailureReason.TIMEOUT)
+    error is ConnectException && error.message?.contains("unreachable", ignoreCase = true) == true ->
+        ProbeOutcome.Failed(FailureReason.UNREACHABLE)
+    error is ConnectException -> ProbeOutcome.Failed(FailureReason.REFUSED)
+    else -> ProbeOutcome.Failed(FailureReason.TCP)
+}
+
+internal fun classifyTlsFailure(error: Throwable): ProbeOutcome = when {
+    error.isPermissionDenied() -> ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
+    error is SocketTimeoutException -> ProbeOutcome.Failed(FailureReason.TIMEOUT)
+    else -> ProbeOutcome.Failed(FailureReason.TLS)
+}
+
+private fun Throwable.isPermissionDenied(): Boolean =
+    this is SecurityException ||
+        (this is SocketException && message?.let { text ->
+            text.contains("EACCES", ignoreCase = true) ||
+                text.contains("EPERM", ignoreCase = true) ||
+                text.contains("permission denied", ignoreCase = true)
+        } == true)
+
+private val DNS_EXECUTOR = Executors.newCachedThreadPool { runnable ->
+    Thread(runnable, "linksonda-dns").apply { isDaemon = true }
 }
 
 private val IPV4 = Regex("""\d{1,3}(\.\d{1,3}){3}""")

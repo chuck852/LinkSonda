@@ -22,9 +22,12 @@ import kotlin.concurrent.thread
 internal object TestTls {
     private const val PASSWORD = "changeit"
 
-    private val store: KeyStore by lazy { generateStore() }
+    private val store: KeyStore by lazy { generateStore("dns:localhost,ip:127.0.0.1") }
+    private val storeWithoutIpSan: KeyStore by lazy { generateStore("dns:localhost") }
     val serverContext: SSLContext by lazy { context(store) }
     val clientContext: SSLContext by lazy { context(store) }
+    val serverContextWithoutIpSan: SSLContext by lazy { context(storeWithoutIpSan) }
+    val clientContextWithoutIpSan: SSLContext by lazy { context(storeWithoutIpSan) }
 
     private fun context(store: KeyStore): SSLContext {
         val keyManagers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
@@ -38,7 +41,7 @@ internal object TestTls {
         }
     }
 
-    private fun generateStore(): KeyStore {
+    private fun generateStore(san: String): KeyStore {
         val directory = Files.createTempDirectory("linksonda-tls-test").toFile()
         val file = File(directory, "test.p12")
         val keytool = File(System.getProperty("java.home"), "bin/keytool")
@@ -51,15 +54,15 @@ internal object TestTls {
             "-keysize", "2048",
             "-validity", "2",
             "-dname", "CN=localhost",
-            "-ext", "SAN=dns:localhost,ip:127.0.0.1",
+            "-ext", "SAN=$san",
             "-storetype", "PKCS12",
             "-keystore", file.absolutePath,
             "-storepass", PASSWORD,
             "-keypass", PASSWORD,
             "-noprompt",
         ).redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader().readText()
         check(process.waitFor(30, TimeUnit.SECONDS)) { "keytool timed out" }
+        val output = process.inputStream.bufferedReader().readText()
         check(process.exitValue() == 0) { "keytool failed: $output" }
         return KeyStore.getInstance("PKCS12").apply {
             file.inputStream().use { load(it, PASSWORD.toCharArray()) }
@@ -110,9 +113,10 @@ internal class TcpServer(
 internal class TlsServer(
     bindAddress: String = "127.0.0.1",
     enabledProtocols: Array<String>? = null,
+    serverContext: SSLContext = TestTls.serverContext,
     private val onHandshake: (SSLSocket) -> Unit = {},
 ) : AutoCloseable {
-    private val server = (TestTls.serverContext.serverSocketFactory.createServerSocket(
+    private val server = (serverContext.serverSocketFactory.createServerSocket(
         0,
         50,
         InetAddress.getByName(bindAddress),
