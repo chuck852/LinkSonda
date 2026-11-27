@@ -15,6 +15,12 @@ val appVersionCode = versionProperties.getProperty("versionCode")?.toIntOrNull()
 val appVersionName = versionProperties.getProperty("versionName")?.takeIf { it.isNotBlank() }
     ?: error("version.properties must define a non-empty versionName")
 val updaterTestUrl = providers.gradleProperty("updaterTestUrl").getOrElse("")
+val robolectricAndroidAll = configurations.create("robolectricAndroidAll")
+val robolectricDependencyDir = layout.buildDirectory.dir("robolectric-dependencies")
+val copyRobolectricDependencies = tasks.register<Copy>("copyRobolectricDependencies") {
+    from(robolectricAndroidAll)
+    into(robolectricDependencyDir)
+}
 val escapedUpdaterTestUrl = updaterTestUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 
 android {
@@ -53,6 +59,7 @@ ksp {
 }
 
 dependencies {
+    robolectricAndroidAll("org.robolectric:android-all-instrumented:16-robolectric-13921718-i7")
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.foundation:foundation")
@@ -73,4 +80,11 @@ dependencies {
     testImplementation("androidx.test:core:1.7.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.16.1")
+}
+
+
+tasks.withType<Test>().configureEach {
+    dependsOn(copyRobolectricDependencies)
+    systemProperty("robolectric.offline", "true")
+    systemProperty("robolectric.dependency.dir", robolectricDependencyDir.get().asFile.absolutePath)
 }

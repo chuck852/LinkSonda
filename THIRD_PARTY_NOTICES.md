@@ -14,6 +14,7 @@ The project license applies to LinkSonda's original work. Third-party components
 | Guava ListenableFuture 1.0 | APK runtime | Apache-2.0. Guava Authors. [Guava source](https://github.com/google/guava) |
 | JUnit 4.13.2 | JVM tests | EPL-1.0. [Bundled license](third_party/junit-LICENSE.txt) · [JUnit source](https://github.com/junit-team/junit4/tree/r4.13.2) |
 | Hamcrest Core 1.3 | JVM tests | BSD-3-Clause. [Bundled license and copyright](third_party/hamcrest-LICENSE.txt) · [Hamcrest source](https://github.com/hamcrest/JavaHamcrest) |
+| Robolectric 4.16.1 and Android-all test runtime | JVM tests | Apache-2.0. [Robolectric](https://github.com/robolectric/robolectric) · [Android Open Source Project](https://source.android.com/) |
 
 Android Gradle Plugin 9.3.1, the Kotlin and Compose Compiler 2.4.21 build plugins, the SDK, and GitHub Actions are obtained during builds. The project includes the Gradle Wrapper separately as listed above. The full Apache-2.0 text is in [LICENSE](LICENSE).
 

@@ -24,3 +24,5 @@ Replace `SERIAL` with the device or emulator from `adb devices -l`. Updating an 
 [Android CI](../.github/workflows/android-ci.yml) runs on pull requests to `main`, pushes to `main`, and manual dispatch. The workflow validates the Gradle Wrapper, runs JVM tests and lint, and builds the debug and unsigned release APKs on a GitHub-hosted Ubuntu runner. Each successful run uploads `LinkSonda-debug` and `LinkSonda-release-unsigned` for 14 days, each with its license notices. Compare a downloaded APK's SHA-256 with the value printed during the build.
 
 The workflow requires read access to repository contents and uses the runner's debug key for the debug APK. The release artifact is unsigned and contains no signing secret. Selected releases follow the [manual release procedure](RELEASING.md).
+
+The JVM tests run Robolectric offline against the pinned `android-all-instrumented` test artifact; it is copied by a Gradle task and is not part of the APK.

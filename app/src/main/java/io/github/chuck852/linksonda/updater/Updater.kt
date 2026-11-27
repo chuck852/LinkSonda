@@ -65,7 +65,9 @@ internal class Updater(
     private var installJob: Job? = null
     @Volatile
     private var readyFile: File? = null
+    @Volatile
     private var downloadGeneration = 0L
+    @Volatile
     private var installGeneration = 0L
     private val downloadLock = Any()
 
