@@ -3,10 +3,10 @@ package io.github.chuck852.linksonda.ui.theme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -35,6 +35,7 @@ import io.github.chuck852.linksonda.domain.ProbeStatus
  * Stable layout used by Compose previews and the debug screenshot harness. Only colors change when
  * the confirmed aggregate status changes; spacing, sizes and component order stay fixed.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ThemeShowcase(
     aggregateStatus: AggregateStatus,
@@ -77,7 +78,10 @@ fun ThemeShowcase(
                 AggregateStatusBadge(status = aggregateStatus)
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(LinkSondaSpacing.small)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(LinkSondaSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(LinkSondaSpacing.small),
+            ) {
                 Button(onClick = {}) {
                     Text(stringResource(R.string.theme_preview_primary))
                 }
@@ -122,12 +126,9 @@ fun ThemeShowcase(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 40.dp),
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(LinkSondaSpacing.small),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(LinkSondaSpacing.small),
             ) {
                 StatusBadge(
                     label = stringResource(R.string.status_up),
@@ -144,14 +145,6 @@ fun ThemeShowcase(
                     tone = StatusTone.NEGATIVE,
                     icon = ProbeStatus.DOWN.visual().icon,
                 )
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 40.dp),
-                horizontalArrangement = Arrangement.spacedBy(LinkSondaSpacing.small),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
                 StatusBadge(
                     label = stringResource(R.string.status_unknown),
                     tone = StatusTone.NEUTRAL,
@@ -160,12 +153,9 @@ fun ThemeShowcase(
                 ProbeLifecycleBadge(lifecycle = ProbeLifecycle.RUNNING)
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp),
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(LinkSondaSpacing.small),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(LinkSondaSpacing.small),
             ) {
                 Text(
                     text = stringResource(R.string.theme_preview_manual_check),
