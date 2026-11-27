@@ -1,13 +1,27 @@
 # LinkSonda
 
-Каркас Android-приложения для диагностики доступности сети. Текущая версия открывает стартовый экран. Сетевые проверки и мониторинг запланированы.
+[На русском](docs/README.ru.md)
 
-Android app foundation for network availability diagnostics. The current build displays a starter screen. Network probes and monitoring are planned.
+LinkSonda is an Android project for diagnosing network and service availability. The current foundation (`0.1.0`) displays a starter screen and provides a build and test workflow. Network probes, background monitoring, and incident history are planned.
 
-Build and verify the debug APK with JDK 25, Android SDK Platform 37.0 and Build-Tools 36.0.0.
+## Build and install
+
+Use JDK 25, Android SDK Platform 37.0, Build-Tools 36.0.0, and ADB. Set `JAVA_HOME` and `ANDROID_HOME` before running the Gradle Wrapper.
 
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -W -n io.github.chuck852.linksonda/.MainActivity
 ```
 
-The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The APK supports Android 8.0 and later (min API 26, target API 37). Choose a device with `adb -s SERIAL` when several are connected. See the [build guide](docs/BUILDING.md) for SDK and CI commands.
+
+GitHub Actions builds a debug APK for pull requests and pushes to `main`. Download the `LinkSonda-debug` artifact from a successful run. CI uses a debug signing key and provides a build for development and testing.
+
+## Project resources
+
+- [Roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
+- [Architecture](docs/ARCHITECTURE.md) and [contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md) and [code of conduct](CODE_OF_CONDUCT.md)
+
+LinkSonda is licensed under the [Apache License 2.0](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for dependencies and distributed build tooling.

@@ -1,0 +1,26 @@
+name: Bug report
+description: Report a reproducible problem with the app or build
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: Report vulnerabilities privately as described in SECURITY.md. Remove private network data, credentials, and personal information.
+  - type: input
+    id: version
+    attributes:
+      label: App version or commit
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Android, device, or build environment
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Reproduction steps and results
+      description: Describe the steps, what you expected, and what you observed.
+    validations:
+      required: true
