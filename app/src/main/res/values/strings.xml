@@ -11,20 +11,4 @@
     <string name="status_up">Up</string>
     <string name="status_pending">Pending</string>
     <string name="status_down">Down</string>
-
-    <string name="theme_preview_title">LinkSonda theme</string>
-    <string name="theme_preview_subtitle">Material 3 design system</string>
-    <string name="theme_preview_primary">Primary</string>
-    <string name="theme_preview_secondary">Secondary</string>
-    <string name="theme_preview_outline">Outline</string>
-    <string name="theme_preview_surface_title">Surface container</string>
-    <string name="theme_preview_surface_body">Text and icons stay readable while the root theme changes.</string>
-    <string name="theme_preview_metric">RTT 42 ms</string>
-    <string name="theme_preview_semantics">Semantic results</string>
-    <string name="theme_preview_manual_check">Manual check</string>
-    <string name="theme_preview_mode_adaptive">Adaptive</string>
-    <string name="theme_preview_mode_accents">Accents</string>
-    <string name="theme_preview_mode_static">Static</string>
-    <string name="theme_preview_light">Light</string>
-    <string name="theme_preview_dark">Dark</string>
 </resources>

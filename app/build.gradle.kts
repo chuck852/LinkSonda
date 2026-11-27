@@ -33,10 +33,10 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-tooling-preview")
 
     testImplementation("junit:junit:4.13.2")
 }

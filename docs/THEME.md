@@ -49,7 +49,7 @@ Semantic tones are independent of the adaptive aggregate theme. They depend only
 
 ## Preview and screenshots
 
-Compose previews for all four statuses in light and dark themes, both accent and static modes, and the system dark theme are in `ThemePreviews.kt`.
+Compose previews for all four statuses in light and dark themes, both accent and static modes, and the system dark theme are in `app/src/debug/java/.../ui/theme/ThemePreviews.kt`. The showcase layout and its strings also live in the debug source set. `ui-tooling` and `ui-tooling-preview` are debug-only dependencies, so previews and demonstration UI are not compiled into release builds.
 
 For emulator screenshots, the debug build contains a non-release harness:
 
@@ -68,9 +68,9 @@ The screenshot above was captured on an Android 17 (API 37) AOSP emulator from t
 
 ## Verification
 
-`ThemeContrastTest` checks 30 foreground/background role pairs, including text, icons, outlines, containers, inverse roles and fixed roles:
+`ThemeContrastTest` checks 34 foreground/background role pairs, including text, icons, outlines, containers, inverse roles and all primary, secondary and tertiary fixed roles:
 
-- text pairs: WCAG contrast at least 4.5:1;
+- text pairs, including `onPrimaryFixedVariant` on `primaryFixedDim` and the equivalent secondary and tertiary pairs: WCAG contrast at least 4.5:1;
 - non-text outlines and accents: at least 3:1;
 - decorative `outlineVariant`: at least 1.5:1.
 
@@ -82,5 +82,7 @@ Device checks on Android 17 (API 37) confirmed:
 - at 200% font scale the showcase controls and status badges wrap through `FlowRow` without clipping or horizontal overflow;
 - with animations enabled, the root primary color changed over about 0.6 s of a 60 fps screen recording, consistent with the 650 ms tween;
 - with `animator_duration_scale=0`, the same change completed between adjacent frames in at most 17 ms.
+
+A release APK built with `assembleRelease` contains only `MainActivity` in its manifest. It has no `ThemeShowcaseActivity`, no `theme_preview_*` resources and no `ThemeShowcase` or `ThemePreviews` class names, while the debug APK contains all of them.
 
 Material You is not enabled. It remains an option only for the static mode and needs a separate design decision. Localization of status labels belongs to the settings and localization issue.
