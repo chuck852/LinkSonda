@@ -1,7 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application") version "9.3.1"
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.21"
 }
+
+val versionProperties = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}
+val appVersionCode = versionProperties.getProperty("versionCode")?.toIntOrNull()
+    ?: error("version.properties must define an integer versionCode")
+val appVersionName = versionProperties.getProperty("versionName")?.takeIf { it.isNotBlank() }
+    ?: error("version.properties must define a non-empty versionName")
 
 android {
     namespace = "io.github.chuck852.linksonda"
@@ -11,8 +21,8 @@ android {
         applicationId = "io.github.chuck852.linksonda"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     buildFeatures {
