@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.0 — 2026-11-27
 
 - Added persisted settings for adaptive, accents-only and static color modes, system/light/dark brightness, system/English/Russian language, monitoring and notification preferences, history retention and the selected profile.
 - Added a localized settings screen and a first-run flow that explains local monitoring and offers manual checks or an available profile.
@@ -16,10 +16,11 @@
 - Added the overview with aggregate state, freshness, monitoring, network and VPN context, active profile, availability bars and manual-check state. Production remains empty until real monitoring is connected.
 - Added explicit empty, unknown, running, partial, down and up states plus a debug-only demo harness and Compose previews.
 - Added large-font and small-screen adaptations, including wrapping status badges and icon-only bottom navigation with accessible labels.
-- Added 94 JVM tests covering navigation, overview state, checks, editor validation, execution-snapshot test-result binding, settings persistence, locale/theme values and demo consistency.
+- Added 96 JVM tests covering navigation, overview state, checks, editor validation, execution-snapshot test-result binding, concurrent settings updates, failed settings writes, locale/theme values and demo consistency.
 - Added the LinkSonda Material 3 design system with adaptive, accents and static color modes.
 - Added light, dark and system brightness, semantic result tones with text and icons, and a 650 ms adaptive transition that respects system animation settings.
 - Added Compose previews, contrast and palette tests, a debug screenshot harness, and design-system documentation.
+- Bumped the app to version `0.2.0` and prepared the debug-signed UI Developer Preview release candidate with SHA-256 and license notices. It has no network permission and no real monitoring.
 
 ## [v0.1.0-dev.1](https://github.com/chuck852/LinkSonda/releases/tag/v0.1.0-dev.1) — 2026-11-27
 
