@@ -1,6 +1,6 @@
 # Navigation and overview
 
-The app shell implements the four approved top-level destinations: Overview, Checks, Presets and History. Settings opens from the top bar. Real probes and local storage are not connected yet, so production starts with an empty, unknown overview instead of demonstration values.
+The app shell implements the four approved top-level destinations: Overview, Checks, Presets and History. Settings opens from the top bar. Real probes and storage-backed screens are not connected yet, so production starts with an empty, unknown overview instead of demonstration values.
 
 ## Navigation model
 

@@ -8,7 +8,7 @@
 
 `AppNavigationState` is a saveable list of routes: top-level tabs, filtered Checks and Settings. Selecting a tab returns to its root; group cards and Settings push one route; the back action pops it. The shell has no separate navigation dependency.
 
-Production starts from `OverviewUiState.Empty`, so availability is UNKNOWN, freshness is missing, network context is unknown, and no profile, groups or results are invented. `ChecksScreen` shows all probes or one group filter; Presets and History show empty states. The UI listens to repositories only after the monitoring engine and local storage are connected.
+Production starts from `OverviewUiState.Empty`, so availability is UNKNOWN, freshness is missing, network context is unknown, and no profile, groups or results are invented. `ChecksScreen` shows all probes or one group filter; Presets and History show empty states. The UI listens to repositories only after the monitoring engine and storage-backed screens are connected.
 
 The debug source set contains `OverviewDemoActivity`, demo scenarios and Compose previews. Every demo screen has a visible banner, sends no request and persists nothing. Debug classes and preview resources are excluded from release builds. See [navigation and overview](NAVIGATION.md) for screens, states and accessibility checks.
 
@@ -26,7 +26,9 @@ The details screen renders protocol-specific configuration, the latest `ProbeRes
 
 ## Settings, localization and first run — public #17
 
-`AppSettings` keeps language, theme mode and brightness, monitoring and notification preferences, history retention, the selected profile, the onboarding flag and whether a notification-permission request was shown. `SettingsStore` is the app-facing contract; `SettingsStorage` isolates the platform key-value adapter. This build uses `SharedPreferencesSettingsStorage` behind `PersistentSettingsStore`. It is a deliberately small transitional adapter: Issue #13 can replace it with DataStore while keeping the UI-facing contract and preference keys; the startup locale read may need a separate fast path. No Room database or second settings architecture is introduced.
+`AppSettings` keeps language, theme mode and brightness, monitoring and notification preferences, history retention, the selected profile, the onboarding flag and whether a notification-permission request was shown. It also reserves the updater fields for #57: automatic-check preference, channel, last-check time, ETag and last offered versionCode. `SettingsStore` is the app-facing contract; `SettingsStorage` isolates the platform adapter. The production adapter is DataStore with a one-time SharedPreferences migration, behind `PersistentSettingsStore`. `attachBaseContext` reads a small last-written SharedPreferences startup snapshot for the locale; it never reads DataStore on the main thread. DataStore remains authoritative and successful writes refresh the snapshot.
+
+Room stores probe configurations, profiles, results, network snapshots and incidents. The schema, indices, revision rules, atomic result/network writes, retention maintenance, backup exclusions and migration policy are documented in [local storage](STORAGE.md). The storage layer is app-scoped in `LinkSondaApplication`; UI screens and the probe runner are connected in later work.
 
 `MainActivity` reads the saved language in `attachBaseContext`, so the first frame after a cold start uses the selected resources, and recreates the activity after a language change. On API 33+ `LocaleManager.setApplicationLocales` keeps the platform per-app language picker in sync; `SYSTEM` clears that override. `res/xml/locales_config.xml` exposes English and Russian to the platform picker. `LinkSondaApp` passes the saved theme mode and brightness to `LinkSondaTheme` and gates the shell behind the first-run screen until onboarding completes.
 

@@ -21,6 +21,11 @@ class AppSettingsTest {
         assertEquals(30, settings.historyRetentionDays)
         assertNull(settings.selectedProfileId)
         assertEquals(false, settings.onboardingCompleted)
+        assertEquals(false, settings.updateChecksEnabled)
+        assertEquals(UpdateChannel.STABLE, settings.updateChannel)
+        assertNull(settings.lastUpdateCheckAt)
+        assertNull(settings.updateEtag)
+        assertNull(settings.lastOfferedVersionCode)
     }
 
     @Test

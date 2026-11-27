@@ -53,6 +53,23 @@ class DomainModelTest {
         assertThrows(IllegalArgumentException::class.java) {
             ProbeConfig(probeId, "Example", ProbeRequest.TcpConnect(endpoint), Duration.INFINITE)
         }
+        assertThrows(IllegalArgumentException::class.java) {
+            ProbeConfig(probeId, "Example", ProbeRequest.TcpConnect(endpoint), 1.5.milliseconds)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ProbeRequest.Http(
+                URI("https://example.test/health?access_token=secret"),
+                HttpMethod.GET,
+                HttpExpectation(200..299),
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ProbeRequest.Http(
+                URI("https://user:password@example.test/health"),
+                HttpMethod.GET,
+                HttpExpectation(200..299),
+            )
+        }
     }
 
     @Test
@@ -219,6 +236,16 @@ class DomainModelTest {
         }
         assertThrows(IllegalArgumentException::class.java) {
             ProbeState(current.context, ProbeStatus.UNKNOWN, ProbeLifecycle.IDLE, ProbeFreshness.MISSING, lastSkipped = oldSkip)
+        }
+    }
+
+    @Test
+    fun persistedDurationsUseWholeMilliseconds() {
+        assertThrows(IllegalArgumentException::class.java) {
+            MonitoringSchedule(1.5.milliseconds, maxConcurrentProbes = 1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            NotificationSettings(enabled = true, repeatInterval = 1.5.milliseconds)
         }
     }
 
