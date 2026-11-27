@@ -71,6 +71,7 @@ fun ChecksScreen(
     filters: ChecksFilterState,
     onFiltersChange: (ChecksFilterState) -> Unit,
     onProbeClick: (ProbeListItem) -> Unit,
+    onAddCheck: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val filtered = remember(state.probes, filters) { state.probes.applyFilters(filters) }
@@ -111,28 +112,22 @@ fun ChecksScreen(
                     }
                 }
             }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(LinkSondaSpacing.extraSmall)) {
-                    OutlinedButton(
-                        onClick = {},
-                        enabled = false,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(
-                            text = stringResource(R.string.action_add_check),
-                            modifier = Modifier.padding(start = LinkSondaSpacing.small),
-                        )
-                    }
-                    Text(
-                        text = stringResource(R.string.action_add_unavailable),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+        }
+
+        item {
+            OutlinedButton(
+                onClick = onAddCheck,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = stringResource(R.string.action_add_check),
+                    modifier = Modifier.padding(start = LinkSondaSpacing.small),
+                )
             }
         }
 

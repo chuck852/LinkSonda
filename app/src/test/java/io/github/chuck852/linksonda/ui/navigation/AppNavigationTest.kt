@@ -65,6 +65,17 @@ class AppNavigationTest {
     }
 
     @Test
+    fun probeEditorReturnsToChecks() {
+        val checks = AppNavigationState().selectTab(AppTab.CHECKS)
+        val editor = checks.openProbeEditor(initialProtocol = "TLS")
+
+        assertEquals(AppRoute.ProbeEditor(initialProtocol = "TLS"), editor.current)
+        assertEquals(AppTab.CHECKS, editor.selectedTab)
+        assertTrue(editor.canGoBack)
+        assertEquals(checks, editor.back())
+    }
+
+    @Test
     fun settingsReturnsToPreviousTab() {
         val checks = AppNavigationState().selectTab(AppTab.CHECKS)
         val settings = checks.openSettings()
@@ -80,6 +91,7 @@ class AppNavigationTest {
         val state = AppNavigationState()
             .openChecks(CheckGroupFilter("group:regional"))
             .openProbeDetails("probe:regional")
+            .openProbeEditor("probe:regional", "HTTPS")
         val scope = SaverScope { true }
 
         val saved = AppNavigationStateSaver.run { scope.save(state) }

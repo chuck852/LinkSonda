@@ -2,14 +2,17 @@
 
 ## Unreleased
 
+- Added a universal check editor for all P0 protocols with dynamic fields, validation, protocol-aware field reset, revision handling and progressive disclosure of advanced options.
+- Added check creation and editing through the domain models, an explicit TLS server-name requirement, read-only certificate validation and honest save/test limitations while storage and the network engine are not connected.
+- Wired the debug editor to `ProbeRunner` and `ProfileRepository` implementations that keep all demo state in memory and send no network traffic.
 - Added a domain-backed Checks list with search, group/status/protocol filters and an explicit unknown/stale/timeout/inconclusive/restricted/skipped presentation.
 - Added a check details screen with protocol-specific configuration, preserved revisions, latest result, measured phases and observations. Missing measurements are shown as not observed, never as zero.
-- Prepared retry and edit through `ProbeKey` callbacks; production keeps them disabled until the runner and editor are connected.
+- Wired edit through `ProbeKey` callbacks to the check editor; retry remains disabled until the runner is connected.
 - Added the four-tab navigation shell with Overview, Checks, Presets and History, a saveable back stack, group filtering and a settings entry point.
 - Added the overview with aggregate state, freshness, monitoring, network and VPN context, active profile, availability bars and manual-check state. Production remains empty until real monitoring is connected.
 - Added explicit empty, unknown, running, partial, down and up states plus a debug-only demo harness and Compose previews.
 - Added large-font and small-screen adaptations, including wrapping status badges and icon-only bottom navigation with accessible labels.
-- Added 38 JVM tests covering navigation, overview state and demo consistency.
+- Added 79 JVM tests covering navigation, overview state, checks, editor validation, execution-snapshot test-result binding and demo consistency.
 - Added the LinkSonda Material 3 design system with adaptive, accents and static color modes.
 - Added light, dark and system brightness, semantic result tones with text and icons, and a 650 ms adaptive transition that respects system animation settings.
 - Added Compose previews, contrast and palette tests, a debug screenshot harness, and design-system documentation.

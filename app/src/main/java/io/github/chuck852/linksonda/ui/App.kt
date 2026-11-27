@@ -29,6 +29,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,10 +47,21 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.chuck852.linksonda.R
+import io.github.chuck852.linksonda.domain.ProbeConfig
+import io.github.chuck852.linksonda.domain.ProbeId
 import io.github.chuck852.linksonda.ui.checks.ChecksFilterState
 import io.github.chuck852.linksonda.ui.checks.ChecksFilterStateSaver
+import io.github.chuck852.linksonda.ui.checks.DEFAULT_GROUP_ID
+import io.github.chuck852.linksonda.ui.checks.DEFAULT_GROUP_NAME
 import io.github.chuck852.linksonda.ui.checks.ProbeActions
+import io.github.chuck852.linksonda.ui.checks.ProbeDraft
+import io.github.chuck852.linksonda.ui.checks.ProbeEditorActions
+import io.github.chuck852.linksonda.ui.checks.ProbeEditorState
+import io.github.chuck852.linksonda.ui.checks.ProbeEditorStatus
+import io.github.chuck852.linksonda.ui.checks.ProbeExecutionSnapshot
+import io.github.chuck852.linksonda.ui.checks.ProbeProtocol
 import io.github.chuck852.linksonda.ui.checks.initialChecksFilters
+import io.github.chuck852.linksonda.ui.components.EmptyState
 import io.github.chuck852.linksonda.ui.navigation.AppNavigationState
 import io.github.chuck852.linksonda.ui.navigation.AppNavigationStateSaver
 import io.github.chuck852.linksonda.ui.navigation.AppRoute
@@ -62,16 +74,21 @@ import io.github.chuck852.linksonda.ui.screens.ChecksScreen
 import io.github.chuck852.linksonda.ui.screens.HistoryScreen
 import io.github.chuck852.linksonda.ui.screens.PresetsScreen
 import io.github.chuck852.linksonda.ui.screens.ProbeDetailsScreen
+import io.github.chuck852.linksonda.ui.screens.ProbeEditorScreen
 import io.github.chuck852.linksonda.ui.screens.SettingsScreen
 import io.github.chuck852.linksonda.ui.theme.ConfirmedAggregateStatus
 import io.github.chuck852.linksonda.ui.theme.LinkSondaSpacing
 import io.github.chuck852.linksonda.ui.theme.LinkSondaTheme
+import java.util.Locale
+import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
 fun LinkSondaApp(
     overviewState: OverviewUiState = OverviewUiState.Empty,
     initialNavigation: AppNavigationState = AppNavigationState(),
+    editorActions: ProbeEditorActions = ProbeEditorActions(),
 ) {
     LinkSondaTheme(confirmedAggregateStatus = ConfirmedAggregateStatus(overviewState.aggregateStatus)) {
         var navigation by rememberSaveable(stateSaver = AppNavigationStateSaver) {
@@ -82,8 +99,12 @@ fun LinkSondaApp(
         }
         val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
+        var editorBusy by remember { mutableStateOf(false) }
+        var editorStatus by remember { mutableStateOf<ProbeEditorStatus?>(null) }
+        var editorDraft by remember { mutableStateOf<ProbeEditorState?>(null) }
         val demoManualMessage = stringResource(R.string.overview_manual_demo)
         val demoActionMessage = stringResource(R.string.action_demo)
+        val editorSavedTemplate = stringResource(R.string.editor_saved)
         val onRunManualCheck: (() -> Unit)? =
             if (overviewState.isDemo && overviewState.manualCheck == ManualCheckState.IDLE) {
                 {
@@ -94,17 +115,78 @@ fun LinkSondaApp(
             } else {
                 null
             }
-        val probeActions = if (overviewState.isDemo) {
-            ProbeActions(
-                onRetry = {
+        LaunchedEffect(navigation.stack) {
+            if (navigation.stack.none { it is AppRoute.ProbeEditor }) {
+                editorDraft = null
+            }
+        }
+        val probeActions = ProbeActions(
+            onRetry = if (overviewState.isDemo) {
+                {
                     scope.launch { snackbarHostState.showSnackbar(demoActionMessage) }
-                },
-                onEdit = {
-                    scope.launch { snackbarHostState.showSnackbar(demoActionMessage) }
-                },
-            )
-        } else {
-            ProbeActions()
+                }
+            } else {
+                null
+            },
+            onEdit = { key ->
+                editorStatus = null
+                editorDraft = null
+                navigation = navigation.openProbeEditor(key.id.value)
+            },
+        )
+        val openNewEditor: () -> Unit = {
+            editorStatus = null
+            editorDraft = null
+            navigation = navigation.openProbeEditor()
+        }
+        val onEditorSave: (ProbeDraft) -> Unit = save@{ draft ->
+            val save = editorActions.onSave ?: return@save
+            scope.launch {
+                editorBusy = true
+                editorStatus = null
+                val saved = try {
+                    save(draft)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+                editorBusy = false
+                if (saved == null) {
+                    editorStatus = ProbeEditorStatus.SaveFailed
+                } else {
+                    editorDraft = null
+                    navigation = navigation.back() ?: navigation
+                    snackbarHostState.showSnackbar(
+                        String.format(Locale.US, editorSavedTemplate, saved.revision.value),
+                    )
+                }
+            }
+        }
+        val onEditorTest: (ProbeConfig) -> Unit = test@{ probe ->
+            val test = editorActions.onTest ?: return@test
+            scope.launch {
+                editorBusy = true
+                editorStatus = ProbeEditorStatus.Running
+                val result = try {
+                    test(probe)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+                editorBusy = false
+                editorStatus = if (result == null) {
+                    ProbeEditorStatus.TestFailed
+                } else {
+                    ProbeEditorStatus.TestCompleted(
+                        ProbeExecutionSnapshot.of(probe),
+                        result.outcome,
+                        result.elapsed,
+                        result.isDemo,
+                    )
+                }
+            }
         }
 
         BackHandler(enabled = navigation.canGoBack) {
@@ -157,6 +239,7 @@ fun LinkSondaApp(
                             filters = checksFilters,
                             onFiltersChange = { checksFilters = it },
                             onProbeClick = { navigation = navigation.openProbeDetails(it.id.value) },
+                            onAddCheck = openNewEditor,
                         )
 
                         AppTab.PRESETS -> PresetsScreen()
@@ -168,13 +251,68 @@ fun LinkSondaApp(
                         filters = checksFilters,
                         onFiltersChange = { checksFilters = it },
                         onProbeClick = { navigation = navigation.openProbeDetails(it.id.value) },
+                        onAddCheck = openNewEditor,
                     )
 
                     is AppRoute.ProbeDetails -> ProbeDetailsScreen(
-                        item = overviewState.probe(io.github.chuck852.linksonda.domain.ProbeId(route.probeId)),
+                        item = overviewState.probe(ProbeId(route.probeId)),
                         actions = probeActions,
                         isDemo = overviewState.isDemo,
                     )
+
+                    is AppRoute.ProbeEditor -> {
+                        val item = route.probeId?.let { overviewState.probe(ProbeId(it)) }
+                        if (route.probeId != null && item == null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(LinkSondaSpacing.screen),
+                            ) {
+                                EmptyState(
+                                    title = R.string.editor_not_found_title,
+                                    body = R.string.editor_not_found_body,
+                                )
+                            }
+                        } else {
+                            val defaultGroup = overviewState.groups.firstOrNull {
+                                it.id == checksFilters.groupId
+                            } ?: overviewState.groups.firstOrNull()
+                            val newProbeId = remember(route.probeId, route.initialProtocol) {
+                                "probe-${UUID.randomUUID()}"
+                            }
+                            val builtState = remember(
+                                route.probeId,
+                                route.initialProtocol,
+                                item?.key,
+                                defaultGroup?.id,
+                            ) {
+                                if (item != null) {
+                                    ProbeEditorState.from(item.config, item.groupId, item.groupName)
+                                } else {
+                                    ProbeEditorState.forNew(
+                                        probeId = newProbeId,
+                                        groupId = defaultGroup?.id ?: DEFAULT_GROUP_ID,
+                                        groupName = defaultGroup?.name ?: DEFAULT_GROUP_NAME,
+                                        protocol = route.initialProtocol
+                                            ?.let { name -> ProbeProtocol.entries.firstOrNull { it.name == name } }
+                                            ?: ProbeProtocol.HTTPS,
+                                    )
+                                }
+                            }
+                            ProbeEditorScreen(
+                                initialState = editorDraft ?: builtState,
+                                baseConfig = item?.config,
+                                isDemo = overviewState.isDemo,
+                                isBusy = editorBusy,
+                                canSave = editorActions.onSave != null,
+                                canTest = editorActions.onTest != null,
+                                status = editorStatus,
+                                onSave = onEditorSave,
+                                onTest = onEditorTest,
+                                onDraftChange = { editorDraft = it },
+                            )
+                        }
+                    }
 
                     AppRoute.Settings -> SettingsScreen()
                 }
@@ -271,6 +409,12 @@ private fun AppRoute.title(): String = when (this) {
     is AppRoute.Tab -> stringResource(tab.label())
     is AppRoute.FilteredChecks -> stringResource(R.string.nav_checks)
     is AppRoute.ProbeDetails -> stringResource(R.string.probe_details_title)
+    is AppRoute.ProbeEditor -> if (probeId == null) {
+        stringResource(R.string.editor_title_new)
+    } else {
+        stringResource(R.string.editor_title_edit)
+    }
+
     AppRoute.Settings -> stringResource(R.string.top_bar_settings)
 }
 
