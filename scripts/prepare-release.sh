@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Bash xtrace prints expanded arguments, including the keystore password.
+if [[ $- == *x* ]]; then
+  set +x
+  printf 'Warning: shell xtrace is disabled to protect signing credentials.\n' >&2
+fi
 umask 077
 
 usage() {
@@ -10,8 +15,9 @@ Usage:
 
 Production mode downloads the unsigned release APK from a successful Android CI
 run on main, signs it locally and writes a verified release bundle. The
---unsigned-apk mode skips CI provenance checks and is intended for testing or
-recovery only.
+--unsigned-apk mode is test-only: it refuses commits on origin/main and existing
+remote tags, marks release.json with "testOnly": true, and does not print a
+publish command.
 
 Required environment:
   LINKSONDA_KEYSTORE       PKCS12 keystore outside the repository
@@ -100,14 +106,17 @@ bundle="$stage/bundle"
 mkdir -- "$bundle"
 
 git cat-file -e "$commit^{commit}" 2>/dev/null || fail "Commit not found: $commit"
+git fetch origin main
 if [[ $mode == ci ]]; then
-  git fetch origin main
   git merge-base --is-ancestor "$commit" origin/main ||
     fail "Commit must be on origin/main"
 else
   git merge-base --is-ancestor "$commit" HEAD ||
     fail "Commit must be reachable from HEAD"
-  printf 'Warning: --unsigned-apk skips CI provenance and remote tag checks.\n' >&2
+  if git merge-base --is-ancestor "$commit" origin/main; then
+    fail "--unsigned-apk is test-only; commits on origin/main require CI mode"
+  fi
+  printf 'Warning: --unsigned-apk is test-only; CI provenance is not available.\n' >&2
 fi
 
 git fetch --tags origin
@@ -127,10 +136,12 @@ git rev-parse -q --verify "$tag_ref" >/dev/null || fail "Tag not found: $tag"
 [[ $(git cat-file -t "$tag_ref") == tag ]] || fail "Tag must be annotated: $tag"
 tag_commit=$(git rev-parse "$tag_ref^{commit}")
 [[ $tag_commit == "$commit" ]] || fail "Tag $tag does not point to $commit"
+remote_refs=$(git ls-remote --tags origin "$tag_ref" "$tag_ref^{}")
 if [[ $mode == ci ]]; then
-  remote_refs=$(git ls-remote --tags origin "$tag_ref" "$tag_ref^{}")
   remote_commit=$(awk -v ref="$tag_ref^{}" '$2 == ref {print $1}' <<< "$remote_refs")
   [[ $remote_commit == "$commit" ]] || fail "Push annotated tag $tag to origin first"
+elif [[ -n $remote_refs ]]; then
+  fail "Test mode cannot use tag $tag because it already exists on origin"
 fi
 
 notes_path="docs/releases/$tag.md"
@@ -143,6 +154,7 @@ git show "$commit:$notes_path" > "$stage/release-notes.md" ||
 # published APK is inspected instead.
 max_code=0
 max_tag=
+functional_releases=0
 metadata_dir="$stage/metadata"
 legacy_dir="$stage/legacy"
 mkdir -- "$metadata_dir" "$legacy_dir"
@@ -162,22 +174,48 @@ while IFS=$'\t' read -r release_tag draft has_metadata apk_name; do
     gh release download "$release_tag" --repo "$repo" --pattern release.json \
       --dir "$release_dir" >/dev/null
     metadata=$(cat "$release_dir/release.json")
+    jq -e --arg tag "$release_tag" --arg app "$application_id" '
+      .schemaVersion == 1 and .tag == $tag and .applicationId == $app and
+      (.versionName | type) == "string" and
+      (.versionCode | type) == "number" and
+      (.versionCode | floor) == .versionCode and
+      .versionCode > 0 and .versionCode < 2147483648 and
+      (.minSdk | type) == "number" and
+      (.minSdk | floor) == .minSdk and .minSdk > 0 and
+      (.apk.size | type) == "number" and
+      (.apk.size | floor) == .apk.size and .apk.size > 0 and
+      (.testOnly // false) == false and
+      (.channel == "stable" or .channel == "preview") and
+      (.apk.name | test("^[A-Za-z0-9._-]+$")) and
+      (.apk.sha256 | test("^[0-9a-f]{64}$")) and
+      (.signerCertificateSha256 | test("^[0-9a-f]{64}$"))
+    ' <<< "$metadata" >/dev/null || fail "Incomplete release.json in $release_tag"
     release_code=$(jq -er '.versionCode' <<< "$metadata") ||
       fail "Invalid release.json in $release_tag"
     release_name=$(jq -er '.versionName' <<< "$metadata") ||
       fail "Invalid release.json in $release_tag"
-    jq -e --arg tag "$release_tag" --arg app "$application_id" \
-      --arg name "$release_name" '
-        .schemaVersion == 1 and .tag == $tag and .applicationId == $app and
-        .versionName == $name and (.versionCode | type) == "number" and
-        .versionCode > 0 and
-        (.channel == "stable" or .channel == "preview") and
-        (.apk.name | type) == "string" and (.apk.name | length) > 0 and
-        (.apk.sha256 | test("^[0-9a-f]{64}$")) and
-        (.signerCertificateSha256 | test("^[0-9a-f]{64}$"))
-      ' <<< "$metadata" >/dev/null || fail "Incomplete release.json in $release_tag"
+    release_signer=$(jq -er '.signerCertificateSha256' <<< "$metadata")
+    release_apk_name=$(jq -er '.apk.name' <<< "$metadata")
     [[ $release_tag == "v$release_name" ]] ||
       fail "release.json versionName does not match tag $release_tag"
+
+    prior_dir=$(mktemp -d -- "$metadata_dir/apk.XXXXXXXX")
+    gh release download "$release_tag" --repo "$repo" --pattern "$release_apk_name" \
+      --dir "$prior_dir" >/dev/null
+    prior_apk="$prior_dir/$release_apk_name"
+    [[ -f $prior_apk ]] || fail "Published APK is missing from $release_tag"
+    prior_certs=$("$apksigner" verify --print-certs "$prior_apk" 2>&1) ||
+      fail "Published APK failed signature verification: $release_tag"
+    [[ $(grep -c '^Signer #[0-9][0-9]* certificate DN: ' <<< "$prior_certs") == 1 ]] ||
+      fail "Published APK must have exactly one signer: $release_tag"
+    prior_signer=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<< "$prior_certs" |
+      tr -d ':' | tr '[:upper:]' '[:lower:]')
+    [[ $prior_signer == "$release_signer" ]] ||
+      fail "Published APK signer does not match release.json: $release_tag"
+    if [[ $mode == ci && $prior_signer != "$expected_signer" ]]; then
+      fail "Signing key changed: $release_tag was signed with a different key; refusing to break update continuity"
+    fi
+    functional_releases=$((functional_releases + 1))
   elif [[ -n $apk_name ]]; then
     release_dir=$(mktemp -d -- "$legacy_dir/release.XXXXXXXX")
     gh release download "$release_tag" --repo "$repo" --pattern "$apk_name" \
@@ -201,6 +239,7 @@ done <<< "$releases_tsv"
 
 (( version_code > max_code )) ||
   fail "versionCode $version_code must be greater than published maximum $max_code${max_tag:+ ($max_tag)}"
+printf 'Functional releases checked for signer continuity: %s\n' "$functional_releases" >&2
 
 unsigned_sha=
 if [[ $mode == ci ]]; then
@@ -250,6 +289,7 @@ if grep -qx 'application-debuggable' <<< "$unsigned_badging"; then
 fi
 
 signed="$stage/LinkSonda-$version_name.apk"
+set +x
 if [[ -t 0 ]]; then
   read -r -s -p 'Keystore password: ' keystore_password
 else
@@ -291,6 +331,10 @@ channel=stable
 if [[ $version_name == *-* ]]; then
   channel=preview
 fi
+test_only=false
+if [[ $mode == local ]]; then
+  test_only=true
+fi
 generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 apk_sha=$(sha256sum -- "$signed" | cut -d' ' -f1)
 apk_size=$(stat -c '%s' -- "$signed")
@@ -298,7 +342,7 @@ jq -n --arg tag "$tag" --arg commit "$commit" --arg app "$application_id" \
   --arg name "$version_name" --arg channel "$channel" --argjson code "$version_code" \
   --argjson minSdk "$signed_min_sdk" --arg apkName "LinkSonda-$version_name.apk" \
   --argjson apkSize "$apk_size" --arg apkSha "$apk_sha" --arg signer "$signer_sha" \
-  --arg generatedAt "$generated_at" '
+  --arg generatedAt "$generated_at" --argjson testOnly "$test_only" '
     {
       schemaVersion: 1,
       tag: $tag,
@@ -311,12 +355,13 @@ jq -n --arg tag "$tag" --arg commit "$commit" --arg app "$application_id" \
       apk: {name: $apkName, size: $apkSize, sha256: $apkSha},
       signerCertificateSha256: $signer,
       generatedAt: $generatedAt
-    }
+    } + (if $testOnly then {testOnly: true} else {} end)
   ' > "$bundle/release.json"
 jq -e --argjson code "$version_code" --argjson minSdk "$signed_min_sdk" \
-  --arg sha "$apk_sha" --arg signer "$signer_sha" '
+  --arg sha "$apk_sha" --arg signer "$signer_sha" --argjson testOnly "$test_only" '
     .schemaVersion == 1 and .versionCode == $code and .minSdk == $minSdk and
-    .apk.sha256 == $sha and .apk.size > 0 and .signerCertificateSha256 == $signer
+    .apk.sha256 == $sha and .apk.size > 0 and .signerCertificateSha256 == $signer and
+    (.testOnly // false) == $testOnly
   ' "$bundle/release.json" >/dev/null || fail "Generated release.json is inconsistent"
 
 notices=(LICENSE NOTICE THIRD_PARTY_NOTICES.md)
@@ -337,7 +382,7 @@ cp -- "$stage/release-notes.md" "$bundle/release-notes.md"
 (
   cd "$bundle"
   sha256sum -- "LinkSonda-$version_name.apk" release.json \
-    LinkSonda-license-notices.tar.gz release-notes.md > SHA256SUMS
+    LinkSonda-license-notices.tar.gz > SHA256SUMS
   sha256sum --check --strict SHA256SUMS >/dev/null
 )
 
@@ -351,6 +396,10 @@ printf 'Signed APK SHA-256:   %s\n' "$apk_sha"
 printf 'Signer SHA-256:       %s\n' "$signer_sha"
 printf 'Published maximum:    versionCode %s%s\n' "$max_code" "${max_tag:+ ($max_tag)}"
 printf 'Bundle:               %s\n' "$output"
+if [[ $mode == local ]]; then
+  printf '\nTEST ONLY: this bundle has "testOnly": true and must not be published.\n' >&2
+  exit 0
+fi
 printf '\nCreate a draft release after reviewing the bundle:\n'
 printf 'gh release create %q --repo %q --verify-tag --draft' "$tag" "$repo"
 if [[ $channel == preview ]]; then

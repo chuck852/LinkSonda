@@ -6,7 +6,7 @@
 
 - **Stable** releases are normal GitHub Releases. Their `versionName` has no hyphen.
 - **Preview** releases are GitHub pre-releases. Their `versionName` contains a hyphen (`-alpha`, `-beta`, `-rc` or a technical preview suffix).
-- `version.properties` is the single source of `versionCode` and `versionName`. `versionCode` is a positive integer and must be strictly greater than every published release, including pre-releases. Do not reuse a tag.
+- `version.properties` is the single source of `versionCode` and `versionName`. `versionCode` is a positive integer and must be strictly greater than every published release, including pre-releases. Do not reuse a tag. Published `release.json` values are also validated as positive integers; a non-integer value is rejected.
 - A release tag is `v<versionName>` and must be annotated on the accepted commit.
 
 ## 1. Prepare the candidate
@@ -40,7 +40,9 @@ export LINKSONDA_SIGNER_SHA256=<certificate SHA-256>
 
 The script checks the CI run (`main`, expected workflow, success, exact commit), downloads the unsigned APK, verifies its checksum, rejects an already-signed or debuggable APK, checks package, versionCode, versionName and minSdk, and signs with `apksigner`. It then checks the single signer certificate, the v2/v3 signature, the expected SHA-256 and that signing did not change the APK metadata.
 
-The keystore must be outside the repository and must not be readable by group or others. The password is entered interactively and passed to `apksigner` through stdin; it is never an argument, environment variable or temporary file.
+It also enforces signing continuity: every previous published release with `release.json` must use the same signer certificate. The script downloads that release's APK and verifies its actual signature. Legacy debug previews without `release.json` are excluded. A mismatch stops signing because changing the key would break in-place updates.
+
+The keystore must be outside the repository and must not be readable by group or others. The password is entered interactively and passed to `apksigner` through stdin; it is never an argument, environment variable or temporary file. Never run the script with `bash -x` or `set -x`; xtrace can print expanded arguments. The script disables xtrace at startup as an additional guard.
 
 The output directory contains:
 
@@ -48,13 +50,13 @@ The output directory contains:
 | --- | --- |
 | `LinkSonda-<versionName>.apk` | Signed release APK |
 | `release.json` | Machine-readable release metadata for the updater |
-| `SHA256SUMS` | Checksums for the APK, metadata, license archive and notes |
+| `SHA256SUMS` | Checksums for the APK, metadata and license archive (the published assets) |
 | `LinkSonda-license-notices.tar.gz` | Apache-2.0 and third-party notices from the same commit |
-| `release-notes.md` | Copy of the notes for the draft release |
+| `release-notes.md` | Copy of the notes for the draft release body; not a release asset |
 
 ## 4. Review and publish
 
-The script prints a ready `gh release create` command with `--draft`. It adds `--prerelease` for preview versions. Review `release.json`, the signer fingerprint and `sha256sum -c SHA256SUMS`, then create the draft. Download the draft assets again, verify the checksum and certificate, and publish through the GitHub Releases UI or:
+The script prints a ready `gh release create` command with `--draft` only in CI-artifact mode. It adds `--prerelease` for preview versions. The command uploads exactly the APK, `release.json`, `SHA256SUMS` and the license archive. `release-notes.md` is used through `--notes-file` and is not an asset. Review `release.json`, the signer fingerprint and `sha256sum -c SHA256SUMS`, then create the draft. Download the draft assets again, verify the checksum and certificate, and publish through the GitHub Releases UI or:
 
 ```bash
 gh release edit "$tag" --repo chuck852/LinkSonda --draft=false
@@ -86,9 +88,13 @@ After publishing, download the public APK and confirm installation and launch on
 }
 ```
 
-`channel` is `preview` when `versionName` contains a hyphen, otherwise `stable`. The updater must compare `versionCode`, choose the APK by `apk.name`, and verify `apk.size`, `apk.sha256`, `applicationId`, `versionCode` and `minSdk`. It must also compare `signerCertificateSha256` with the installed app's signer; downloaded metadata alone is not trusted. SHA-256 does not replace the signature check.
+`channel` is `preview` when `versionName` contains a hyphen, otherwise `stable`. `versionCode`, `minSdk` and `apk.size` are positive integers. `testOnly` is absent from official releases; a test-only bundle has `"testOnly": true` and must be rejected. The updater must compare `versionCode`, choose the APK by `apk.name`, and verify `apk.size`, `apk.sha256`, `applicationId`, `versionCode` and `minSdk`. It must also compare `signerCertificateSha256` with the installed app's signer; downloaded metadata alone is not trusted. SHA-256 does not replace the signature check.
 
 The updater must reject downgrades, debug or unsigned builds, and a different signer. A stable channel ignores pre-releases. A preview channel may offer the newest pre-release or stable build. GitHub being unavailable is not evidence that the network is down. No GitHub token is stored on the device and no telemetry is sent.
+
+## Test-only bundles
+
+`prepare-release.sh --unsigned-apk` exists only for local testing and recovery rehearsal. It refuses a commit reachable from `origin/main` and a tag that already exists on `origin`, adds `"testOnly": true` to `release.json`, and does not print a `gh release create` command. A `release.json` with `testOnly: true` is not valid for an official release and is rejected by later release checks. Never upload a test bundle to GitHub Releases.
 
 ## Legacy debug previews
 
