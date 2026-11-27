@@ -286,6 +286,94 @@ class HttpProbeRunnerTest {
     }
 
     @Test
+    fun expectedServerTimeoutStatusMatchesAsHttp() {
+        LocalHttpServer { _ ->
+            HttpResponseSpec(status = 408, body = "server-timeout".toByteArray())
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(),
+                request = httpRequest(
+                    server.url("/"),
+                    expected = 408..408,
+                    bodyMarker = "server-timeout",
+                ),
+            )
+
+            val completed = completed(result)
+            assertEquals(ProbeOutcome.Matched, completed.outcome)
+            assertEquals(HttpObservation(408, true), completed.observations.http)
+        }
+    }
+
+    @Test
+    fun unexpectedServerTimeoutIsAnHttpStatusNotATransportTimeout() {
+        LocalHttpServer { _ -> HttpResponseSpec(status = 408) }.use { server ->
+            val result = runProbe(
+                runner = runner(),
+                request = httpRequest(server.url("/")),
+            )
+
+            failed(result, FailureReason.UNEXPECTED_HTTP_STATUS)
+            assertEquals(HttpObservation(408), completed(result).observations.http)
+        }
+    }
+
+    @Test
+    fun expectedMisdirectedRequestMatchesAsHttp() {
+        LocalHttpServer { _ ->
+            HttpResponseSpec(status = 421, body = "misdirected".toByteArray())
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(),
+                request = httpRequest(
+                    server.url("/"),
+                    expected = 421..421,
+                    bodyMarker = "misdirected",
+                ),
+            )
+
+            val completed = completed(result)
+            assertEquals(ProbeOutcome.Matched, completed.outcome)
+            assertEquals(HttpObservation(421, true), completed.observations.http)
+        }
+    }
+
+    @Test
+    fun unexpectedMisdirectedRequestIsAnUnexpectedStatus() {
+        LocalHttpServer { _ -> HttpResponseSpec(status = 421) }.use { server ->
+            val result = runProbe(
+                runner = runner(),
+                request = httpRequest(server.url("/")),
+            )
+
+            failed(result, FailureReason.UNEXPECTED_HTTP_STATUS)
+            assertEquals(HttpObservation(421), completed(result).observations.http)
+        }
+    }
+
+    @Test
+    fun multipleDnsAddressesAreTriedSequentially() {
+        LocalHttpServer { _ ->
+            HttpResponseSpec(status = 200, body = "second-address".toByteArray())
+        }.use { server ->
+            val dns = Dns {
+                listOf(InetAddress.getByName("127.0.0.2"), InetAddress.getByName("127.0.0.1"))
+            }
+            val result = runProbe(
+                runner = runner(dns = dns),
+                request = httpRequest("http://multi.test:${server.port}/"),
+            )
+
+            val completed = completed(result)
+            assertEquals(ProbeOutcome.Matched, completed.outcome)
+            assertEquals(1, server.calls().size)
+            val tcp = completed.timing.phases[ProbePhase.TCP_CONNECT]
+            assertNotNull(tcp)
+            assertTrue(tcp!! <= completed.timing.elapsed)
+        }
+    }
+
+    @Test
     fun tooManyRequestsAcceptsHttpDateRetryAfter() {
         val retryAt = Instant.parse("2026-11-28T12:30:00Z")
         LocalHttpServer { _ ->

@@ -268,14 +268,15 @@ internal class HttpProbeRunner internal constructor(
             .followRedirects(false)
             .followSslRedirects(false)
             .retryOnConnectionFailure(false)
+            .fastFallback(false)
+            .protocols(listOf(Protocol.HTTP_1_1))
             .eventListener(PhaseListener(phases))
             .addNetworkInterceptor { chain ->
                 val response = chain.proceed(chain.request())
-                if (response.code in AUTO_FOLLOW_UP_STATUSES) {
-                    val status = response.code
+                if (response.code == 503) {
                     val retryAfter = response.header("Retry-After")
                     response.close()
-                    throw BlockedResponseException(status, retryAfter)
+                    throw BlockedResponseException(503, retryAfter)
                 }
                 response
             }
@@ -297,7 +298,12 @@ internal class HttpProbeRunner internal constructor(
             suspendCancellableCoroutine { continuation ->
                 continuation.invokeOnCancellation { call.cancel() }
                 try {
-                    continuation.resumeWith(Result.success(call.execute()))
+                    val response = call.execute()
+                    if (continuation.isActive) {
+                        continuation.resumeWith(Result.success(response))
+                    } else {
+                        response.close()
+                    }
                 } catch (error: Throwable) {
                     continuation.resumeWith(Result.failure(error))
                 }
@@ -377,11 +383,8 @@ internal class HttpProbeRunner internal constructor(
     private fun Throwable.findBlockedResponse(): BlockedResponseException? =
         generateSequence(this) { it.cause }.filterIsInstance<BlockedResponseException>().firstOrNull()
 
-    private fun BlockedResponseException.outcome(): ProbeOutcome = when (status) {
-        503 -> ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, retryAt(retryAfter))
-        408 -> ProbeOutcome.Failed(FailureReason.TIMEOUT)
-        else -> ProbeOutcome.Failed(FailureReason.HTTP)
-    }
+    private fun BlockedResponseException.outcome(): ProbeOutcome =
+        ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, retryAt(retryAfter))
 
     private fun classifyFailure(error: Throwable): ProbeOutcome {
         val chain = generateSequence(error) { it.cause }.toList()
@@ -570,7 +573,6 @@ internal class HttpProbeRunner internal constructor(
         const val MAX_BODY_BYTES = 64 * 1024
         private val WEB_SCHEMES = setOf("http", "https")
         private val REDIRECT_STATUSES = setOf(301, 302, 303, 307, 308)
-        private val AUTO_FOLLOW_UP_STATUSES = setOf(408, 421, 503)
         private val IPV4 = Regex("""\d{1,3}(\.\d{1,3}){3}""")
     }
 }
