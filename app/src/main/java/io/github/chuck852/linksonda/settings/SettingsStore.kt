@@ -24,6 +24,11 @@ import kotlinx.coroutines.withContext
 interface SettingsStore {
     val settings: StateFlow<AppSettings>
     fun current(): AppSettings
+    /**
+     * Replaces the synchronous startup snapshot with the authoritative stored state.
+     * Must finish before any write, otherwise a stale snapshot could overwrite DataStore.
+     */
+    suspend fun initialize()
     /** Applies [transform] to the current state under the write lock; null means the write failed. */
     suspend fun update(transform: (AppSettings) -> AppSettings): SettingsUpdate?
 }
@@ -36,7 +41,11 @@ data class SettingsUpdate(
 
 /** Minimal platform boundary so the settings logic is testable without Android. */
 interface SettingsStorage {
+    /** Fast startup snapshot, used before [readAuthoritative] completes. */
     fun read(): Map<String, String?>
+    /** Authoritative stored values. The default keeps simple test and legacy adapters working. */
+    suspend fun readAuthoritative(): Map<String, String?> = read()
+    /** Replaces the stored values; keys absent from [values] are removed. */
     suspend fun write(values: Map<String, String>): Boolean
 }
 
@@ -52,7 +61,7 @@ class SharedPreferencesSettingsStorage(
     }
 
     override suspend fun write(values: Map<String, String>): Boolean {
-        val editor = preferences.edit()
+        val editor = preferences.edit().clear()
         values.forEach { (key, value) -> editor.putString(key, value) }
         // Callers use Dispatchers.IO; commit keeps a language change durable before recreate().
         return editor.commit()
@@ -68,13 +77,26 @@ class PersistentSettingsStore(
 ) : SettingsStore {
     private val state = MutableStateFlow(SettingsCodec.decode(storage.read()))
     private val writeMutex = Mutex()
+    private val initializeMutex = Mutex()
+    private var initialized = false
 
     override val settings: StateFlow<AppSettings> = state.asStateFlow()
 
     override fun current(): AppSettings = state.value
 
+    override suspend fun initialize() {
+        initializeMutex.withLock {
+            if (initialized) return@withLock
+            val authoritative = withContext(Dispatchers.IO) { storage.readAuthoritative() }
+            state.value = SettingsCodec.decode(authoritative)
+            initialized = true
+        }
+    }
+
     override suspend fun update(transform: (AppSettings) -> AppSettings): SettingsUpdate? =
         writeMutex.withLock {
+            // Writes wait for the authoritative load so a stale startup snapshot cannot win.
+            initialize()
             currentCoroutineContext().ensureActive()
             val previous = state.value
             val updated = transform(previous)

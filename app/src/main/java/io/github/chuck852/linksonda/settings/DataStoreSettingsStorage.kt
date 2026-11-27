@@ -34,6 +34,18 @@ class DataStoreSettingsStorage(
 
     override fun read(): Map<String, String?> = cached
 
+    /**
+     * Reads DataStore and refreshes the startup snapshot from it, so a process death between the
+     * DataStore write and the snapshot write is repaired on the next initialization.
+     */
+    override suspend fun readAuthoritative(): Map<String, String?> {
+        val values = dataStore.data.first().asMap().entries
+            .associate { (key, value) -> key.name to value as? String }
+        startupSnapshot.write(values.filterValues { it != null }.mapValues { it.value!! })
+        cached = values
+        return values
+    }
+
     override suspend fun write(values: Map<String, String>): Boolean {
         try {
             dataStore.edit { preferences ->
@@ -50,10 +62,6 @@ class DataStoreSettingsStorage(
         cached = values
         return true
     }
-
-    /** Reads the authoritative store; used by tests and one-time diagnostics, never by startup. */
-    internal suspend fun readDataStore(): Map<String, String?> =
-        dataStore.data.first().asMap().entries.associate { (key, value) -> key.name to value as? String }
 
     companion object {
         const val DATASTORE_NAME = "linksonda_settings"
