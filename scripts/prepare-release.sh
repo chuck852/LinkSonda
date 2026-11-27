@@ -37,8 +37,8 @@ read_badging() {
     "$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" <<< "$package_line")" \
     "$(sed -n "s/.* versionCode='\([0-9]*\)'.*/\1/p" <<< "$package_line")" \
     "$(sed -n "s/.* versionName='\([^']*\)'.*/\1/p" <<< "$package_line")" \
-    "$(sed -n "s/^sdkVersion:'\([0-9]*\)'/\1/p" <<< "$badging")" \
-    "$(sed -n "s/^targetSdkVersion:'\([0-9]*\)'/\1/p" <<< "$badging")"
+    "$(awk -F"'" '/^(minSdkVersion|sdkVersion):/ {print $2; exit}' <<< "$badging")" \
+    "$(awk -F"'" '/^targetSdkVersion:/ {print $2; exit}' <<< "$badging")"
 }
 
 if [[ $# == 4 && $1 == "--unsigned-apk" ]]; then
@@ -267,7 +267,7 @@ keystore_password=
 
 certificates=$("$apksigner" verify --verbose --print-certs "$signed" 2>&1) ||
   fail "Signed APK failed apksigner verification"
-[[ $(grep -c '^Signer #' <<< "$certificates") == 1 ]] ||
+[[ $(grep -c '^Signer #[0-9][0-9]* certificate DN: ' <<< "$certificates") == 1 ]] ||
   fail "Signed APK must have exactly one signer"
 signer_sha=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<< "$certificates" |
   tr -d ':' | tr '[:upper:]' '[:lower:]')
