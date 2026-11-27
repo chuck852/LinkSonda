@@ -1,0 +1,96 @@
+package io.github.chuck852.linksonda.ui.navigation
+
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+
+enum class AppTab { OVERVIEW, CHECKS, PRESETS, HISTORY }
+
+data class CheckGroupFilter(val groupId: String) {
+    init { require(groupId.isNotBlank()) }
+}
+
+sealed interface AppRoute {
+    data class Tab(val tab: AppTab) : AppRoute
+    data class FilteredChecks(val filter: CheckGroupFilter) : AppRoute
+    data object Settings : AppRoute
+}
+
+/**
+ * A small, saveable back stack for the four top-level tabs and nested screens.
+ *
+ * Selecting a tab always returns to that tab's root. Opening a group filter or settings pushes one
+ * entry, so system back and the top-bar back action return to the previous screen.
+ */
+data class AppNavigationState(
+    val stack: List<AppRoute> = listOf(AppRoute.Tab(AppTab.OVERVIEW)),
+) {
+    init { require(stack.isNotEmpty()) }
+
+    val current: AppRoute get() = stack.last()
+
+    val canGoBack: Boolean get() = stack.size > 1
+
+    val selectedTab: AppTab
+        get() = when (val route = current) {
+            is AppRoute.Tab -> route.tab
+            is AppRoute.FilteredChecks -> AppTab.CHECKS
+            AppRoute.Settings -> stack.asReversed().drop(1).firstNotNullOfOrNull(AppRoute::tabOrNull)
+                ?: AppTab.OVERVIEW
+        }
+
+    val checksFilter: CheckGroupFilter?
+        get() = (current as? AppRoute.FilteredChecks)?.filter
+
+    fun selectTab(tab: AppTab): AppNavigationState =
+        AppNavigationState(listOf(AppRoute.Tab(tab)))
+
+    fun openChecks(filter: CheckGroupFilter): AppNavigationState =
+        copy(stack = stack + AppRoute.FilteredChecks(filter))
+
+    fun openSettings(): AppNavigationState =
+        copy(stack = stack + AppRoute.Settings)
+
+    fun clearFilter(): AppNavigationState = selectTab(AppTab.CHECKS)
+
+    fun back(): AppNavigationState? =
+        if (canGoBack) copy(stack = stack.dropLast(1)) else null
+}
+
+fun AppRoute.tabOrNull(): AppTab? = when (this) {
+    is AppRoute.Tab -> tab
+    is AppRoute.FilteredChecks -> AppTab.CHECKS
+    AppRoute.Settings -> null
+}
+
+val AppNavigationStateSaver: Saver<AppNavigationState, Any> = listSaver(
+    save = { state -> state.stack.map(AppRoute::toSaveableKey) },
+    restore = { keys ->
+        AppNavigationState(
+            keys.mapNotNull(::routeFromSaveableKey)
+                .ifEmpty { listOf(AppRoute.Tab(AppTab.OVERVIEW)) },
+        )
+    },
+)
+
+private fun AppRoute.toSaveableKey(): String = when (this) {
+    is AppRoute.Tab -> "tab:${tab.name}"
+    is AppRoute.FilteredChecks -> "checks:${filter.groupId}"
+    AppRoute.Settings -> "settings"
+}
+
+private fun routeFromSaveableKey(key: String): AppRoute? = when {
+    key.startsWith(TAB_PREFIX) -> AppTab.entries
+        .firstOrNull { it.name == key.removePrefix(TAB_PREFIX) }
+        ?.let(AppRoute::Tab)
+
+    key.startsWith(CHECKS_PREFIX) -> key.removePrefix(CHECKS_PREFIX)
+        .takeIf(String::isNotBlank)
+        ?.let { AppRoute.FilteredChecks(CheckGroupFilter(it)) }
+
+    key == SETTINGS_KEY -> AppRoute.Settings
+    else -> null
+}
+
+private const val TAB_PREFIX = "tab:"
+private const val CHECKS_PREFIX = "checks:"
+private const val SETTINGS_KEY = "settings"

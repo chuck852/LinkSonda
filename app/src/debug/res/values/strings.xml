@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="overview_demo_title">LinkSonda overview demo</string>
     <string name="theme_preview_title">LinkSonda theme</string>
     <string name="theme_preview_subtitle">Material 3 design system</string>
     <string name="theme_preview_primary">Primary</string>
