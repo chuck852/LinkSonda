@@ -30,7 +30,7 @@ class PingOutputParserTest {
             --- example.test ping statistics ---
             1 packets transmitted, 0 received, 100% packet loss, time 1001ms
             rtt min/avg/max/mdev = 0.000/0.000/0.000/0.000 ms
-            time=not-a-number ms
+            64 bytes from 192.0.2.1: time=not-a-number ms
         """.trimIndent()
 
         assertEquals(emptyList<kotlin.time.Duration>(), PingOutputParser.replyTimes(output))

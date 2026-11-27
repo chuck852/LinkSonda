@@ -86,6 +86,7 @@ class IcmpProbeRunnerTest {
         assertEquals(ProbeOutcome.Matched, completed(result).outcome)
         assertEquals("/system/bin/ping6", process.commands.single().first())
         assertEquals("::1", process.commands.single().last())
+        assertEquals(IpFamily.IPV6, completed(result).observations.connectedIpFamily)
     }
 
     @Test
@@ -152,6 +153,56 @@ class IcmpProbeRunnerTest {
 
         failed(result, FailureReason.DNS)
         assertNull(completed(result).observations.icmp)
+        assertNull(completed(result).observations.connectedIpFamily)
+    }
+
+    @Test
+    fun ping6DnsFailureIsDnsWithoutObservationOrConnectedFamily() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("ping6: missing.test: No address associated with hostname", 1),
+        )
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("missing.test", family = IpFamily.IPV6),
+        )
+
+        failed(result, FailureReason.DNS)
+        assertNull(completed(result).observations.icmp)
+        assertNull(completed(result).observations.connectedIpFamily)
+    }
+
+    @Test
+    fun ping6PermissionFailureIsInconclusiveWithoutObservation() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("ping6: socket: Permission denied", 1),
+        )
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("::1", family = IpFamily.IPV6),
+        )
+
+        assertEquals(
+            ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED),
+            completed(result).outcome,
+        )
+        assertNull(completed(result).observations.icmp)
+        assertNull(completed(result).observations.connectedIpFamily)
+    }
+
+    @Test
+    fun outputErrorAfterMinimumRepliesKeepsSuccess() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("64 bytes from ::1: time=1.000 ms", 0),
+            PingExecution.Completed("ping6: socket: Permission denied", 1),
+        )
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("::1", packets = 2, minimumReplies = 1, family = IpFamily.IPV6),
+        )
+
+        assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+        assertEquals(1, completed(result).observations.icmp?.sentPackets)
+        assertEquals(IpFamily.IPV6, completed(result).observations.connectedIpFamily)
     }
 
     @Test

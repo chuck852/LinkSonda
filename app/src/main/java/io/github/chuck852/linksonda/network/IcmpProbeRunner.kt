@@ -59,7 +59,7 @@ internal class IcmpProbeRunner internal constructor(
                 ProbeOutcome.Failed(FailureReason.DNS),
             )
         }
-        state.connectedIpFamily = literalFamily(host) ?: probe.family
+        state.targetFamily = literalFamily(host) ?: probe.family
 
         val result = withTimeoutOrNull(request.config.timeout) {
             execute(request, probe, host, admission, startNanos, state)
@@ -124,6 +124,7 @@ internal class IcmpProbeRunner internal constructor(
                     if (rtts.isNotEmpty()) {
                         state.received += 1
                         state.rtts += rtts.first()
+                        state.connectedIpFamily = state.targetFamily
                     }
                     state.timedOut = true
                 }
@@ -132,6 +133,7 @@ internal class IcmpProbeRunner internal constructor(
                     if (rtts.isNotEmpty()) {
                         state.received += 1
                         state.rtts += rtts.first()
+                        state.connectedIpFamily = state.targetFamily
                     } else {
                         val outputOutcome = outputOutcome(execution.output)
                         if (outputOutcome != null) {
@@ -187,7 +189,12 @@ internal class IcmpProbeRunner internal constructor(
     private fun outputOutcome(output: String): ProbeOutcome? {
         val text = output.lineSequence()
             .map { it.trimStart() }
-            .filter { it.startsWith("ping:") || it.startsWith("connect:") || it.startsWith("sendto:") }
+            .filter {
+                it.startsWith("ping:", ignoreCase = true) ||
+                    it.startsWith("ping6:", ignoreCase = true) ||
+                    it.startsWith("connect:", ignoreCase = true) ||
+                    it.startsWith("sendto:", ignoreCase = true)
+            }
             .joinToString("\n")
             .lowercase()
         return when {
@@ -196,7 +203,10 @@ internal class IcmpProbeRunner internal constructor(
                 text.contains("name or service not known") ||
                 text.contains("hostname nor servname provided") ||
                 text.contains("no address associated with hostname") ||
-                text.contains("temporary failure in name resolution") ->
+                text.contains("temporary failure in name resolution") ||
+                text.contains("non-recoverable failure in name resolution") ||
+                text.contains("address family for hostname not supported") ||
+                text.contains("memory allocation failure") ->
                 ProbeOutcome.Failed(FailureReason.DNS)
             text.contains("network is unreachable") ||
                 text.contains("no route to host") ->
@@ -316,6 +326,7 @@ internal class IcmpProbeRunner internal constructor(
     private class RunState {
         var sent = 0
         var received = 0
+        var targetFamily: IpFamily? = null
         var connectedIpFamily: IpFamily? = null
         val rtts = mutableListOf<Duration>()
         var timedOut = false
