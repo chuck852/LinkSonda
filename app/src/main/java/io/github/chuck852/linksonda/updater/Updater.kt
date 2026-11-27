@@ -319,7 +319,7 @@ internal class Updater(
                         ReleaseSelection.NoMetadata -> finish(
                             if (metadataFailure) UpdateCheckStatus.INVALID_RELEASE else UpdateCheckStatus.NO_RELEASE,
                             settings,
-                            etag = if (metadataFailure) null else response.etag,
+                            etag = null,
                         )
                     }
                 }
