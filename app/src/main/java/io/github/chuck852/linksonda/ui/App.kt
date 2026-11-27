@@ -58,6 +58,7 @@ import io.github.chuck852.linksonda.ui.checks.ProbeDraft
 import io.github.chuck852.linksonda.ui.checks.ProbeEditorActions
 import io.github.chuck852.linksonda.ui.checks.ProbeEditorState
 import io.github.chuck852.linksonda.ui.checks.ProbeEditorStatus
+import io.github.chuck852.linksonda.ui.checks.ProbeExecutionSnapshot
 import io.github.chuck852.linksonda.ui.checks.ProbeProtocol
 import io.github.chuck852.linksonda.ui.checks.initialChecksFilters
 import io.github.chuck852.linksonda.ui.components.EmptyState
@@ -178,7 +179,12 @@ fun LinkSondaApp(
                 editorStatus = if (result == null) {
                     ProbeEditorStatus.TestFailed
                 } else {
-                    ProbeEditorStatus.TestCompleted(probe.key, result.outcome, result.elapsed, result.isDemo)
+                    ProbeEditorStatus.TestCompleted(
+                        ProbeExecutionSnapshot.of(probe),
+                        result.outcome,
+                        result.elapsed,
+                        result.isDemo,
+                    )
                 }
             }
         }

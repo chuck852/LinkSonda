@@ -1,8 +1,9 @@
 package io.github.chuck852.linksonda.ui.checks
 
 import io.github.chuck852.linksonda.domain.ProbeConfig
-import io.github.chuck852.linksonda.domain.ProbeKey
+import io.github.chuck852.linksonda.domain.ProbeId
 import io.github.chuck852.linksonda.domain.ProbeOutcome
+import io.github.chuck852.linksonda.domain.ProbeRequest
 import kotlin.time.Duration
 
 data class ProbeDraft(
@@ -21,10 +22,31 @@ data class ProbeTestOutcome(
     val isDemo: Boolean,
 )
 
+/**
+ * Execution parameters captured when a test starts.
+ *
+ * A revision alone is not enough: an unsaved new probe keeps revision 1, and different unsaved
+ * edits of a saved probe share the same incremented revision. Comparing the whole snapshot makes
+ * sure the result disappears as soon as the request, timeout, or probe identity changes.
+ */
+data class ProbeExecutionSnapshot(
+    val probeId: ProbeId,
+    val request: ProbeRequest,
+    val timeout: Duration,
+) {
+    companion object {
+        fun of(config: ProbeConfig): ProbeExecutionSnapshot = ProbeExecutionSnapshot(
+            probeId = config.id,
+            request = config.request,
+            timeout = config.timeout,
+        )
+    }
+}
+
 sealed interface ProbeEditorStatus {
     data object Running : ProbeEditorStatus
     data class TestCompleted(
-        val configKey: ProbeKey,
+        val snapshot: ProbeExecutionSnapshot,
         val outcome: ProbeOutcome,
         val elapsed: Duration,
         val isDemo: Boolean,
@@ -46,8 +68,9 @@ data class ProbeEditorActions(
     val onTest: (suspend (ProbeConfig) -> ProbeTestOutcome)? = null,
 )
 
-/** Hide a completed test when the draft no longer has the tested configuration key. */
+/** Hide a completed test when the draft no longer has the tested execution parameters. */
 fun ProbeEditorStatus.forConfiguration(config: ProbeConfig?): ProbeEditorStatus? = when (this) {
-    is ProbeEditorStatus.TestCompleted -> takeIf { config?.key == configKey }
+    is ProbeEditorStatus.TestCompleted ->
+        takeIf { config != null && ProbeExecutionSnapshot.of(config) == snapshot }
     else -> this
 }
