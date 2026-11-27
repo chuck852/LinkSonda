@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DateRange
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -31,16 +30,6 @@ fun HistoryScreen(modifier: Modifier = Modifier) {
         body = R.string.history_empty_body,
         modifier = modifier,
         icon = Icons.Rounded.DateRange,
-    )
-}
-
-@Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
-    PlaceholderScreen(
-        title = R.string.settings_placeholder_title,
-        body = R.string.settings_placeholder_body,
-        modifier = modifier,
-        icon = Icons.Rounded.Settings,
     )
 }
 

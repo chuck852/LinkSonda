@@ -4,7 +4,7 @@
 
 [На русском](docs/README.ru.md)
 
-LinkSonda is an Android project for diagnosing network and service availability. The current foundation (`0.1.0`) has the approved Material 3 design system, a four-tab navigation shell, a domain-backed checks list and details screen, and a universal check editor for all P0 protocols. The production overview stays empty until real monitoring is connected. Network probes, background monitoring, and incident history are planned.
+LinkSonda is an Android project for diagnosing network and service availability. The current foundation (`0.1.0`) has the approved Material 3 design system, a four-tab navigation shell, a domain-backed checks list and details screen, a universal check editor for all P0 protocols, and localized settings with a first-run flow. The production overview stays empty until real monitoring is connected. Network probes, background monitoring, and incident history are planned.
 
 The [technical Developer Preview v0.1.0-dev.1](https://github.com/chuck852/LinkSonda/releases/tag/v0.1.0-dev.1) includes the debug-signed starter-screen APK, SHA-256, and license notices. Network diagnostics are planned.
 
@@ -25,7 +25,7 @@ The APK supports Android 8.0 and later (min API 26, target API 37). Choose a dev
 ## Project resources
 
 - [Roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
-- [Architecture](docs/ARCHITECTURE.md), [navigation and overview](docs/NAVIGATION.md), [checks and details](docs/CHECKS.md), [check editor](docs/CHECK_EDITOR.md), [theme and design system](docs/THEME.md), and [contributing guide](CONTRIBUTING.md)
+- [Architecture](docs/ARCHITECTURE.md), [navigation and overview](docs/NAVIGATION.md), [checks and details](docs/CHECKS.md), [check editor](docs/CHECK_EDITOR.md), [settings, localization and first run](docs/SETTINGS.md), [theme and design system](docs/THEME.md), and [contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md) and [code of conduct](CODE_OF_CONDUCT.md)
 
 LinkSonda is licensed under the [Apache License 2.0](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for dependencies and distributed build tooling.

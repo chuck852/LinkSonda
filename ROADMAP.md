@@ -1,6 +1,6 @@
 # Roadmap
 
-The current foundation contains the Material 3 design system, the four-tab navigation shell, the overview, the domain-backed checks list and details, the universal check editor for all P0 protocols, a Gradle Wrapper build, JVM tests, and CI-generated debug APKs.
+The current foundation contains the Material 3 design system, the four-tab navigation shell, the overview, the domain-backed checks list and details, the universal check editor for all P0 protocols, localized settings with a first-run flow, a Gradle Wrapper build, JVM tests, and CI-generated debug APKs.
 
 | Milestone | Planned work |
 | --- | --- |

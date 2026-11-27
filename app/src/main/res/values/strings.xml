@@ -64,8 +64,6 @@
     <string name="presets_empty_body">Built-in and custom presets will appear here.</string>
     <string name="history_empty_title">No history yet</string>
     <string name="history_empty_body">Results and incidents will appear after monitoring starts.</string>
-    <string name="settings_placeholder_title">Settings</string>
-    <string name="settings_placeholder_body">Theme, language, monitoring and notification settings will be added later.</string>
     <string name="demo_banner">Demo data. No network requests are made.</string>
 
     <string name="probe_failure_timeout">Timeout</string>
@@ -309,4 +307,59 @@
     <string name="editor_error_invalid_timeout">Enter a timeout from 0.1 to 120 seconds.</string>
     <string name="editor_error_invalid_packet_count">Enter 1 to 10 packets.</string>
     <string name="editor_error_invalid_min_replies">Replies must be between 1 and the packet count.</string>
+
+    <string name="settings_appearance_title">Appearance</string>
+    <string name="settings_theme_mode_title">Color mode</string>
+    <string name="settings_theme_mode_adaptive">Adaptive</string>
+    <string name="settings_theme_mode_adaptive_body">Background and accents follow the confirmed connection status.</string>
+    <string name="settings_theme_mode_accents">Accents only</string>
+    <string name="settings_theme_mode_accents_body">Neutral surfaces with status-colored accents.</string>
+    <string name="settings_theme_mode_static">Static green</string>
+    <string name="settings_theme_mode_static_body">The green scheme is used regardless of status.</string>
+    <string name="settings_brightness_title">Brightness</string>
+    <string name="settings_brightness_system">Follow system</string>
+    <string name="settings_brightness_light">Light</string>
+    <string name="settings_brightness_dark">Dark</string>
+    <string name="settings_language_title">Language</string>
+    <string name="settings_language_system">System language</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_restart">The app restarts when the language changes.</string>
+    <string name="settings_state_on">On</string>
+    <string name="settings_state_off">Off</string>
+    <string name="settings_state_selected">Selected</string>
+
+    <string name="settings_monitoring_title">Monitoring</string>
+    <string name="settings_monitoring_switch">Background monitoring</string>
+    <string name="settings_monitoring_unavailable">The monitoring engine is not connected in this build. No background checks run yet.</string>
+    <string name="settings_notifications_title">Notifications</string>
+    <string name="settings_notifications_switch">Incident notifications</string>
+    <string name="settings_notifications_body">Android permission is requested only when you turn this on. Other app features do not depend on it.</string>
+    <string name="settings_notifications_denied">Notification permission is not granted. You can allow notifications in system settings; other app features continue to work.</string>
+    <string name="settings_notifications_open_settings">Open notification settings</string>
+
+    <string name="settings_history_title">History</string>
+    <string name="settings_history_retention">Keep history for</string>
+    <plurals name="settings_history_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="settings_history_storage_unavailable">History storage is not connected in this build. Retention will apply when it is.</string>
+
+    <string name="settings_local_data_title">Local data</string>
+    <string name="settings_local_data_body">Settings and history are designed to stay on this device. LinkSonda has no account, no cloud backend and does not request location access.</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_save_failed">Settings could not be saved.</string>
+
+    <string name="first_run_title">Welcome to LinkSonda</string>
+    <string name="first_run_local_title">Monitoring stays on this device</string>
+    <string name="first_run_local_body">Checks run from this device. LinkSonda is designed for local monitoring: no account, no cloud backend and no location access.</string>
+    <string name="first_run_profile_title">Monitoring profile</string>
+    <string name="first_run_profile_manual">Manual checks</string>
+    <string name="first_run_profile_manual_body">Start without background monitoring. Profile selection will be available when profiles are connected.</string>
+    <string name="first_run_profile_available_body">Use this profile when monitoring is connected.</string>
+    <string name="first_run_profiles_empty">No monitoring profiles are available yet. Continue with manual checks; profiles will appear when they are connected.</string>
+    <string name="first_run_notifications_note">Android notification permission is requested only when you enable notifications in Settings.</string>
+    <string name="first_run_privacy_note">No account. No location access.</string>
+    <string name="first_run_continue">Continue</string>
 </resources>
