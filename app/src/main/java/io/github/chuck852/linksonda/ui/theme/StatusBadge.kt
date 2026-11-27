@@ -49,6 +49,9 @@ internal fun ProbeStatus.visual(): StatusVisual = when (this) {
     ProbeStatus.UNKNOWN -> StatusVisual(R.string.status_unknown, StatusTone.NEUTRAL, Icons.Rounded.Info)
 }
 
+/** Semantic color for compact indicators that cannot use [ProbeStatusBadge]. */
+fun ProbeStatus.semanticTone(): StatusTone = visual().tone
+
 internal fun ProbeLifecycle.visual(): StatusVisual? = when (this) {
     ProbeLifecycle.IDLE -> null
     ProbeLifecycle.RUNNING -> StatusVisual(R.string.status_running, StatusTone.RUNNING, Icons.Rounded.Refresh)
@@ -82,7 +85,7 @@ fun StatusBadge(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }

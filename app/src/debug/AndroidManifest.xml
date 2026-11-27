@@ -6,5 +6,10 @@
             android:exported="true"
             android:label="@string/theme_preview_title"
             android:launchMode="singleTop" />
+        <activity
+            android:name=".debug.OverviewDemoActivity"
+            android:exported="true"
+            android:label="@string/overview_demo_title"
+            android:launchMode="singleTop" />
     </application>
 </manifest>
