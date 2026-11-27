@@ -26,6 +26,9 @@ interface ProfileDao {
     @Query("SELECT * FROM profiles ORDER BY name COLLATE NOCASE, profile_id")
     fun observeProfiles(): Flow<List<ProfileEntity>>
 
+    @Query("SELECT * FROM profiles ORDER BY name COLLATE NOCASE, profile_id")
+    suspend fun getProfiles(): List<ProfileEntity>
+
     @Query("SELECT * FROM profiles WHERE profile_id = :profileId")
     suspend fun find(profileId: String): ProfileEntity?
 

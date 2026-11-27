@@ -38,9 +38,9 @@ class RoomProfileRepository(
     private val configDao = database.probeConfigDao()
 
     override fun observeProfiles(): Flow<List<MonitoringProfile>> =
-        profileDao.observeProfiles().map { rows ->
+        profileDao.observeProfiles().map {
             database.withTransaction {
-                rows.map { loadProfile(it) }
+                profileDao.getProfiles().map { profile -> loadProfile(profile) }
             }
         }
 
