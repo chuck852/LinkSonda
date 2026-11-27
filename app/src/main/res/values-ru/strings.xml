@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status_available">Доступно</string>
+    <string name="status_partial">Частично доступно</string>
+    <string name="status_unavailable">Недоступно</string>
+    <string name="status_unknown">Неизвестно</string>
+    <string name="status_running">Проверка</string>
+    <string name="status_paused">Приостановлено</string>
+    <string name="status_up">Работает</string>
+    <string name="status_pending">Ожидание</string>
+    <string name="status_down">Не работает</string>
+
+    <string name="nav_overview">Обзор</string>
+    <string name="nav_checks">Проверки</string>
+    <string name="nav_presets">Пресеты</string>
+    <string name="nav_history">История</string>
+    <string name="top_bar_settings">Настройки</string>
+    <string name="action_back">Назад</string>
+    <string name="action_run_check">Запустить проверку</string>
+
+    <string name="overview_availability_title">Доступность интернета</string>
+    <string name="overview_freshness_missing">Результатов пока нет</string>
+    <string name="overview_freshness_fresh">Актуально</string>
+    <string name="overview_freshness_stale">Устарело</string>
+    <string name="overview_freshness_updated">Обновлено %1$d с назад</string>
+    <string name="overview_freshness_stale_updated">Устарело · обновлено %1$d с назад</string>
+    <string name="overview_monitoring_label">Мониторинг</string>
+    <string name="overview_monitoring_not_configured">Не настроен</string>
+    <string name="overview_monitoring_running">Выполняется</string>
+    <string name="overview_monitoring_paused">Приостановлен</string>
+    <string name="overview_network_label">Сеть</string>
+    <string name="overview_network_none">Нет активной сети</string>
+    <string name="overview_network_unknown">Сетевой контекст неизвестен</string>
+    <string name="network_validation_validated">Подтверждено</string>
+    <string name="network_validation_captive_portal">Портал авторизации</string>
+    <string name="network_validation_unvalidated">Не подтверждено</string>
+    <string name="network_validation_unknown">Статус проверки неизвестен</string>
+    <string name="transport_wifi">Wi-Fi</string>
+    <string name="transport_cellular">Сотовая сеть</string>
+    <string name="transport_ethernet">Ethernet</string>
+    <string name="transport_vpn">VPN</string>
+    <string name="transport_other">Другое</string>
+    <string name="overview_profile_title">Активный профиль</string>
+    <string name="overview_profile_none">Нет активного профиля</string>
+    <string name="overview_profile_schedule">Каждые %1$d с</string>
+    <string name="overview_groups_title">Группы</string>
+    <string name="overview_groups_empty_title">Групп пока нет</string>
+    <string name="overview_groups_empty_body">Группы из активного профиля появятся здесь.</string>
+    <plurals name="overview_group_probes">
+        <item quantity="one">%1$d из %2$d проверок доступна</item>
+        <item quantity="few">%1$d из %2$d проверок доступны</item>
+        <item quantity="many">%1$d из %2$d проверок доступно</item>
+        <item quantity="other">%1$d из %2$d проверок доступно</item>
+    </plurals>
+    <string name="overview_manual_title">Ручная проверка</string>
+    <string name="overview_manual_body">Проверьте активный профиль сейчас, не дожидаясь следующего запуска по расписанию.</string>
+    <string name="overview_manual_unavailable">Доступно после подключения движка мониторинга.</string>
+    <string name="overview_manual_running">Ручная проверка уже выполняется.</string>
+    <string name="overview_manual_demo">Только демо: сетевой запрос не будет отправлен.</string>
+
+    <string name="checks_empty_title">Проверок пока нет</string>
+    <string name="checks_empty_body">Проверки появятся после настройки профиля.</string>
+    <string name="presets_empty_title">Пресетов пока нет</string>
+    <string name="presets_empty_body">Встроенные и пользовательские пресеты появятся здесь.</string>
+    <string name="history_empty_title">Истории пока нет</string>
+    <string name="history_empty_body">Результаты и инциденты появятся после запуска мониторинга.</string>
+    <string name="demo_banner">Демо-данные. Сетевые запросы не выполняются.</string>
+
+    <string name="probe_failure_timeout">Тайм-аут</string>
+    <string name="probe_failure_dns">Ошибка DNS</string>
+    <string name="probe_failure_tcp">Ошибка TCP</string>
+    <string name="probe_failure_tls">Ошибка TLS</string>
+    <string name="probe_failure_http">Ошибка HTTP</string>
+    <string name="probe_failure_icmp">Ошибка ICMP</string>
+    <string name="probe_failure_http_status">Неожиданный статус HTTP</string>
+    <string name="probe_failure_refused">Соединение отклонено</string>
+    <string name="probe_failure_unreachable">Недоступно</string>
+    <string name="probe_failure_unexpected_response">Неожиданный ответ</string>
+    <string name="probe_failure_unexpected_dns_response">Неожиданный ответ DNS</string>
+
+
+    <string name="checks_search_label">Поиск проверок</string>
+    <string name="checks_search_clear">Очистить поиск</string>
+    <string name="checks_filter_group">Группа: %1$s</string>
+    <string name="checks_filter_status">Статус: %1$s</string>
+    <string name="checks_filter_protocol">Протокол: %1$s</string>
+    <string name="checks_filter_all">Все</string>
+    <string name="checks_filters_reset">Сбросить фильтры</string>
+    <string name="checks_no_matches_title">Нет проверок, соответствующих фильтрам</string>
+    <string name="checks_no_matches_body">Измените или сбросьте поиск и фильтры.</string>
+
+    <string name="protocol_tcp_connect">TCP-подключение</string>
+    <string name="protocol_tls_handshake">TLS</string>
+    <string name="protocol_http">HTTP</string>
+    <string name="protocol_https">HTTPS</string>
+    <string name="protocol_system_dns">Системный DNS</string>
+    <string name="protocol_dns_udp">DNS через UDP</string>
+    <string name="protocol_dns_tcp">DNS через TCP</string>
+    <string name="protocol_doh">DNS через HTTPS</string>
+    <string name="protocol_dot">DNS через TLS</string>
+    <string name="protocol_icmp">ICMP</string>
+
+    <string name="freshness_fresh">Актуально</string>
+    <string name="freshness_stale">Устарело</string>
+    <string name="freshness_missing">Нет данных</string>
+
+    <string name="probe_details_title">Детали проверки</string>
+    <string name="probe_details_not_found_title">Проверка не найдена</string>
+    <string name="probe_details_not_found_body">Выбранная проверка больше недоступна.</string>
+    <string name="probe_details_configuration">Конфигурация</string>
+    <string name="probe_details_result">Последний результат</string>
+    <string name="probe_details_phases">Измеренные этапы</string>
+    <string name="probe_details_observations">Наблюдения</string>
+    <string name="probe_details_actions">Действия</string>
+    <string name="probe_details_history_title">История</string>
+    <string name="probe_details_history">История будет подключена к локальному хранилищу.</string>
+
+    <string name="probe_id_label">ID проверки</string>
+    <string name="probe_revision_label">Ревизия</string>
+    <string name="probe_timeout_label">Тайм-аут</string>
+    <string name="probe_group_label">Группа</string>
+    <string name="probe_protocol_label">Протокол</string>
+    <string name="probe_endpoint_label">Конечная точка</string>
+    <string name="probe_sni_label">Имя сервера</string>
+    <string name="probe_min_tls_label">Минимальный TLS</string>
+    <string name="probe_url_label">URL</string>
+    <string name="probe_method_label">Метод</string>
+    <string name="probe_expected_status_label">Ожидаемый статус</string>
+    <string name="probe_body_marker_label">Маркер тела</string>
+    <string name="probe_ip_family_label">Настроенное семейство IP</string>
+    <string name="probe_dns_name_label">DNS-имя</string>
+    <string name="probe_record_type_label">Тип записи</string>
+    <string name="probe_expected_rcode_label">Ожидаемый RCODE</string>
+    <string name="probe_requires_answer_label">Требуется ответ</string>
+    <string name="probe_resolver_label">Резолвер</string>
+    <string name="probe_transport_label">Транспорт</string>
+    <string name="probe_packet_count_label">Пакеты</string>
+    <string name="probe_min_replies_label">Минимум ответов</string>
+
+    <string name="value_not_observed">Не наблюдалось</string>
+    <string name="value_not_configured">Не настроено</string>
+    <string name="value_not_measured">Не измерено</string>
+    <string name="value_automatic">Автоматически</string>
+    <string name="value_ipv4">IPv4</string>
+    <string name="value_ipv6">IPv6</string>
+    <string name="value_yes">Да</string>
+    <string name="value_no">Нет</string>
+    <string name="value_matched">Совпало</string>
+    <string name="value_not_matched">Не совпало</string>
+    <string name="value_not_checked">Не проверено</string>
+    <string name="value_status_range">%1$d–%2$d</string>
+    <string name="value_percent">%1$d%%</string>
+    <string name="value_tls_12">TLS 1.2</string>
+    <string name="value_tls_13">TLS 1.3</string>
+    <string name="value_udp">UDP</string>
+    <string name="value_tcp">TCP</string>
+    <string name="value_get">GET</string>
+    <string name="value_head">HEAD</string>
+
+    <string name="result_matched">Совпало</string>
+    <string name="result_no_result">Результатов пока нет</string>
+    <string name="result_failed">Ошибка: %1$s</string>
+    <string name="result_inconclusive">Неоднозначно: %1$s</string>
+    <string name="result_restricted">Ограничено: %1$s</string>
+    <string name="result_skipped">Пропущено: %1$s</string>
+    <string name="outcome_skipped">Пропущено</string>
+    <string name="outcome_inconclusive">Неоднозначно</string>
+    <string name="outcome_restricted">Ограничено</string>
+    <string name="result_recorded_label">Записано</string>
+    <string name="result_elapsed_label">Длительность</string>
+    <string name="result_elapsed">Длительность %1$s</string>
+    <string name="result_retry_label">Повтор разрешён после</string>
+    <string name="result_next_allowed_label">Следующая попытка после</string>
+
+    <string name="phase_dns">DNS</string>
+    <string name="phase_tcp">TCP-подключение</string>
+    <string name="phase_tls">TLS-рукопожатие</string>
+    <string name="phase_http">Первый байт HTTP</string>
+    <string name="phases_none">Измерения этапов не записаны.</string>
+    <string name="phases_note">Показаны только этапы, о которых сообщил исполнитель; отсутствующие этапы не равны нулю.</string>
+
+    <string name="observation_connected_family">Семейство IP подключения</string>
+    <string name="observation_http_status">Статус HTTP</string>
+    <string name="observation_body_marker">Маркер тела</string>
+    <string name="observation_dns_rcode">RCODE DNS</string>
+    <string name="observation_answer_count">Ответы</string>
+    <string name="observation_truncated">Усечено</string>
+    <string name="observation_tls_version">Согласованный TLS</string>
+    <string name="observation_icmp_sent">Отправлено пакетов</string>
+    <string name="observation_icmp_received">Получено ответов</string>
+    <string name="observation_icmp_lost">Потеряно пакетов</string>
+    <string name="observation_icmp_loss">Потери</string>
+    <string name="observation_rtt_min">RTT мин.</string>
+    <string name="observation_rtt_avg">RTT среднее</string>
+    <string name="observation_rtt_max">RTT макс.</string>
+    <string name="observations_none">Наблюдения протокола не записаны.</string>
+
+    <string name="action_retry">Запустить снова</string>
+    <string name="action_edit">Изменить проверку</string>
+    <string name="action_retry_unavailable">Доступно после подключения сетевого движка.</string>
+    <string name="action_edit_unavailable">Редактирование будет подключено к редактору профиля.</string>
+    <string name="action_demo">Только демо: сетевой запрос не отправляется. Изменения и сохранения остаются в этой демо-сессии.</string>
+    <string name="action_add_check">Добавить проверку</string>
+
+    <string name="inconclusive_os_limitation">Ограничение ОС</string>
+    <string name="inconclusive_doze">Doze</string>
+    <string name="inconclusive_network_changed">Сеть изменилась</string>
+    <string name="inconclusive_permission_denied">Разрешение не предоставлено</string>
+
+    <string name="restricted_rate_limited">Ограничение частоты</string>
+    <string name="restricted_access_denied">Доступ запрещён</string>
+    <string name="restricted_challenge">Защитная проверка</string>
+
+    <string name="skip_sleep">Сон</string>
+    <string name="skip_budget">Бюджет</string>
+    <string name="skip_cooldown">Пауза</string>
+    <string name="skip_not_allowed">Не разрешено</string>
+    <string name="skip_no_network">Нет сети</string>
+    <string name="skip_unsupported">Не поддерживается</string>
+    <string name="skip_cancelled">Отменено</string>
+    <string name="skip_permission_denied">Разрешение не предоставлено</string>
+
+    <plurals name="checks_filtered_count">
+        <item quantity="one">%1$d из %2$d проверок</item>
+        <item quantity="few">%1$d из %2$d проверок</item>
+        <item quantity="many">%1$d из %2$d проверок</item>
+        <item quantity="other">%1$d из %2$d проверок</item>
+    </plurals>
+
+    <plurals name="editor_advanced_configured">
+        <item quantity="one">Настроен %1$d параметр</item>
+        <item quantity="few">Настроено %1$d параметра</item>
+        <item quantity="many">Настроено %1$d параметров</item>
+        <item quantity="other">Настроено %1$d параметра</item>
+    </plurals>
+
+    <plurals name="checks_count">
+        <item quantity="one">%1$d проверка</item>
+        <item quantity="few">%1$d проверки</item>
+        <item quantity="many">%1$d проверок</item>
+        <item quantity="other">%1$d проверки</item>
+    </plurals>
+
+    <string name="editor_title_new">Новая проверка</string>
+    <string name="editor_title_edit">Изменить проверку</string>
+    <string name="editor_basics">Основное</string>
+    <string name="editor_target">Цель</string>
+    <string name="editor_criteria">Критерии успеха</string>
+    <string name="editor_advanced">Дополнительные параметры</string>
+    <string name="editor_advanced_defaults">Используются значения по умолчанию</string>
+    <string name="editor_unsupported_title">Пока не поддерживается</string>
+    <string name="editor_unsupported_body">HTTP/3, необработанный UDP, WebSocket и gRPC недоступны в этой сборке. LinkSonda не имитирует неподдерживаемые протоколы.</string>
+    <string name="editor_name_label">Название</string>
+    <string name="editor_group_label">Группа</string>
+    <string name="editor_protocol_label">Протокол</string>
+    <string name="editor_timeout_label">Тайм-аут (секунды)</string>
+    <string name="editor_host_label">Хост</string>
+    <string name="editor_port_label">Порт</string>
+    <string name="editor_url_label">URL</string>
+    <string name="editor_resolver_url_label">URL резолвера</string>
+    <string name="editor_server_name_label">Имя сервера TLS</string>
+    <string name="editor_server_name_helper">Требуется для проверки сертификата и имени хоста. IP-адрес нельзя использовать как имя сервера TLS.</string>
+    <string name="editor_dns_name_label">DNS-имя</string>
+    <string name="editor_record_type_label">Тип записи</string>
+    <string name="editor_record_type_helper">Распространённые типы: A=1, AAAA=28, CNAME=5, MX=15, TXT=16.</string>
+    <string name="editor_expected_status_label">Ожидаемый статус HTTP</string>
+    <string name="editor_expected_status_helper">Например, 200, 204 или с 200 по 299.</string>
+    <string name="editor_body_marker_label">Маркер тела ответа</string>
+    <string name="editor_body_marker_helper">Необязательный текст, который должен присутствовать в теле ответа.</string>
+    <string name="editor_method_label">Метод</string>
+    <string name="editor_expected_rcode_label">Ожидаемый RCODE</string>
+    <string name="editor_expected_rcode_helper">0 означает NOERROR.</string>
+    <string name="editor_requires_answer_label">Требуется ответ</string>
+    <string name="editor_requires_answer_helper">Доступно только при ожидаемом RCODE 0.</string>
+    <string name="editor_packet_count_label">Пакеты</string>
+    <string name="editor_min_replies_label">Минимум ответов</string>
+    <string name="editor_ip_family_label">Семейство IP</string>
+    <string name="editor_min_tls_label">Минимальная версия TLS</string>
+    <string name="editor_transport_label">Транспорт</string>
+    <string name="editor_tls_validation_title">Проверка сертификата и имени сервера</string>
+    <string name="editor_tls_validation_body">Обязательна всегда. В этом редакторе нельзя отключить проверку сертификата или имени хоста.</string>
+    <string name="editor_tcp_criteria">Проверка считается успешной при завершённом TCP-рукопожатии.</string>
+    <string name="editor_group_unavailable">Групп пока нет. Проверка будет добавлена в «Пользовательские проверки».</string>
+    <string name="editor_profile_scope_note">Расписание и пороги уведомлений — это настройки профиля, а не части проверки.</string>
+    <string name="editor_redirect_note">Перенаправления подчиняются общей политике конечных точек и не настраиваются для отдельной проверки.</string>
+    <string name="editor_actions">Сохранить и проверить</string>
+    <string name="editor_test">Тестовый запрос</string>
+    <string name="editor_save">Сохранить проверку</string>
+    <string name="editor_test_unavailable">Для тестовых запросов нужен сетевой движок, который не подключён в этой сборке.</string>
+    <string name="editor_save_unavailable">Для сохранения нужно локальное хранилище профилей, которое не подключено в этой сборке.</string>
+    <string name="editor_demo_note">Только демо: тест использует исполнитель в памяти, а сохранение остаётся в демо-сессии. Сетевой запрос не отправляется.</string>
+    <string name="editor_validation_summary">Исправьте выделенные поля перед сохранением или проверкой.</string>
+    <string name="editor_test_running">Выполняется исполнитель проверок…</string>
+    <string name="editor_test_result">Результат теста: %1$s за %2$s.</string>
+    <string name="editor_test_demo_note">Демо-исполнитель: сетевой запрос не отправлялся.</string>
+    <string name="editor_test_failed">Не удалось запустить тестовый запрос.</string>
+    <string name="editor_save_failed">Не удалось сохранить проверку.</string>
+    <string name="editor_saved">Проверка сохранена в ревизии %1$d.</string>
+    <string name="editor_not_found_title">Проверка не найдена</string>
+    <string name="editor_not_found_body">Проверка, которую вы пытались изменить, больше недоступна.</string>
+    <string name="editor_error_required">Обязательное поле.</string>
+    <string name="editor_error_invalid_host">Введите имя хоста или IP-адрес без схемы и пути.</string>
+    <string name="editor_error_invalid_port">Введите порт от 1 до 65535.</string>
+    <string name="editor_error_invalid_url">Введите полный URL HTTP(S) с хостом, без учётных данных и фрагмента.</string>
+    <string name="editor_error_invalid_server_name">Введите DNS-имя для TLS. IP-адрес нельзя использовать как имя сервера.</string>
+    <string name="editor_error_invalid_dns_name">Введите допустимое DNS-имя.</string>
+    <string name="editor_error_invalid_record_type">Введите тип записи от 1 до 65535.</string>
+    <string name="editor_error_invalid_status">Используйте 100–599, при этом первый статус не должен быть больше последнего.</string>
+    <string name="editor_error_head_body_marker">Запросы HEAD не могут проверять маркер тела.</string>
+    <string name="editor_error_family_mismatch">Выбранное семейство IP не соответствует литеральному адресу.</string>
+    <string name="editor_error_invalid_rcode">Введите RCODE от 0 до 4095.</string>
+    <string name="editor_error_answer_not_allowed">Ненулевой RCODE не может требовать ответа.</string>
+    <string name="editor_error_invalid_timeout">Введите тайм-аут от 0,1 до 120 секунд.</string>
+    <string name="editor_error_invalid_packet_count">Введите от 1 до 10 пакетов.</string>
+    <string name="editor_error_invalid_min_replies">Число ответов должно быть от 1 до количества пакетов.</string>
+
+    <string name="settings_appearance_title">Внешний вид</string>
+    <string name="settings_theme_mode_title">Цветовой режим</string>
+    <string name="settings_theme_mode_adaptive">Адаптивный</string>
+    <string name="settings_theme_mode_adaptive_body">Фон и акценты следуют за подтверждённым статусом подключения.</string>
+    <string name="settings_theme_mode_accents">Только акценты</string>
+    <string name="settings_theme_mode_accents_body">Нейтральные поверхности с акцентами цвета статуса.</string>
+    <string name="settings_theme_mode_static">Статичный зелёный</string>
+    <string name="settings_theme_mode_static_body">Зелёная схема используется независимо от статуса.</string>
+    <string name="settings_brightness_title">Яркость</string>
+    <string name="settings_brightness_system">Как в системе</string>
+    <string name="settings_brightness_light">Светлая</string>
+    <string name="settings_brightness_dark">Тёмная</string>
+    <string name="settings_language_title">Язык</string>
+    <string name="settings_language_system">Язык системы</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_restart">При смене языка приложение перезапускается.</string>
+    <string name="settings_state_on">Вкл.</string>
+    <string name="settings_state_off">Выкл.</string>
+    <string name="settings_state_selected">Выбрано</string>
+
+    <string name="settings_monitoring_title">Мониторинг</string>
+    <string name="settings_monitoring_switch">Фоновый мониторинг</string>
+    <string name="settings_monitoring_unavailable">Движок мониторинга не подключён в этой сборке. Фоновые проверки пока не выполняются.</string>
+    <string name="settings_notifications_title">Уведомления</string>
+    <string name="settings_notifications_switch">Уведомления об инцидентах</string>
+    <string name="settings_notifications_body">Разрешение Android запрашивается только при включении. Ручные проверки работают без уведомлений.</string>
+    <string name="settings_notifications_denied">В разрешении на уведомления отказано. Ручные проверки по-прежнему работают. Разрешить уведомления можно в системных настройках.</string>
+    <string name="settings_notifications_open_settings">Открыть настройки уведомлений</string>
+
+    <string name="settings_history_title">История</string>
+    <string name="settings_history_retention">Хранить историю</string>
+    <plurals name="settings_history_days">
+        <item quantity="one">%1$d день</item>
+        <item quantity="few">%1$d дня</item>
+        <item quantity="many">%1$d дней</item>
+        <item quantity="other">%1$d дня</item>
+    </plurals>
+    <string name="settings_history_storage_unavailable">Хранилище истории не подключено в этой сборке. Срок хранения начнёт действовать после подключения.</string>
+
+    <string name="settings_local_data_title">Локальные данные</string>
+    <string name="settings_local_data_body">Настройки и история остаются на этом устройстве. У LinkSonda нет аккаунта и облачного сервера, и приложение не запрашивает доступ к местоположению.</string>
+    <string name="settings_version">Версия %1$s</string>
+
+    <string name="first_run_title">Добро пожаловать в LinkSonda</string>
+    <string name="first_run_local_title">Мониторинг остаётся на этом устройстве</string>
+    <string name="first_run_local_body">Проверки выполняются с этого устройства, а их результаты остаются в локальном хранилище. У LinkSonda нет аккаунта и облачного сервера, и приложение не запрашивает доступ к местоположению.</string>
+    <string name="first_run_profile_title">Профиль мониторинга</string>
+    <string name="first_run_profile_manual">Ручные проверки</string>
+    <string name="first_run_profile_manual_body">Продолжить без фонового мониторинга. Проверки можно добавить и выбрать профиль позже.</string>
+    <string name="first_run_profile_available_body">Использовать этот профиль для мониторинга.</string>
+    <string name="first_run_profiles_empty">Профили мониторинга пока недоступны. Продолжите с ручными проверками и добавьте профиль позже.</string>
+    <string name="first_run_notifications_note">Разрешение Android на уведомления запрашивается только при включении уведомлений в настройках.</string>
+    <string name="first_run_privacy_note">Без аккаунта. Без доступа к местоположению.</string>
+    <string name="first_run_continue">Продолжить</string>
+</resources>

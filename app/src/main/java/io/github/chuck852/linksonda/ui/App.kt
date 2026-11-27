@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import io.github.chuck852.linksonda.R
 import io.github.chuck852.linksonda.domain.ProbeConfig
 import io.github.chuck852.linksonda.domain.ProbeId
+import io.github.chuck852.linksonda.settings.AppSettings
+import io.github.chuck852.linksonda.settings.FirstRunProfile
 import io.github.chuck852.linksonda.ui.checks.ChecksFilterState
 import io.github.chuck852.linksonda.ui.checks.ChecksFilterStateSaver
 import io.github.chuck852.linksonda.ui.checks.DEFAULT_GROUP_ID
@@ -71,6 +73,7 @@ import io.github.chuck852.linksonda.ui.overview.ManualCheckState
 import io.github.chuck852.linksonda.ui.overview.OverviewScreen
 import io.github.chuck852.linksonda.ui.overview.OverviewUiState
 import io.github.chuck852.linksonda.ui.screens.ChecksScreen
+import io.github.chuck852.linksonda.ui.screens.FirstRunScreen
 import io.github.chuck852.linksonda.ui.screens.HistoryScreen
 import io.github.chuck852.linksonda.ui.screens.PresetsScreen
 import io.github.chuck852.linksonda.ui.screens.ProbeDetailsScreen
@@ -89,8 +92,44 @@ fun LinkSondaApp(
     overviewState: OverviewUiState = OverviewUiState.Empty,
     initialNavigation: AppNavigationState = AppNavigationState(),
     editorActions: ProbeEditorActions = ProbeEditorActions(),
+    settings: AppSettings = AppSettings.Default.copy(onboardingCompleted = true),
+    onSettingsChange: (AppSettings) -> Unit = {},
+    firstRunProfiles: List<FirstRunProfile> = emptyList(),
 ) {
-    LinkSondaTheme(confirmedAggregateStatus = ConfirmedAggregateStatus(overviewState.aggregateStatus)) {
+    LinkSondaTheme(
+        confirmedAggregateStatus = ConfirmedAggregateStatus(overviewState.aggregateStatus),
+        themeMode = settings.themeMode,
+        themeBrightness = settings.themeBrightness,
+    ) {
+        val activeProfile = overviewState.activeProfile
+        val profileDescription = stringResource(R.string.first_run_profile_available_body)
+        val availableProfiles = remember(firstRunProfiles, activeProfile, profileDescription) {
+            firstRunProfiles.ifEmpty {
+                listOfNotNull(
+                    activeProfile?.let { profile ->
+                        FirstRunProfile(
+                            id = profile.id,
+                            name = profile.name,
+                            description = profileDescription,
+                        )
+                    },
+                )
+            }
+        }
+        if (!settings.onboardingCompleted) {
+            FirstRunScreen(
+                profiles = availableProfiles,
+                onComplete = { profileId ->
+                    onSettingsChange(
+                        settings.copy(
+                            onboardingCompleted = true,
+                            selectedProfileId = profileId,
+                        ),
+                    )
+                },
+            )
+            return@LinkSondaTheme
+        }
         var navigation by rememberSaveable(stateSaver = AppNavigationStateSaver) {
             mutableStateOf(initialNavigation)
         }
@@ -314,7 +353,11 @@ fun LinkSondaApp(
                         }
                     }
 
-                    AppRoute.Settings -> SettingsScreen()
+                    AppRoute.Settings -> SettingsScreen(
+                        settings = settings,
+                        monitoringAvailable = false,
+                        onSettingsChange = onSettingsChange,
+                    )
                 }
             }
         }

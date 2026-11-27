@@ -22,6 +22,7 @@ data class NetworkUiSummary(
 data class ProfileUiSummary(
     val name: String,
     val intervalSeconds: Long,
+    val id: String = name,
 ) {
     init {
         require(name.isNotBlank())

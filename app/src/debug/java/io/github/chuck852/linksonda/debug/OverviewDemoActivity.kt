@@ -19,6 +19,7 @@ import io.github.chuck852.linksonda.domain.ProbeMode
 import io.github.chuck852.linksonda.domain.ProbeOutcome
 import io.github.chuck852.linksonda.domain.ProbeResult
 import io.github.chuck852.linksonda.domain.ProbeRunRequest
+import io.github.chuck852.linksonda.settings.AppSettings
 import io.github.chuck852.linksonda.ui.LinkSondaApp
 import io.github.chuck852.linksonda.ui.checks.ProbeEditorActions
 import io.github.chuck852.linksonda.ui.checks.ProbeTestOutcome
@@ -39,12 +40,14 @@ import kotlin.time.Duration
  * `--es probe https-global`
  * `--es edit https-global`
  * `--es editor TLS`
+ * `--ez onboarding true`
  *
  * Every screen shows a demo banner; the demo runner performs no network request. Saved checks stay
  * in this activity's memory and are never written to production storage.
  */
 class OverviewDemoActivity : ComponentActivity() {
     private val config = mutableStateOf(DemoConfig())
+    private val appSettings = mutableStateOf(AppSettings.Default.copy(onboardingCompleted = true))
     private val overview = mutableStateOf(OverviewUiState.Empty)
     private val repository = DemoProfileRepository()
     private val runner = DemoProbeRunner()
@@ -87,6 +90,15 @@ class OverviewDemoActivity : ComponentActivity() {
                     overviewState = overview.value,
                     initialNavigation = current.navigation,
                     editorActions = editorActions,
+                    settings = appSettings.value.copy(
+                        onboardingCompleted = !current.showOnboarding,
+                    ),
+                    onSettingsChange = { updated ->
+                        appSettings.value = updated
+                        if (updated.onboardingCompleted && current.showOnboarding) {
+                            config.value = current.copy(showOnboarding = false)
+                        }
+                    },
                 )
             }
         }
@@ -145,7 +157,11 @@ class OverviewDemoActivity : ComponentActivity() {
                 AppNavigationState(listOf(AppRoute.Tab(it)))
             } ?: AppNavigationState()
         }
-        config.value = DemoConfig(scenario = scenario, navigation = navigation)
+        config.value = DemoConfig(
+            scenario = scenario,
+            navigation = navigation,
+            showOnboarding = intent.getBooleanExtra(EXTRA_ONBOARDING, false),
+        )
         overview.value = demoOverview(scenario)
     }
 
@@ -158,6 +174,7 @@ class OverviewDemoActivity : ComponentActivity() {
     private data class DemoConfig(
         val scenario: DemoScenario = DemoScenario.EMPTY,
         val navigation: AppNavigationState = AppNavigationState(),
+        val showOnboarding: Boolean = false,
     )
 
     private companion object {
@@ -167,5 +184,6 @@ class OverviewDemoActivity : ComponentActivity() {
         const val EXTRA_PROBE = "probe"
         const val EXTRA_EDIT = "edit"
         const val EXTRA_EDITOR = "editor"
+        const val EXTRA_ONBOARDING = "onboarding"
     }
 }
