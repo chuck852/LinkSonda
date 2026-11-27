@@ -1,6 +1,6 @@
 # Roadmap
 
-The current foundation contains a starter screen, a Gradle Wrapper build, JVM tests, and CI-generated debug APKs.
+The current foundation contains the Material 3 design system, the four-tab navigation shell and overview, a Gradle Wrapper build, JVM tests, and CI-generated debug APKs.
 
 | Milestone | Planned work |
 | --- | --- |

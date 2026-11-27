@@ -2,7 +2,15 @@
 
 ## Current build
 
-`:app` is a native Android application written in Kotlin with Jetpack Compose and Material 3. `MainActivity` displays the starter screen with the adaptive theme. The project currently has one Android module, JVM tests for the debug build configuration, domain model and theme, and an Android CI workflow. It uses no backend or account system.
+`:app` is a native Android application written in Kotlin with Jetpack Compose and Material 3. `MainActivity` hosts `LinkSondaApp`, which owns the four-tab navigation shell and the overview. The project currently has one Android module, JVM tests for the debug build configuration, domain model, theme, navigation and overview state, and an Android CI workflow. It uses no backend or account system.
+
+## Navigation and presentation
+
+`AppNavigationState` is a saveable list of routes: top-level tabs, filtered Checks and Settings. Selecting a tab returns to its root; group cards and Settings push one route; the back action pops it. The shell has no separate navigation dependency.
+
+Production starts from `OverviewUiState.Empty`, so availability is UNKNOWN, freshness is missing, and no profile, groups, network or results are invented. `ChecksScreen` shows all probes or one group filter; Presets and History show empty states. The UI listens to repositories only after the monitoring engine and local storage are connected.
+
+The debug source set contains `OverviewDemoActivity`, demo scenarios and Compose previews. Every demo screen has a visible banner, sends no request and persists nothing. Debug classes and preview resources are excluded from release builds. See [navigation and overview](NAVIGATION.md) for screens, states and accessibility checks.
 
 ## Theme and design system
 

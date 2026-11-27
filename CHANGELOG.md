@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added the four-tab navigation shell with Overview, Checks, Presets and History, a saveable back stack, group filtering and a settings entry point.
+- Added the overview with aggregate state, freshness, monitoring, network and VPN context, active profile, availability bars and manual-check state. Production remains empty until real monitoring is connected.
+- Added explicit empty, unknown, running, partial, down and up states plus a debug-only demo harness and Compose previews.
+- Added large-font and small-screen adaptations, including wrapping status badges and icon-only bottom navigation with accessible labels.
+- Added 38 JVM tests covering navigation, overview state and demo consistency.
 - Added the LinkSonda Material 3 design system with adaptive, accents and static color modes.
 - Added light, dark and system brightness, semantic result tones with text and icons, and a 650 ms adaptive transition that respects system animation settings.
 - Added Compose previews, contrast and palette tests, a debug screenshot harness, and design-system documentation.
