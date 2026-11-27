@@ -349,6 +349,7 @@
     <string name="settings_local_data_title">Local data</string>
     <string name="settings_local_data_body">Settings and history are designed to stay on this device. LinkSonda has no account, no cloud backend and does not request location access.</string>
     <string name="settings_version">Version %1$s</string>
+    <string name="settings_save_failed">Settings could not be saved.</string>
 
     <string name="first_run_title">Welcome to LinkSonda</string>
     <string name="first_run_local_title">Monitoring stays on this device</string>

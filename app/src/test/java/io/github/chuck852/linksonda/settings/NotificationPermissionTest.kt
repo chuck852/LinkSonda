@@ -43,6 +43,18 @@ class NotificationPermissionTest {
     }
 
     @Test
+    fun restoredPreferenceWithRevokedPermissionIsIneffectiveAndExplained() {
+        val state = notificationPermissionUiState(
+            granted = false,
+            requested = false,
+            preferenceEnabled = true,
+        )
+
+        assertFalse(state.effectiveEnabled)
+        assertTrue(state.showRationale)
+    }
+
+    @Test
     fun denialBeforeAnyRequestDoesNotShowAMessage() {
         val state = notificationPermissionUiState(
             granted = false,

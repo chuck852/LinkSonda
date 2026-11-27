@@ -202,12 +202,9 @@ private fun NotificationsSection(
                 val granted = hasNotificationPermission(context)
                 permissionGranted = granted
                 if (!granted && latestSettings.notificationsEnabled) {
-                    // Android may revoke the permission while the preference is still on.
+                    // Keep the user's preference; only persist that a request was shown.
                     latestOnSettingsChange(
-                        latestSettings.copy(
-                            notificationsEnabled = false,
-                            notificationsPermissionRequested = true,
-                        ),
+                        latestSettings.copy(notificationsPermissionRequested = true),
                     )
                 }
             }

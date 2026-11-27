@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.LocaleManager
 import android.content.Context
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.os.Build
 import android.os.LocaleList
 import java.util.Locale
@@ -18,14 +19,28 @@ import java.util.Locale
 fun Context.withAppLanguage(language: AppLanguage): Context {
     val locale = language.languageTag
         ?.let(Locale::forLanguageTag)
-        ?: resources.configuration.locales[0]
+        ?: platformLocale()
     Locale.setDefault(locale)
-    if (language.languageTag == null) return this
     val configuration = Configuration(resources.configuration).apply {
         setLocale(locale)
         setLayoutDirection(locale)
     }
     return createConfigurationContext(configuration)
+}
+
+/**
+ * The locale that [AppLanguage.SYSTEM] should use.
+ *
+ * On API 33+ the platform per-app override wins when present; otherwise the device locale is used, not
+ * a stale application configuration. API 26–32 follow the activity configuration.
+ */
+private fun Context.platformLocale(): Locale {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val appLocales = getSystemService(LocaleManager::class.java)?.applicationLocales
+        if (appLocales != null && !appLocales.isEmpty) return appLocales[0]
+        return Resources.getSystem().configuration.locales[0]
+    }
+    return resources.configuration.locales[0]
 }
 
 /**

@@ -357,6 +357,7 @@
     <string name="settings_local_data_title">Локальные данные</string>
     <string name="settings_local_data_body">Настройки и история рассчитаны на локальное хранение. У LinkSonda нет аккаунта и облачного сервера, и приложение не запрашивает доступ к местоположению.</string>
     <string name="settings_version">Версия %1$s</string>
+    <string name="settings_save_failed">Не удалось сохранить настройки.</string>
 
     <string name="first_run_title">Добро пожаловать в LinkSonda</string>
     <string name="first_run_local_title">Мониторинг остаётся на этом устройстве</string>

@@ -2,6 +2,7 @@ package io.github.chuck852.linksonda
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -41,8 +42,18 @@ class MainActivity : ComponentActivity() {
                 onSettingsChange = { updated ->
                     scope.launch {
                         val languageChanged = updated.language != settings.language
-                        val saved = settingsStore.save(updated)
-                        if (saved && languageChanged) {
+                        val saved = try {
+                            settingsStore.save(updated)
+                        } catch (_: Exception) {
+                            false
+                        }
+                        if (!saved) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                R.string.settings_save_failed,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        } else if (languageChanged) {
                             applySystemAppLanguage(updated.language)
                             recreate()
                         }
