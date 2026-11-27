@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">LinkSonda</string>
+
+    <string name="status_available">Available</string>
+    <string name="status_partial">Partially available</string>
+    <string name="status_unavailable">Unavailable</string>
+    <string name="status_unknown">Unknown</string>
+    <string name="status_running">Checking</string>
+    <string name="status_paused">Paused</string>
+    <string name="status_up">Up</string>
+    <string name="status_pending">Pending</string>
+    <string name="status_down">Down</string>
 </resources>
