@@ -4,8 +4,10 @@ Use an OpenJDK 25 distribution such as Eclipse Temurin. Install the Android comm
 
 ```bash
 sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
-./gradlew --console=plain testDebugUnitTest lintDebug assembleDebug
+./gradlew --console=plain testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
+
+The release APK is intentionally unsigned: `app/build/outputs/apk/release/app-release-unsigned.apk`. Do not add a signing configuration to Gradle. Official APKs are signed locally with `scripts/prepare-release.sh` as described in [RELEASING.md](RELEASING.md).
 
 Use `gradlew.bat` on Windows. The Wrapper uses Gradle 9.6.1 and validates the distribution SHA-256. The Android build uses AGP 9.3.1 with built-in Kotlin and Compose Compiler 2.4.21. Android Studio Rabbit 2 (2026.2.2 Patch 3) is compatible with this AGP series. Gradle resolves dependencies from Google Maven, Maven Central, and the Gradle Plugin Portal, as configured for the build.
 
@@ -19,6 +21,6 @@ Replace `SERIAL` with the device or emulator from `adb devices -l`. Updating an 
 
 ## GitHub Actions
 
-[Android CI](../.github/workflows/android-ci.yml) runs on pull requests to `main`, pushes to `main`, and manual dispatch. The workflow validates the Gradle Wrapper, runs JVM tests and lint, and builds the debug APK on a GitHub-hosted Ubuntu runner. Each successful run uploads `LinkSonda-debug` for 14 days with the APK and its license notices. Compare the downloaded APK's SHA-256 with the value printed during the build.
+[Android CI](../.github/workflows/android-ci.yml) runs on pull requests to `main`, pushes to `main`, and manual dispatch. The workflow validates the Gradle Wrapper, runs JVM tests and lint, and builds the debug and unsigned release APKs on a GitHub-hosted Ubuntu runner. Each successful run uploads `LinkSonda-debug` and `LinkSonda-release-unsigned` for 14 days, each with its license notices. Compare a downloaded APK's SHA-256 with the value printed during the build.
 
-The workflow requires read access to repository contents and uses the runner's debug key. Selected technical previews follow the [manual release procedure](RELEASING.md). Permanent release signing is tracked on the [roadmap](../ROADMAP.md).
+The workflow requires read access to repository contents and uses the runner's debug key for the debug APK. The release artifact is unsigned and contains no signing secret. Selected releases follow the [manual release procedure](RELEASING.md).
