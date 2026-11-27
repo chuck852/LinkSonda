@@ -14,6 +14,11 @@ internal const val MAX_RELEASE_NOTES_LENGTH = 16_000
 internal const val MAX_API_RESPONSE_BYTES = 2L * 1024 * 1024
 internal const val MAX_APK_BYTES = 200L * 1024 * 1024
 
+internal fun UpdateChannel.accepts(offered: UpdateChannel): Boolean = when (this) {
+    UpdateChannel.STABLE -> offered == UpdateChannel.STABLE
+    UpdateChannel.PREVIEW -> offered == UpdateChannel.STABLE || offered == UpdateChannel.PREVIEW
+}
+
 internal val updaterJson = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true

@@ -405,7 +405,7 @@ internal class Updater(
     private fun applySettings(settings: AppSettings) {
         val offered = settings.lastOfferedUpdateJson?.let { json ->
             runCatching { updaterJson.decodeFromString(OfferedUpdate.serializer(), json) }.getOrNull()
-        }?.takeIf { it.versionCode > BuildConfig.VERSION_CODE && it.channel == settings.updateChannel }
+        }?.takeIf { it.versionCode > BuildConfig.VERSION_CODE && settings.updateChannel.accepts(it.channel) }
         val old = _state.value.available
         if (offered?.versionCode != old?.versionCode ||
             offered?.downloadUrl != old?.downloadUrl ||
@@ -425,7 +425,7 @@ internal class Updater(
             retryAt = settings.lastUpdateRetryAt,
             available = settings.lastOfferedUpdateJson?.let { json ->
                 runCatching { updaterJson.decodeFromString(OfferedUpdate.serializer(), json) }.getOrNull()
-            }?.takeIf { it.versionCode > BuildConfig.VERSION_CODE && it.channel == settings.updateChannel },
+            }?.takeIf { it.versionCode > BuildConfig.VERSION_CODE && settings.updateChannel.accepts(it.channel) },
         )
 
     private fun UpdaterUiState.installedSigner(): String =

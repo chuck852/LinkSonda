@@ -58,6 +58,22 @@ class ReleaseSelectorTest {
     }
 
     @Test
+    fun previewChannelAlsoAcceptsStableRelease() {
+        val stable = loaded(versionCode = 14, versionName = "0.4.0", tag = "v0.4.0")
+
+        val selection = ReleaseSelector.choose(
+            releases = listOf(stable),
+            channel = UpdateChannel.PREVIEW,
+            installedVersionCode = 2,
+            installedSignerSha256 = signer,
+            installedSdk = 36,
+            applicationId = packageName,
+        )
+
+        assertEquals(14L, (selection as ReleaseSelection.Available).update.versionCode)
+    }
+
+    @Test
     fun sameOrOlderVersionReportsUpToDate() {
         val selection = ReleaseSelector.choose(
             releases = listOf(loaded(versionCode = 2, versionName = "0.2.0", tag = "v0.2.0")),

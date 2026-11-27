@@ -84,7 +84,12 @@ internal object ReleaseSelector {
         if (metadata.versionName.isBlank()) return "missing versionName"
         if (metadata.tag != "v${metadata.versionName}") return "tag/version mismatch"
         if (metadata.tag != release.tagName) return "release/tag mismatch"
-        if (metadata.channel != channel.name.lowercase()) return "wrong channel"
+        val offeredChannel = when (metadata.channel) {
+            "stable" -> UpdateChannel.STABLE
+            "preview" -> UpdateChannel.PREVIEW
+            else -> return "wrong channel"
+        }
+        if (!channel.accepts(offeredChannel)) return "wrong channel"
         if (release.prerelease != (metadata.channel == "preview")) return "prerelease/channel mismatch"
         if (metadata.minSdk <= 0 || metadata.minSdk > installedSdk) return "unsupported minSdk"
         if (metadata.apk.name.isBlank() || metadata.apk.size <= 0) return "invalid APK metadata"
