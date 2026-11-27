@@ -4,7 +4,7 @@ LinkSonda stores user preferences locally and applies the selected language and 
 
 ## First run
 
-The first-run screen states that checks run from the device, results and settings stay local, and LinkSonda has no account, cloud backend or location access. The user can continue with manual checks or choose an available monitoring profile. No placeholder profiles are created: until presets and profiles are connected, the manual option is the only one shown.
+The first-run screen states that checks run from the device, LinkSonda is designed for local monitoring, and it has no account, cloud backend or location access. The user can continue with manual checks or choose an available monitoring profile. No placeholder profiles are created: until presets and profiles are connected, the manual option is the only one shown.
 
 Notifications are not requested during onboarding. Android asks for `POST_NOTIFICATIONS` only when the user enables notifications in Settings.
 
