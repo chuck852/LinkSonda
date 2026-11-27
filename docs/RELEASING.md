@@ -12,7 +12,7 @@ Use Bash, Git, an authenticated GitHub CLI, jq, GNU coreutils, tar, JDK 25 and t
 ./scripts/prepare-debug-preview.sh "$run_id" "$commit" "$apk_sha256" "$bundle"
 ```
 
-The script verifies the commit and CI run, checks the APK digest, debug signer and permissions, and packages the license notices from the same commit. Install and launch the staged APK on Android and review the exact files and release notes before asking for acceptance. The [v0.1.0-dev.1 notes](releases/v0.1.0-dev.1.md) describe the first candidate.
+The script verifies the commit and CI run, checks the APK digest, debug signer and permissions, and packages the license notices from the same commit. For the v0.2.0 preview it requires `POST_NOTIFICATIONS` and rejects `INTERNET`. Install and launch the staged APK on Android and review the exact files and release notes before asking for acceptance. The [v0.2.0 notes](releases/v0.2.0.md) describe the current candidate.
 
 ## Publish the accepted candidate
 
@@ -20,7 +20,7 @@ After the owner accepts the commit, APK checksum and notes, tag that commit. Cre
 
 ```bash
 repo=chuck852/LinkSonda
-tag=v0.1.0-dev.1
+tag=v0.2.0
 git tag -a "$tag" "$commit" -m "Developer Preview $tag"
 git push origin "refs/tags/$tag"
 gh release create "$tag" --repo "$repo" --verify-tag --draft --prerelease \

@@ -39,8 +39,9 @@ badging=$("$build_tools/aapt2" dump badging "$bundle/LinkSonda-debug.apk")
 if ! grep -Eq 'certificate DN: .*CN=Android Debug(,|$)' <<< "$certificates" ||
    ! grep -qx 'application-debuggable' <<< "$badging" ||
    ! grep -q "^package: name='io.github.chuck852.linksonda' " <<< "$badging" ||
+   ! grep -Eq "^uses-permission[^:]*: name='android.permission.POST_NOTIFICATIONS'" <<< "$badging" ||
    grep -Eq "^uses-permission[^:]*: name='android.permission.INTERNET'" <<< "$badging"; then
-  printf 'The APK does not match the offline LinkSonda debug preview.\n' >&2
+  printf 'The APK does not match the offline LinkSonda debug preview with notification permission.\n' >&2
   exit 1
 fi
 
