@@ -47,7 +47,41 @@ class DnsWireTest {
 
         assertEquals(0, message.responseCode)
         assertEquals(1, message.answerCount)
+        assertEquals(1, message.matchingAnswerCount)
         assertEquals(false, message.truncated)
+    }
+
+    @Test
+    fun parseCountsOnlyAnswersMatchingTheQuestionType() {
+        val query = DnsWire.query(id = 16, question = question)
+        val message = DnsWire.parseResponse(
+            bytes = response(query, answerCount = 1, answerBytes = cnameRecord()),
+            expectedId = 16,
+            expected = question,
+        )
+
+        assertEquals(1, message.answerCount)
+        assertEquals(0, message.matchingAnswerCount)
+    }
+
+    @Test
+    fun parseReportsTruncationWhenAnAnswerSectionIsIncomplete() {
+        val query = DnsWire.query(id = 17, question = question)
+        val partialRecord = byteArrayOf(0xC0.toByte(), 0x0C, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4)
+        val message = DnsWire.parseResponse(
+            bytes = response(
+                query,
+                truncated = true,
+                answerCount = 1,
+                answerBytes = partialRecord,
+            ),
+            expectedId = 17,
+            expected = question,
+        )
+
+        assertEquals(true, message.truncated)
+        assertEquals(1, message.answerCount)
+        assertEquals(0, message.matchingAnswerCount)
     }
 
     @Test

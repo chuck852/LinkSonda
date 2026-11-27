@@ -32,3 +32,14 @@ internal fun aaaaRecord(address: String = "::1"): ByteArray {
     val bytes = java.net.InetAddress.getByName(address).address
     return byteArrayOf(0xC0.toByte(), 0x0C, 0, 28, 0, 1, 0, 0, 0, 60, 0, 16) + bytes
 }
+
+internal fun cnameRecord(target: String = "alias.test"): ByteArray {
+    val name = mutableListOf<Byte>()
+    target.split('.').forEach { label ->
+        name.add(label.length.toByte())
+        label.toByteArray(Charsets.US_ASCII).forEach(name::add)
+    }
+    name.add(0.toByte())
+    return byteArrayOf(0xC0.toByte(), 0x0C, 0, 5, 0, 1, 0, 0, 0, 60, 0, name.size.toByte()) +
+        name.toByteArray()
+}

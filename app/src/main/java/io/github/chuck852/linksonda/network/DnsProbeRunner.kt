@@ -19,7 +19,6 @@ import io.github.chuck852.linksonda.domain.ProbeRunRequest
 import io.github.chuck852.linksonda.domain.ProbeRunner
 import io.github.chuck852.linksonda.domain.ProbeTiming
 import io.github.chuck852.linksonda.domain.SkipReason
-import io.github.chuck852.linksonda.domain.SocketEndpoint
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.IOException
@@ -165,6 +164,9 @@ internal class DnsProbeRunner internal constructor(
         startNanos: Long,
         phases: MutableMap<ProbePhase, Duration>,
     ): ProbeResult {
+        if (probe.expected.responseCode > MAX_DNS_RCODE) {
+            return skipped(request, SkipReason.UNSUPPORTED)
+        }
         val questionHost = normalizeDnsName(probe.question.name)
             ?: return completed(request, startNanos, phases, ProbeOutcome.Failed(FailureReason.DNS))
         val resolverHost = normalizeHostKey(probe.resolver.host)
@@ -286,7 +288,7 @@ internal class DnsProbeRunner internal constructor(
                         )
                     }
                     lastFailure = attempt
-                    if (!attempt.retryable) {
+                    if (!attempt.retryable || attempt.outcome !is ProbeOutcome.Failed) {
                         return completed(
                             request,
                             startNanos,
@@ -346,16 +348,20 @@ internal class DnsProbeRunner internal constructor(
                 throw cancelled
             } catch (error: Exception) {
                 record(phases, ProbePhase.DNS, dnsStart)
-                return DirectAttempt.Done(classifyDnsIo(error))
+                return DirectAttempt.Done(classifyDnsIo(error), retryable = true)
             }
             record(phases, ProbePhase.DNS, dnsStart)
 
             val message = try {
                 DnsWire.parseResponse(response, expectedId = queryId(query), expected = question)
             } catch (error: MalformedDnsResponseException) {
-                return DirectAttempt.Done(ProbeOutcome.Failed(FailureReason.UNEXPECTED_RESPONSE))
+                return DirectAttempt.Done(
+                    ProbeOutcome.Failed(FailureReason.UNEXPECTED_RESPONSE),
+                    retryable = true,
+                )
             }
             if (message.truncated) {
+                socket.closeQuietly()
                 return runTcp(
                     address = address,
                     port = port,
@@ -399,11 +405,7 @@ internal class DnsProbeRunner internal constructor(
         val socket = try {
             Socket()
         } catch (error: Exception) {
-            return DirectAttempt.Done(
-                classifyConnectFailure(error),
-                fallback,
-                retryable = fallback == null,
-            )
+            return DirectAttempt.Done(classifyConnectFailure(error), fallback, retryable = true)
         }
         try {
             val connectStart = System.nanoTime()
@@ -418,11 +420,7 @@ internal class DnsProbeRunner internal constructor(
                 throw cancelled
             } catch (error: Exception) {
                 record(phases, ProbePhase.TCP_CONNECT, connectStart)
-                return DirectAttempt.Done(
-                    classifyConnectFailure(error),
-                    fallback,
-                    retryable = fallback == null,
-                )
+                return DirectAttempt.Done(classifyConnectFailure(error), fallback, retryable = true)
             }
             record(phases, ProbePhase.TCP_CONNECT, connectStart)
             socket.soTimeout = timeoutMillis(timeout)
@@ -436,11 +434,7 @@ internal class DnsProbeRunner internal constructor(
                 throw cancelled
             } catch (error: Exception) {
                 record(phases, ProbePhase.DNS, dnsStart)
-                return DirectAttempt.Done(
-                    classifyDnsIo(error),
-                    fallback,
-                    retryable = fallback == null,
-                )
+                return DirectAttempt.Done(classifyDnsIo(error), fallback, retryable = true)
             }
             record(phases, ProbePhase.DNS, dnsStart)
 
@@ -450,6 +444,7 @@ internal class DnsProbeRunner internal constructor(
                 return DirectAttempt.Done(
                     ProbeOutcome.Failed(FailureReason.UNEXPECTED_RESPONSE),
                     fallback,
+                    retryable = true,
                 )
             }
             if (message.truncated) {
@@ -481,7 +476,7 @@ internal class DnsProbeRunner internal constructor(
         val outcome = when {
             message.responseCode != expected.responseCode ->
                 ProbeOutcome.Failed(FailureReason.UNEXPECTED_DNS_RESPONSE_CODE)
-            expected.requiresAnswer && message.answerCount == 0 ->
+            expected.requiresAnswer && message.matchingAnswerCount == 0 ->
                 ProbeOutcome.Failed(FailureReason.UNEXPECTED_RESPONSE)
             else -> ProbeOutcome.Matched
         }
@@ -660,6 +655,7 @@ internal class DnsProbeRunner internal constructor(
     private companion object {
         const val A = 1
         const val AAAA = 28
+        const val MAX_DNS_RCODE = 15
         const val SYSTEM_DNS = "system-dns"
         const val MAX_DNS_MESSAGE = 65_535
         val IPV4 = Regex("""\d{1,3}(\.\d{1,3}){3}""")

@@ -126,6 +126,19 @@ class DnsProbeRunnerTest {
     }
 
     @Test
+    fun systemDnsEmptyResultFailsEvenWhenAnAnswerIsNotRequired() {
+        val result = runProbe(
+            runner = runner { _, _ -> emptyList() },
+            request = ProbeRequest.SystemDns(
+                question = DnsQuestion("empty.test", A),
+                expected = DnsExpectation(0, requiresAnswer = false),
+            ),
+        )
+
+        assertEquals(ProbeOutcome.Failed(FailureReason.DNS), completed(result).outcome)
+    }
+
+    @Test
     fun systemDnsUnsupportedRecordTypeSkipsWithoutAdmissionOrResolution() {
         val admission = RecordingAdmission()
         val calls = AtomicInteger()
@@ -475,6 +488,53 @@ class DnsProbeRunnerTest {
     }
 
     @Test
+    fun directUdpRetriesTheNextAddressAfterAMalformedResponse() {
+        val malformed = UdpDnsServer(
+            bindAddress = "127.0.0.2",
+            handler = { query -> query.copyOf(10) },
+        )
+        malformed.use {
+            UdpDnsServer(
+                bindAddress = "127.0.0.1",
+                port = malformed.port,
+                handler = { query -> dnsResponse(query, answerCount = 1, answerBytes = aRecord()) },
+            ).use { server ->
+                val result = runProbe(
+                    runner = runner { host, family ->
+                        assertEquals("resolver.test", host)
+                        assertNull(family)
+                        listOf(InetAddress.getByName("127.0.0.2"), loopbackV4())
+                    },
+                    request = directRequest(
+                        server.port,
+                        DnsTransport.UDP,
+                        resolverHost = "resolver.test",
+                    ),
+                )
+
+                assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+                assertTrue(malformed.awaitReceived())
+                assertTrue(server.awaitReceived())
+            }
+        }
+    }
+
+    @Test
+    fun directUdpCnameOnlyDoesNotSatisfyARequiredAddressAnswer() {
+        UdpDnsServer(handler = { query ->
+            dnsResponse(query, answerCount = 1, answerBytes = cnameRecord())
+        }).use { server ->
+            val result = runProbe(
+                runner = runner { _, _ -> error("unexpected resolver call") },
+                request = directRequest(server.port, DnsTransport.UDP),
+            )
+
+            failed(result, FailureReason.UNEXPECTED_RESPONSE)
+            assertEquals(DnsObservation(0, 1, false), completed(result).observations.dns)
+        }
+    }
+
+    @Test
     fun directUdpTruncationFallsBackToTcpWithASeparateAdmission() {
         TcpDnsServer(handler = { query ->
             dnsResponse(query, answerCount = 1, answerBytes = aRecord())
@@ -504,6 +564,32 @@ class DnsProbeRunnerTest {
                 assertTrue(tcp.awaitReceived())
                 assertNull(tcp.failure())
                 assertNull(udp.failure())
+            }
+        }
+    }
+
+    @Test
+    fun directUdpPartialTruncatedSectionStillFallsBackToTcp() {
+        TcpDnsServer(handler = { query ->
+            dnsResponse(query, answerCount = 1, answerBytes = aRecord())
+        }).use { tcp ->
+            val partialRecord = byteArrayOf(0xC0.toByte(), 0x0C, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4)
+            UdpDnsServer(port = tcp.port, handler = { query ->
+                dnsResponse(
+                    query,
+                    truncated = true,
+                    answerCount = 1,
+                    answerBytes = partialRecord,
+                )
+            }).use { udp ->
+                val result = runProbe(
+                    runner = runner { _, _ -> error("unexpected resolver call") },
+                    request = directRequest(udp.port, DnsTransport.UDP),
+                )
+
+                assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+                assertEquals(DnsObservation(0, 1, true), completed(result).observations.dns)
+                assertTrue(tcp.awaitReceived())
             }
         }
     }
@@ -710,6 +796,23 @@ class DnsProbeRunnerTest {
         )
 
         failed(result, FailureReason.DNS)
+        assertTrue(admission.attempts.isEmpty())
+    }
+
+    @Test
+    fun directDnsExtendedExpectedRcodeSkipsWithoutAdmission() {
+        val admission = RecordingAdmission()
+        val result = runProbe(
+            runner = runner { _, _ -> error("unexpected resolver call") },
+            request = directRequest(
+                port = 9,
+                transport = DnsTransport.UDP,
+                expected = DnsExpectation(16, requiresAnswer = false),
+            ),
+            admission = admission,
+        )
+
+        skipped(result, SkipReason.UNSUPPORTED)
         assertTrue(admission.attempts.isEmpty())
     }
 

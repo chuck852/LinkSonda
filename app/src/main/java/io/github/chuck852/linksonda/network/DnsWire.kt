@@ -4,11 +4,15 @@ import io.github.chuck852.linksonda.domain.DnsQuestion
 import java.io.ByteArrayOutputStream
 import java.net.IDN
 
-/** Facts observed in a DNS response header. TTLs and record data are intentionally not persisted. */
+/**
+ * Facts observed in a DNS response header. [matchingAnswerCount] counts answer records of the
+ * requested type; TTLs and record data are intentionally not persisted.
+ */
 internal data class DnsMessage(
     val responseCode: Int,
     val answerCount: Int,
     val truncated: Boolean,
+    val matchingAnswerCount: Int,
 )
 
 internal class MalformedDnsResponseException(message: String) : Exception(message)
@@ -61,25 +65,34 @@ internal object DnsWire {
             malformed("question does not match")
         }
 
-        repeat(answerCount) { offset = skipRecord(bytes, offset) }
-        repeat(authorityCount) { offset = skipRecord(bytes, offset) }
-        repeat(additionalCount) { offset = skipRecord(bytes, offset) }
+        val responseCode = flags and 0x0F
+        val truncated = flags and 0x0200 != 0
+        if (truncated) {
+            // The truncated message may end inside a section. The TCP retry performs full parsing.
+            return DnsMessage(responseCode, answerCount, truncated, matchingAnswerCount = 0)
+        }
+
+        var matchingAnswerCount = 0
+        repeat(answerCount) {
+            val record = skipRecord(bytes, offset)
+            offset = record.nextOffset
+            if (record.type == expected.recordType) matchingAnswerCount++
+        }
+        repeat(authorityCount) { offset = skipRecord(bytes, offset).nextOffset }
+        repeat(additionalCount) { offset = skipRecord(bytes, offset).nextOffset }
         if (offset != bytes.size) malformed("trailing bytes")
 
-        return DnsMessage(
-            responseCode = flags and 0x0F,
-            answerCount = answerCount,
-            truncated = flags and 0x0200 != 0,
-        )
+        return DnsMessage(responseCode, answerCount, truncated, matchingAnswerCount)
     }
 
-    private fun skipRecord(bytes: ByteArray, start: Int): Int {
+    private fun skipRecord(bytes: ByteArray, start: Int): ParsedRecord {
         var offset = readName(bytes, start).nextOffset
         if (offset + 10 > bytes.size) malformed("truncated record")
+        val type = u16(bytes, offset)
         val dataLength = u16(bytes, offset + 8)
         offset += 10
         if (offset + dataLength > bytes.size) malformed("truncated record data")
-        return offset + dataLength
+        return ParsedRecord(offset + dataLength, type)
     }
 
     private fun readName(bytes: ByteArray, start: Int): ParsedName {
@@ -146,4 +159,5 @@ internal object DnsWire {
         throw MalformedDnsResponseException(message)
 
     private data class ParsedName(val value: String, val nextOffset: Int)
+    private data class ParsedRecord(val nextOffset: Int, val type: Int)
 }
