@@ -287,7 +287,7 @@
     <string name="editor_test">Тестовый запрос</string>
     <string name="editor_save">Сохранить проверку</string>
     <string name="editor_test_unavailable">Для тестовых запросов нужен сетевой движок, который не подключён в этой сборке.</string>
-    <string name="editor_save_unavailable">Для сохранения нужно локальное хранилище профилей, которое не подключено в этой сборке.</string>
+    <string name="editor_save_unavailable">Редактирование профилей не подключено в этой сборке.</string>
     <string name="editor_demo_note">Только демо: тест использует исполнитель в памяти, а сохранение остаётся в демо-сессии. Сетевой запрос не отправляется.</string>
     <string name="editor_validation_summary">Исправьте выделенные поля перед сохранением или проверкой.</string>
     <string name="editor_test_running">Выполняется исполнитель проверок…</string>
@@ -352,7 +352,7 @@
         <item quantity="many">%1$d дней</item>
         <item quantity="other">%1$d дня</item>
     </plurals>
-    <string name="settings_history_storage_unavailable">Хранилище истории не подключено в этой сборке. Срок хранения начнёт действовать после подключения.</string>
+    <string name="settings_history_storage_unavailable">История появится здесь, когда будет подключён движок мониторинга.</string>
 
     <string name="settings_local_data_title">Локальные данные</string>
     <string name="settings_local_data_body">Настройки и история рассчитаны на локальное хранение. У LinkSonda нет аккаунта и облачного сервера, и приложение не запрашивает доступ к местоположению.</string>

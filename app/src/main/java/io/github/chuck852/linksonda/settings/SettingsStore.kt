@@ -3,7 +3,11 @@ package io.github.chuck852.linksonda.settings
 import android.content.Context
 import io.github.chuck852.linksonda.ui.theme.ThemeBrightness
 import io.github.chuck852.linksonda.ui.theme.ThemeMode
+import java.time.Instant
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,9 +18,8 @@ import kotlinx.coroutines.withContext
 /**
  * Persistence boundary for [AppSettings].
  *
- * Public #13 can replace the storage adapter with DataStore while keeping this UI-facing contract and
- * the preference keys stable. A startup snapshot for the locale may still need a separate fast path.
- * No Room or second settings repository is introduced here.
+ * [PersistentSettingsStore] keeps the UI contract and preference keys independent of the adapter.
+ * The production adapter is DataStore; the synchronous startup snapshot exists only for the locale.
  */
 interface SettingsStore {
     val settings: StateFlow<AppSettings>
@@ -34,7 +37,7 @@ data class SettingsUpdate(
 /** Minimal platform boundary so the settings logic is testable without Android. */
 interface SettingsStorage {
     fun read(): Map<String, String?>
-    fun write(values: Map<String, String>): Boolean
+    suspend fun write(values: Map<String, String>): Boolean
 }
 
 class SharedPreferencesSettingsStorage(
@@ -48,10 +51,10 @@ class SharedPreferencesSettingsStorage(
         value as? String
     }
 
-    override fun write(values: Map<String, String>): Boolean {
+    override suspend fun write(values: Map<String, String>): Boolean {
         val editor = preferences.edit()
         values.forEach { (key, value) -> editor.putString(key, value) }
-        // Callers run this on Dispatchers.IO; commit keeps a language change durable before recreate().
+        // Callers use Dispatchers.IO; commit keeps a language change durable before recreate().
         return editor.commit()
     }
 
@@ -72,17 +75,22 @@ class PersistentSettingsStore(
 
     override suspend fun update(transform: (AppSettings) -> AppSettings): SettingsUpdate? =
         writeMutex.withLock {
+            currentCoroutineContext().ensureActive()
             val previous = state.value
             val updated = transform(previous)
             if (updated == previous) {
                 return@withLock SettingsUpdate(previous, updated)
             }
-            val stored = withContext(Dispatchers.IO) { storage.write(SettingsCodec.encode(updated)) }
-            if (stored) {
-                state.value = updated
-                SettingsUpdate(previous, updated)
-            } else {
-                null
+            // Once the write starts, finish the state transition even if the caller is cancelled.
+            // Otherwise DataStore could contain the new value while the UI still shows the old one.
+            withContext(NonCancellable + Dispatchers.IO) {
+                val stored = storage.write(SettingsCodec.encode(updated))
+                if (stored) {
+                    state.value = updated
+                    SettingsUpdate(previous, updated)
+                } else {
+                    null
+                }
             }
         }
 }
@@ -98,6 +106,11 @@ object SettingsCodec {
     const val KEY_HISTORY_RETENTION_DAYS = "history_retention_days"
     const val KEY_SELECTED_PROFILE_ID = "selected_profile_id"
     const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
+    const val KEY_UPDATE_CHECKS_ENABLED = "update_checks_enabled"
+    const val KEY_UPDATE_CHANNEL = "update_channel"
+    const val KEY_LAST_UPDATE_CHECK_AT = "last_update_check_at"
+    const val KEY_UPDATE_ETAG = "update_etag"
+    const val KEY_LAST_OFFERED_VERSION_CODE = "last_offered_version_code"
 
     fun decode(values: Map<String, String?>): AppSettings {
         val defaults = AppSettings.Default
@@ -120,6 +133,20 @@ object SettingsCodec {
                 ?.takeIf(String::isNotEmpty),
             onboardingCompleted = values[KEY_ONBOARDING_COMPLETED]
                 .toBooleanSetting(defaults.onboardingCompleted),
+            updateChecksEnabled = values[KEY_UPDATE_CHECKS_ENABLED]
+                .toBooleanSetting(defaults.updateChecksEnabled),
+            updateChannel = enumValue(values[KEY_UPDATE_CHANNEL], defaults.updateChannel),
+            lastUpdateCheckAt = values[KEY_LAST_UPDATE_CHECK_AT]
+                ?.trim()
+                ?.toLongOrNull()
+                ?.let { runCatching { Instant.ofEpochMilli(it) }.getOrNull() },
+            updateEtag = values[KEY_UPDATE_ETAG]
+                ?.trim()
+                ?.takeIf(String::isNotEmpty),
+            lastOfferedVersionCode = values[KEY_LAST_OFFERED_VERSION_CODE]
+                ?.trim()
+                ?.toLongOrNull()
+                ?.takeIf { it > 0 },
         )
     }
 
@@ -133,6 +160,11 @@ object SettingsCodec {
         KEY_HISTORY_RETENTION_DAYS to settings.historyRetentionDays.toString(),
         KEY_SELECTED_PROFILE_ID to settings.selectedProfileId.orEmpty(),
         KEY_ONBOARDING_COMPLETED to settings.onboardingCompleted.toString(),
+        KEY_UPDATE_CHECKS_ENABLED to settings.updateChecksEnabled.toString(),
+        KEY_UPDATE_CHANNEL to settings.updateChannel.name,
+        KEY_LAST_UPDATE_CHECK_AT to settings.lastUpdateCheckAt?.toEpochMilli()?.toString().orEmpty(),
+        KEY_UPDATE_ETAG to settings.updateEtag.orEmpty(),
+        KEY_LAST_OFFERED_VERSION_CODE to settings.lastOfferedVersionCode?.toString().orEmpty(),
     )
 
     private inline fun <reified T : Enum<T>> enumValue(name: String?, fallback: T): T =

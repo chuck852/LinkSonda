@@ -2,7 +2,11 @@ package io.github.chuck852.linksonda.domain
 
 import java.time.Instant
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.Serializable
 
+@Serializable
 @JvmInline
 value class ProfileId(val value: String) {
     init { require(value.isNotBlank()) }
@@ -22,6 +26,9 @@ data class ProbeGroup(val name: String, val probeIds: Set<ProbeId>) {
 data class MonitoringSchedule(val interval: Duration, val maxConcurrentProbes: Int) {
     init {
         require(interval.isFinite() && interval.isPositive())
+        require(interval == interval.inWholeMilliseconds.milliseconds) {
+            "Schedule interval must be a whole number of milliseconds"
+        }
         require(maxConcurrentProbes > 0)
     }
 }
@@ -31,7 +38,12 @@ data class AlertThresholds(val consecutiveFailures: Int, val consecutiveSuccesse
 }
 
 data class NotificationSettings(val enabled: Boolean, val repeatInterval: Duration? = null) {
-    init { require(repeatInterval == null || repeatInterval.isFinite() && repeatInterval.isPositive()) }
+    init {
+        require(repeatInterval == null || repeatInterval.isFinite() && repeatInterval.isPositive())
+        require(repeatInterval == null || repeatInterval == repeatInterval.inWholeMilliseconds.milliseconds) {
+            "Notification repeat interval must be a whole number of milliseconds"
+        }
+    }
 }
 
 data class MonitoringProfile(
@@ -52,8 +64,13 @@ data class MonitoringProfile(
 
 enum class HypothesisKind { DNS_FAILURE, PROTOCOL_FILTERING, CAPTIVE_PORTAL, REGIONAL_RESTRICTION, SERVICE_FAILURE }
 
-data class DiagnosticEvidence(val context: ProbeContext, val recordedAt: Instant)
+@Serializable
+data class DiagnosticEvidence(
+    val context: ProbeContext,
+    @Contextual val recordedAt: Instant,
+)
 
+@Serializable
 data class DiagnosticHypothesis(
     val kind: HypothesisKind,
     val evidence: Set<DiagnosticEvidence>,
@@ -61,12 +78,13 @@ data class DiagnosticHypothesis(
     init { require(evidence.isNotEmpty()) }
 }
 
+@Serializable
 data class Incident(
     val id: String,
     val profileId: ProfileId,
     val networkId: NetworkId,
-    val openedAt: Instant,
-    val recoveredAt: Instant? = null,
+    @Contextual val openedAt: Instant,
+    @Contextual val recoveredAt: Instant? = null,
     val hypotheses: List<DiagnosticHypothesis> = emptyList(),
 ) {
     init {

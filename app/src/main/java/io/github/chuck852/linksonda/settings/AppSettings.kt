@@ -2,6 +2,7 @@ package io.github.chuck852.linksonda.settings
 
 import io.github.chuck852.linksonda.ui.theme.ThemeBrightness
 import io.github.chuck852.linksonda.ui.theme.ThemeMode
+import java.time.Instant
 
 /** Language used for app resources. [SYSTEM] follows the Android locale. */
 enum class AppLanguage(val languageTag: String?) {
@@ -9,6 +10,8 @@ enum class AppLanguage(val languageTag: String?) {
     RUSSIAN("ru"),
     ENGLISH("en"),
 }
+
+enum class UpdateChannel { STABLE, PREVIEW }
 
 /**
  * User-visible settings that are independent of the monitoring engine and history storage.
@@ -26,10 +29,18 @@ data class AppSettings(
     val historyRetentionDays: Int = DEFAULT_HISTORY_RETENTION_DAYS,
     val selectedProfileId: String? = null,
     val onboardingCompleted: Boolean = false,
+    /** Reserved for #57; no updater exists yet. */
+    val updateChecksEnabled: Boolean = false,
+    val updateChannel: UpdateChannel = UpdateChannel.STABLE,
+    val lastUpdateCheckAt: Instant? = null,
+    val updateEtag: String? = null,
+    val lastOfferedVersionCode: Long? = null,
 ) {
     init {
         require(historyRetentionDays in HISTORY_RETENTION_DAYS)
         require(selectedProfileId == null || selectedProfileId.isNotBlank())
+        require(updateEtag == null || updateEtag.isNotBlank())
+        require(lastOfferedVersionCode == null || lastOfferedVersionCode > 0)
     }
 
     companion object {

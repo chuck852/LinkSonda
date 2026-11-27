@@ -2,7 +2,11 @@ package io.github.chuck852.linksonda.domain
 
 import java.time.Instant
 import kotlin.time.Duration
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 @JvmInline
 value class NetworkId(val value: String) {
     init { require(value.isNotBlank()) }
@@ -20,6 +24,7 @@ data class NetworkSnapshot(
 )
 
 /** A missing network ID represents a slot with no active network. */
+@Serializable
 data class ProbeContext(val probe: ProbeKey, val networkId: NetworkId?)
 
 enum class FailureReason {
@@ -32,16 +37,32 @@ enum class InconclusiveReason { OS_LIMITATION, DOZE, NETWORK_CHANGED, PERMISSION
 enum class SkipReason { SLEEP, BUDGET, COOLDOWN, NOT_ALLOWED, NO_NETWORK, UNSUPPORTED, CANCELLED, PERMISSION_DENIED }
 enum class ProbePhase { DNS, TCP_CONNECT, TLS_HANDSHAKE, HTTP_FIRST_BYTE }
 
+@Serializable
 sealed interface ProbeOutcome {
+    @Serializable
+    @SerialName("matched")
     data object Matched : ProbeOutcome
+
+    @Serializable
+    @SerialName("failed")
     data class Failed(val reason: FailureReason) : ProbeOutcome
+
+    @Serializable
+    @SerialName("inconclusive")
     data class Inconclusive(val reason: InconclusiveReason) : ProbeOutcome
-    data class Restricted(val reason: RestrictionReason, val retryAt: Instant? = null) : ProbeOutcome
+
+    @Serializable
+    @SerialName("restricted")
+    data class Restricted(
+        val reason: RestrictionReason,
+        @Contextual val retryAt: Instant? = null,
+    ) : ProbeOutcome
 }
 
+@Serializable
 data class ProbeTiming(
-    val elapsed: Duration,
-    val phases: Map<ProbePhase, Duration> = emptyMap(),
+    @Contextual val elapsed: Duration,
+    val phases: Map<ProbePhase, @Contextual Duration> = emptyMap(),
 ) {
     init {
         require(elapsed.isFinite() && !elapsed.isNegative())
@@ -49,13 +70,16 @@ data class ProbeTiming(
     }
 }
 
+@Serializable
 sealed interface ProbeResult {
     val context: ProbeContext
-    val recordedAt: Instant
+    @Contextual val recordedAt: Instant
 
+    @Serializable
+    @SerialName("completed")
     data class Completed(
         override val context: ProbeContext,
-        override val recordedAt: Instant,
+        @Contextual override val recordedAt: Instant,
         val timing: ProbeTiming,
         val outcome: ProbeOutcome,
         val observations: ProbeObservations = ProbeObservations(),
@@ -63,11 +87,13 @@ sealed interface ProbeResult {
         init { require(context.networkId != null) }
     }
 
+    @Serializable
+    @SerialName("skipped")
     data class Skipped(
         override val context: ProbeContext,
-        override val recordedAt: Instant,
+        @Contextual override val recordedAt: Instant,
         val reason: SkipReason,
-        val nextAllowedAt: Instant? = null,
+        @Contextual val nextAllowedAt: Instant? = null,
     ) : ProbeResult
 }
 

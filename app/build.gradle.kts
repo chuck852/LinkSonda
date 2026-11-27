@@ -3,6 +3,8 @@ import java.util.Properties
 plugins {
     id("com.android.application") version "9.3.1"
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.21"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.4.21"
+    id("com.google.devtools.ksp") version "2.3.14"
 }
 
 val versionProperties = Properties().apply {
@@ -34,6 +36,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.generateKotlin", "true")
 }
 
 dependencies {
@@ -43,10 +54,17 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
+    implementation("androidx.datastore:datastore-preferences:1.3.0")
+    implementation("androidx.room:room-ktx:2.8.5")
+    implementation("androidx.room:room-runtime:2.8.5")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    ksp("androidx.room:room-compiler:2.8.5")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-tooling-preview")
 
+    testImplementation("androidx.test:core:1.7.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.16.1")
 }
