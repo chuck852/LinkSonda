@@ -2,6 +2,7 @@ package io.github.chuck852.linksonda.domain
 
 import java.time.Instant
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 
@@ -25,6 +26,9 @@ data class ProbeGroup(val name: String, val probeIds: Set<ProbeId>) {
 data class MonitoringSchedule(val interval: Duration, val maxConcurrentProbes: Int) {
     init {
         require(interval.isFinite() && interval.isPositive())
+        require(interval == interval.inWholeMilliseconds.milliseconds) {
+            "Schedule interval must be a whole number of milliseconds"
+        }
         require(maxConcurrentProbes > 0)
     }
 }
@@ -34,7 +38,12 @@ data class AlertThresholds(val consecutiveFailures: Int, val consecutiveSuccesse
 }
 
 data class NotificationSettings(val enabled: Boolean, val repeatInterval: Duration? = null) {
-    init { require(repeatInterval == null || repeatInterval.isFinite() && repeatInterval.isPositive()) }
+    init {
+        require(repeatInterval == null || repeatInterval.isFinite() && repeatInterval.isPositive())
+        require(repeatInterval == null || repeatInterval == repeatInterval.inWholeMilliseconds.milliseconds) {
+            "Notification repeat interval must be a whole number of milliseconds"
+        }
+    }
 }
 
 data class MonitoringProfile(

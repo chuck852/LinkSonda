@@ -157,6 +157,23 @@ class SettingsStoreTest {
         assertEquals(store.current(), SettingsCodec.decode(storage.values))
     }
 
+    @Test
+    fun cancellationAfterStorageWriteStillPublishesTheNewState() = runBlocking {
+        val storage = WriteThenAwaitStorage()
+        val store = PersistentSettingsStore(storage)
+        val job = launch(Dispatchers.Default) {
+            store.update { it.copy(themeMode = ThemeMode.STATIC) }
+        }
+
+        storage.awaitWrite()
+        job.cancel()
+        storage.releaseWrite()
+        job.join()
+
+        assertEquals(ThemeMode.STATIC, store.current().themeMode)
+        assertEquals(ThemeMode.STATIC, SettingsCodec.decode(storage.values).themeMode)
+    }
+
     private class FakeStorage(
         initial: Map<String, String?>,
         private val writeResult: Boolean = true,
@@ -166,10 +183,33 @@ class SettingsStoreTest {
 
         override fun read(): Map<String, String?> = values
 
-        override fun write(values: Map<String, String>): Boolean {
+        override suspend fun write(values: Map<String, String>): Boolean {
             if (writeResult) this.values = values
             return writeResult
         }
+    }
+
+    private class WriteThenAwaitStorage : SettingsStorage {
+        private val writeStarted = CountDownLatch(1)
+        private val writeRelease = CountDownLatch(1)
+
+        var values: Map<String, String?> = emptyMap()
+            private set
+
+        override fun read(): Map<String, String?> = values
+
+        override suspend fun write(values: Map<String, String>): Boolean {
+            this.values = values
+            writeStarted.countDown()
+            check(writeRelease.await(5, TimeUnit.SECONDS)) { "write was not released" }
+            return true
+        }
+
+        fun awaitWrite() {
+            check(writeStarted.await(5, TimeUnit.SECONDS)) { "write did not start" }
+        }
+
+        fun releaseWrite() = writeRelease.countDown()
     }
 
     private class GatedStorage : SettingsStorage {
@@ -182,7 +222,7 @@ class SettingsStoreTest {
 
         override fun read(): Map<String, String?> = values
 
-        override fun write(values: Map<String, String>): Boolean {
+        override suspend fun write(values: Map<String, String>): Boolean {
             if (writeCount++ == 0) {
                 firstWriteStarted.countDown()
                 check(firstWriteRelease.await(5, TimeUnit.SECONDS)) { "first write was not released" }

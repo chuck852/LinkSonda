@@ -1,6 +1,6 @@
 # Local storage — public #13
 
-LinkSonda keeps settings in DataStore and monitoring data in Room. Everything stays in the app's private storage: there is no account, cloud sync, telemetry or network permission. The storage layer is app-scoped in `LinkSondaApplication`; screens are connected in later work, so the current UI still shows honest empty states.
+LinkSonda keeps settings in DataStore and monitoring data in Room. Everything stays in the app's private storage: there is no account, cloud sync, telemetry or network permission. Android cloud backup and device transfer are disabled for the app; the policy and OEM limits are described below. The storage layer is app-scoped in `LinkSondaApplication`; screens are connected in later work, so the current UI still shows honest empty states.
 
 ## Settings
 
@@ -11,8 +11,9 @@ The production adapter is `DataStoreSettingsStorage`:
 - file: `files/datastore/linksonda_settings.preferences_pb`;
 - one-time `SharedPreferencesMigration` from the previous `linksonda_settings` preferences file;
 - all values are strings encoded by `SettingsCodec`, so missing, unknown or corrupt values fall back to product defaults;
-- a synchronous startup snapshot exists because `MainActivity.attachBaseContext` must choose the locale before the first frame;
-- writes run through the DataStore transaction API on the caller's IO dispatcher.
+- `MainActivity.attachBaseContext` reads a small synchronous startup snapshot from the previous `linksonda_settings` SharedPreferences file, because it must choose the locale before the first frame;
+- DataStore remains authoritative. Construction does not read it and does not block the main thread. Every successful DataStore write also refreshes the startup snapshot, and the old file is the source of the one-time migration;
+- `PersistentSettingsStore` serializes updates. A cancellation before the write leaves the state unchanged; once the write starts it completes non-cancellably, so a committed DataStore value is also published to the `StateFlow`. A regression test covers cancellation after the write.
 
 The model also reserves the fields needed by the future updater (#57): whether automatic checks are enabled, the selected channel (`STABLE` or `PREVIEW`), the last check time, the last ETag and the last offered versionCode. No updater, notification, download or installation code exists yet.
 
@@ -37,7 +38,11 @@ Indices cover history by probe/revision/network/time, history by time, incidents
 
 `RoomProfileRepository` saves a profile and its probe configurations in one transaction. A probe revision is immutable: a stale revision is rejected, and the same revision with different request or timeout is rejected. Renaming a probe at the same revision updates the name only. Editing execution parameters creates a new revision through `ProbeConfig.update`, so old results remain attached to the definition that produced them.
 
-`RoomResultRepository` saves network snapshots, results and incidents. Results are observed by `ProbeKey` and optional network; incidents by profile and network.
+`RoomResultRepository.saveResult(result, network)` and `saveIncident(incident, network)` write the network snapshot and the record in one Room transaction. A result whose context has a network must supply a matching snapshot; a skipped result with no network supplies none. Retention runs in its own transaction, so it cannot remove a snapshot between those two writes. Results are observed by `ProbeKey` and optional network; incidents by profile and network.
+
+Persisted probe timeouts, schedule intervals and notification repeat intervals are constrained to whole milliseconds. Room stores these values in milliseconds, and the domain rejects sub-millisecond values so restoring the same revision cannot change execution. Result timing and observation durations remain exact ISO-8601 strings in JSON.
+
+The persisted request is the user's configuration: hosts, URLs, query parameters and expectations. URL userinfo, fragments and common credential query names are rejected, and LinkSonda is not a secret store; opaque secrets must not be placed in a URL or probe name. Observations keep only the domain fields described above. Response bodies, headers, raw DNS records, certificates, peer addresses and credentials are not persisted.
 
 ## Retention and deletion
 
@@ -49,6 +54,12 @@ Indices cover history by probe/revision/network/time, history by time, incidents
 
 The maintenance API is ready for a future scheduler or startup job; no background worker is added in #13. The existing History screen remains a placeholder until the monitoring engine writes results and the UI observes them.
 
+## Backup and local-data policy
+
+`AndroidManifest.xml` sets `android:allowBackup="false"`. `res/xml/backup_rules.xml` and `res/xml/data_extraction_rules.xml` additionally exclude the app's root, file, database, shared-preference and external domains from cloud backup and device transfer. This covers supported Android backup mechanisms and keeps diagnostic history and settings out of Android cloud backup and standard device-to-device transfer.
+
+OEM migration or phone-cloning tools are outside the app's control and may copy app-private data even when Android backup is disabled. LinkSonda has no account or cloud endpoint and does not upload this data itself; users who need strict isolation must disable vendor cloud or migration tools. Local data is protected by the Android app sandbox and device encryption, not by a separate LinkSonda encryption key.
+
 ## Migration policy
 
 The settings migration from SharedPreferences to DataStore is covered by a Robolectric test. Room schema version 1 is the initial schema and is exported for future migration tests. Any later Room schema change must add a migration and a `MigrationTestHelper` test; destructive fallback is not used.
@@ -57,7 +68,7 @@ The settings migration from SharedPreferences to DataStore is covered by a Robol
 
 - `RoomStorageTest`: profile CRUD, relations, stale/conflicting revisions, results, incidents, network snapshots, on-disk reopen.
 - `HistoryMaintenanceTest`: retention cutoff, open-incident preservation, network cleanup, full history deletion.
-- `DataStoreSettingsStorageTest`: legacy SharedPreferences migration and persisted writes.
-- `SettingsStoreTest`/`AppSettingsTest`: codec round-trip, corrupt-value fallback and updater-reserved fields.
-- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (132 JVM tests).
+- `DataStoreSettingsStorageTest`: legacy SharedPreferences migration, authoritative DataStore writes and startup snapshot.
+- `SettingsStoreTest`/`AppSettingsTest`: codec round-trip, corrupt-value fallback, cancellation after the write and updater-reserved fields.
+- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (135 JVM tests).
 - API 36 emulator: changing History retention to 90 days survives force-stop and relaunch; the DataStore preferences file is present in app-private storage.

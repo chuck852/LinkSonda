@@ -189,42 +189,55 @@ class RoomResultRepository(
     override fun observeIncidents(profileId: ProfileId, networkId: NetworkId): Flow<List<Incident>> =
         incidentDao.observe(profileId.value, networkId.value).map { rows -> rows.map { it.incident } }
 
-    override suspend fun saveNetwork(snapshot: NetworkSnapshot) {
-        networkDao.upsert(
-            NetworkSnapshotEntity(
-                networkId = snapshot.id.value,
-                capturedAt = snapshot.capturedAt.toEpochMilli(),
-                transports = snapshot.transports.joinToString(",") { it.name },
-                ipFamilies = snapshot.ipFamilies.joinToString(",") { it.name },
-                validation = snapshot.validation.name,
-            ),
-        )
+    override suspend fun saveResult(result: ProbeResult, network: NetworkSnapshot?) {
+        val contextNetwork = result.context.networkId
+        val snapshot = if (contextNetwork == null) {
+            require(network == null) { "A result without a network must not carry a network snapshot" }
+            null
+        } else {
+            requireNotNull(network) { "A result with a network requires its snapshot" }
+            require(network.id == contextNetwork) { "Result and network snapshot must describe the same network" }
+            network
+        }
+
+        database.withTransaction {
+            snapshot?.let { networkDao.upsert(it.toEntity()) }
+            resultDao.insert(
+                ProbeResultEntity(
+                    probeId = result.context.probe.id.value,
+                    revision = result.context.probe.revision.value,
+                    networkId = contextNetwork?.value,
+                    recordedAt = result.recordedAt.toEpochMilli(),
+                    result = result,
+                ),
+            )
+        }
     }
 
-    override suspend fun saveResult(result: ProbeResult) {
-        resultDao.insert(
-            ProbeResultEntity(
-                probeId = result.context.probe.id.value,
-                revision = result.context.probe.revision.value,
-                networkId = result.context.networkId?.value,
-                recordedAt = result.recordedAt.toEpochMilli(),
-                result = result,
-            ),
-        )
+    override suspend fun saveIncident(incident: Incident, network: NetworkSnapshot) {
+        require(network.id == incident.networkId) { "Incident and network snapshot must describe the same network" }
+
+        database.withTransaction {
+            networkDao.upsert(network.toEntity())
+            incidentDao.upsert(
+                IncidentEntity(
+                    id = incident.id,
+                    profileId = incident.profileId.value,
+                    networkId = incident.networkId.value,
+                    openedAt = incident.openedAt.toEpochMilli(),
+                    recoveredAt = incident.recoveredAt?.toEpochMilli(),
+                    incident = incident,
+                ),
+            )
+        }
     }
 
-    override suspend fun saveIncident(incident: Incident) {
-        incidentDao.upsert(
-            IncidentEntity(
-                id = incident.id,
-                profileId = incident.profileId.value,
-                networkId = incident.networkId.value,
-                openedAt = incident.openedAt.toEpochMilli(),
-                recoveredAt = incident.recoveredAt?.toEpochMilli(),
-                incident = incident,
-            ),
-        )
-    }
-
+    private fun NetworkSnapshot.toEntity() = NetworkSnapshotEntity(
+        networkId = id.value,
+        capturedAt = capturedAt.toEpochMilli(),
+        transports = transports.joinToString(",") { it.name },
+        ipFamilies = ipFamilies.joinToString(",") { it.name },
+        validation = validation.name,
+    )
 }
 

@@ -75,9 +75,12 @@ internal object StorageFixtures {
         notifications = NotificationSettings(enabled = true, repeatInterval = 30.minutes),
     )
 
-    fun network(capturedAt: Instant = Instant.parse("2026-11-01T10:00:00Z")): NetworkSnapshot =
+    fun network(
+        capturedAt: Instant = Instant.parse("2026-11-01T10:00:00Z"),
+        id: NetworkId = networkId,
+    ): NetworkSnapshot =
         NetworkSnapshot(
-            id = networkId,
+            id = id,
             capturedAt = capturedAt,
             transports = setOf(NetworkTransport.WIFI),
             ipFamilies = setOf(IpFamily.IPV4),

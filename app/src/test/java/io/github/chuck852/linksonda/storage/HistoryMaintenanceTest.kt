@@ -5,8 +5,6 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import io.github.chuck852.linksonda.domain.Incident
 import io.github.chuck852.linksonda.domain.NetworkId
-import io.github.chuck852.linksonda.domain.NetworkSnapshot
-import io.github.chuck852.linksonda.domain.NetworkTransport
 import io.github.chuck852.linksonda.domain.ProbeContext
 import io.github.chuck852.linksonda.domain.ProbeResult
 import java.time.Clock
@@ -65,21 +63,22 @@ class HistoryMaintenanceTest {
             network = openNetwork,
         )
 
-        listOf(oldNetwork, newNetwork, openNetwork).forEach { network ->
-            repository.saveNetwork(
-                NetworkSnapshot(
-                    id = network,
-                    capturedAt = Instant.parse("2026-09-01T00:00:00Z"),
-                    transports = setOf(NetworkTransport.WIFI),
-                    ipFamilies = setOf(io.github.chuck852.linksonda.domain.IpFamily.IPV4),
-                    validation = io.github.chuck852.linksonda.domain.NetworkValidation.VALIDATED,
-                ),
-            )
-        }
-        repository.saveResult(oldResult)
-        repository.saveResult(newResult)
-        repository.saveIncident(oldIncident)
-        repository.saveIncident(openIncident)
+        val oldSnapshot = StorageFixtures.network(
+            capturedAt = Instant.parse("2026-09-01T00:00:00Z"),
+            id = oldNetwork,
+        )
+        val newSnapshot = StorageFixtures.network(
+            capturedAt = Instant.parse("2026-09-01T00:00:00Z"),
+            id = newNetwork,
+        )
+        val openSnapshot = StorageFixtures.network(
+            capturedAt = Instant.parse("2026-09-01T00:00:00Z"),
+            id = openNetwork,
+        )
+        repository.saveResult(oldResult, oldSnapshot)
+        repository.saveResult(newResult, newSnapshot)
+        repository.saveIncident(oldIncident, oldSnapshot)
+        repository.saveIncident(openIncident, openSnapshot)
 
         val summary = HistoryMaintenance(database, Clock.fixed(Instant.parse("2026-12-01T00:00:00Z"), ZoneOffset.UTC))
             .prune(retentionDays = 30)
@@ -98,18 +97,12 @@ class HistoryMaintenanceTest {
         val openNetwork = NetworkId("open")
         val network = StorageFixtures.network()
         val openIncident = StorageFixtures.incident(id = "still-open", network = openNetwork)
-        repository.saveNetwork(network)
-        repository.saveNetwork(
-            NetworkSnapshot(
-                id = openNetwork,
-                capturedAt = Instant.parse("2026-11-01T10:00:00Z"),
-                transports = setOf(NetworkTransport.WIFI),
-                ipFamilies = setOf(io.github.chuck852.linksonda.domain.IpFamily.IPV4),
-                validation = io.github.chuck852.linksonda.domain.NetworkValidation.VALIDATED,
-            ),
+        val openSnapshot = StorageFixtures.network(
+            capturedAt = Instant.parse("2026-11-01T10:00:00Z"),
+            id = openNetwork,
         )
-        repository.saveResult(StorageFixtures.completed())
-        repository.saveIncident(openIncident)
+        repository.saveResult(StorageFixtures.completed(), network)
+        repository.saveIncident(openIncident, openSnapshot)
 
         val summary = HistoryMaintenance(database).clearHistory()
 

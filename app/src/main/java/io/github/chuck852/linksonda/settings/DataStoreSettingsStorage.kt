@@ -12,24 +12,29 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 
 /**
- * DataStore preferences with a one-time synchronous snapshot for the locale in attachBaseContext.
+ * DataStore is authoritative for settings.
  *
- * Settings are small and the snapshot is read once during application startup. Writes still use the
- * DataStore transaction API on the caller's IO dispatcher.
+ * attachBaseContext needs the language before the first frame, so a small SharedPreferences snapshot
+ * mirrors the last successfully written values. The snapshot is read synchronously and never touches
+ * DataStore. It is replaced after each successful DataStore write, so it cannot become the source of
+ * a newer value. On upgrade the old SharedPreferences file serves as both migration input and snapshot.
  */
 class DataStoreSettingsStorage(
     private val dataStore: DataStore<Preferences>,
+    private val startupSnapshot: SettingsStorage,
 ) : SettingsStorage {
-    constructor(context: Context) : this(createDataStore(context.applicationContext))
+    constructor(context: Context) : this(
+        createDataStore(context.applicationContext),
+        SharedPreferencesSettingsStorage(context),
+    )
 
-    private var cached: Map<String, String?> = load()
+    private var cached: Map<String, String?> = startupSnapshot.read()
 
     override fun read(): Map<String, String?> = cached
 
-    override fun write(values: Map<String, String>): Boolean = runBlocking {
+    override suspend fun write(values: Map<String, String>): Boolean {
         try {
             dataStore.edit { preferences ->
                 preferences.clear()
@@ -37,20 +42,18 @@ class DataStoreSettingsStorage(
                     preferences[stringPreferencesKey(key)] = value
                 }
             }
-            cached = values
-            true
         } catch (_: IOException) {
-            false
+            return false
         }
+        // A cache failure must not turn a committed DataStore write into a UI save failure.
+        startupSnapshot.write(values)
+        cached = values
+        return true
     }
 
-    private fun load(): Map<String, String?> = runBlocking {
-        try {
-            dataStore.data.first().asMap().entries.associate { (key, value) -> key.name to value as? String }
-        } catch (_: IOException) {
-            emptyMap()
-        }
-    }
+    /** Reads the authoritative store; used by tests and one-time diagnostics, never by startup. */
+    internal suspend fun readDataStore(): Map<String, String?> =
+        dataStore.data.first().asMap().entries.associate { (key, value) -> key.name to value as? String }
 
     companion object {
         const val DATASTORE_NAME = "linksonda_settings"

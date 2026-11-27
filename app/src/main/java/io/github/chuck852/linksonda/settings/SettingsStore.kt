@@ -5,6 +5,9 @@ import io.github.chuck852.linksonda.ui.theme.ThemeBrightness
 import io.github.chuck852.linksonda.ui.theme.ThemeMode
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,7 +37,7 @@ data class SettingsUpdate(
 /** Minimal platform boundary so the settings logic is testable without Android. */
 interface SettingsStorage {
     fun read(): Map<String, String?>
-    fun write(values: Map<String, String>): Boolean
+    suspend fun write(values: Map<String, String>): Boolean
 }
 
 class SharedPreferencesSettingsStorage(
@@ -48,10 +51,10 @@ class SharedPreferencesSettingsStorage(
         value as? String
     }
 
-    override fun write(values: Map<String, String>): Boolean {
+    override suspend fun write(values: Map<String, String>): Boolean {
         val editor = preferences.edit()
         values.forEach { (key, value) -> editor.putString(key, value) }
-        // Callers run this on Dispatchers.IO; commit keeps a language change durable before recreate().
+        // Callers use Dispatchers.IO; commit keeps a language change durable before recreate().
         return editor.commit()
     }
 
@@ -72,17 +75,22 @@ class PersistentSettingsStore(
 
     override suspend fun update(transform: (AppSettings) -> AppSettings): SettingsUpdate? =
         writeMutex.withLock {
+            currentCoroutineContext().ensureActive()
             val previous = state.value
             val updated = transform(previous)
             if (updated == previous) {
                 return@withLock SettingsUpdate(previous, updated)
             }
-            val stored = withContext(Dispatchers.IO) { storage.write(SettingsCodec.encode(updated)) }
-            if (stored) {
-                state.value = updated
-                SettingsUpdate(previous, updated)
-            } else {
-                null
+            // Once the write starts, finish the state transition even if the caller is cancelled.
+            // Otherwise DataStore could contain the new value while the UI still shows the old one.
+            withContext(NonCancellable + Dispatchers.IO) {
+                val stored = storage.write(SettingsCodec.encode(updated))
+                if (stored) {
+                    state.value = updated
+                    SettingsUpdate(previous, updated)
+                } else {
+                    null
+                }
             }
         }
 }

@@ -8,6 +8,7 @@ import io.github.chuck852.linksonda.domain.ProbeId
 import io.github.chuck852.linksonda.domain.ProbeRequest
 import io.github.chuck852.linksonda.domain.ProbeRevision
 import io.github.chuck852.linksonda.domain.ProbeResult
+import io.github.chuck852.linksonda.domain.NetworkId
 import io.github.chuck852.linksonda.domain.ProfileId
 import io.github.chuck852.linksonda.domain.SkipReason
 import io.github.chuck852.linksonda.domain.SocketEndpoint
@@ -127,9 +128,8 @@ class RoomStorageTest {
         val result = StorageFixtures.completed()
         val incident = StorageFixtures.incident(recoveredAt = Instant.parse("2026-11-01T11:00:00Z"))
 
-        repository.saveNetwork(network)
-        repository.saveResult(result)
-        repository.saveIncident(incident)
+        repository.saveResult(result, network)
+        repository.saveIncident(incident, network)
 
         assertEquals(listOf(result), repository.observeResults(result.context).first())
         assertEquals(
@@ -142,17 +142,37 @@ class RoomStorageTest {
             recordedAt = Instant.parse("2026-11-01T10:00:02Z"),
             reason = SkipReason.NO_NETWORK,
         )
-        repository.saveResult(skipped)
+        repository.saveResult(skipped, null)
         assertEquals(listOf(skipped), repository.observeResults(skipped.context).first())
     }
 
     @Test
     fun networkSnapshotIsStoredOncePerId() = runBlocking {
         val repository = RoomResultRepository(database)
-        repository.saveNetwork(StorageFixtures.network())
-        repository.saveNetwork(StorageFixtures.network(capturedAt = Instant.parse("2026-11-01T10:05:00Z")))
+        repository.saveResult(StorageFixtures.completed(), StorageFixtures.network())
+        repository.saveResult(
+            StorageFixtures.completed(recordedAt = Instant.parse("2026-11-01T10:00:02Z")),
+            StorageFixtures.network(capturedAt = Instant.parse("2026-11-01T10:05:00Z")),
+        )
 
-        assertEquals(1, database.networkSnapshotDao().deleteAllUnreferenced())
+        assertEquals(1, database.networkSnapshotDao().count())
+    }
+
+    @Test
+    fun resultAndIncidentRequireTheirMatchingNetworkSnapshot() {
+        val repository = RoomResultRepository(database)
+        val result = StorageFixtures.completed()
+        val otherNetwork = StorageFixtures.network(id = NetworkId("other"))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.saveResult(result, null) }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.saveResult(result, otherNetwork) }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.saveIncident(StorageFixtures.incident(), otherNetwork) }
+        }
     }
 
     private val fixedClock: Clock = Clock.fixed(Instant.parse("2026-11-01T12:00:00Z"), ZoneOffset.UTC)

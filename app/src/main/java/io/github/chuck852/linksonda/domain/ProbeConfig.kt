@@ -2,6 +2,7 @@ package io.github.chuck852.linksonda.domain
 
 import java.net.URI
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -155,6 +156,10 @@ data class ProbeConfig private constructor(
     init {
         require(name.isNotBlank())
         require(timeout.isFinite() && timeout.isPositive())
+        // Room stores the timeout in milliseconds; sub-millisecond values would change execution on restore.
+        require(timeout == timeout.inWholeMilliseconds.milliseconds) {
+            "Probe timeout must be a whole number of milliseconds"
+        }
     }
 
     val key: ProbeKey get() = ProbeKey(id, revision)
@@ -180,8 +185,17 @@ data class ProbeConfig private constructor(
     }
 }
 
+private val CREDENTIAL_QUERY_NAMES = setOf(
+    "token", "access_token", "api_key", "apikey", "password", "passwd",
+    "secret", "signature", "sig", "auth", "authorization",
+)
+
 private fun requireWebEndpoint(url: URI, vararg schemes: String) {
     require(schemes.any { it.equals(url.scheme, ignoreCase = true) })
     require(!url.host.isNullOrBlank() && url.rawUserInfo == null && url.rawFragment == null)
     require(url.port == -1 || url.port in 1..65535)
+    val query = url.rawQuery
+    require(query == null || query.split('&').none { part ->
+        part.substringBefore('=').lowercase() in CREDENTIAL_QUERY_NAMES
+    }) { "URL query must not contain credential parameters" }
 }

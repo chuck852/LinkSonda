@@ -42,9 +42,13 @@ interface ResultRepository {
     /** History for one probe configuration revision on one network. */
     fun observeResults(context: ProbeContext): Flow<List<ProbeResult>>
     fun observeIncidents(profileId: ProfileId, networkId: NetworkId): Flow<List<Incident>>
-    suspend fun saveNetwork(snapshot: NetworkSnapshot)
-    suspend fun saveResult(result: ProbeResult)
-    suspend fun saveIncident(incident: Incident)
+    /**
+     * Stores the result and its network snapshot atomically. A snapshot is required whenever the
+     * result has a network; retention must never leave a result without its network context.
+     */
+    suspend fun saveResult(result: ProbeResult, network: NetworkSnapshot?)
+    /** Stores the incident and its network snapshot atomically. */
+    suspend fun saveIncident(incident: Incident, network: NetworkSnapshot)
 }
 
 interface ProfileRepository {

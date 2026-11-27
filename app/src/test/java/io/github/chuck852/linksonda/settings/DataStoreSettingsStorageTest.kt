@@ -3,6 +3,7 @@ package io.github.chuck852.linksonda.settings
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import java.io.File
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -41,8 +42,12 @@ class DataStoreSettingsStorageTest {
         assertEquals(90, migrated.historyRetentionDays)
         assertTrue(migrated.onboardingCompleted)
 
+        val migratedDataStore = SettingsCodec.decode(runBlocking { storage.readDataStore() })
+        assertEquals(migrated, migratedDataStore)
+
         val updated = migrated.copy(themeMode = io.github.chuck852.linksonda.ui.theme.ThemeMode.STATIC)
-        assertTrue(storage.write(SettingsCodec.encode(updated)))
+        assertTrue(runBlocking { storage.write(SettingsCodec.encode(updated)) })
         assertEquals(updated, SettingsCodec.decode(storage.read()))
+        assertEquals(updated, SettingsCodec.decode(runBlocking { storage.readDataStore() }))
     }
 }
