@@ -17,6 +17,7 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLServerSocket
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.thread
 
 internal object TestTls {
@@ -28,17 +29,22 @@ internal object TestTls {
     val clientContext: SSLContext by lazy { context(store) }
     val serverContextWithoutIpSan: SSLContext by lazy { context(storeWithoutIpSan) }
     val clientContextWithoutIpSan: SSLContext by lazy { context(storeWithoutIpSan) }
+    val clientTrustManager: X509TrustManager by lazy { trustManager(store) }
 
     private fun context(store: KeyStore): SSLContext {
         val keyManagers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
             init(store, PASSWORD.toCharArray())
         }
-        val trustManagers = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
+        return SSLContext.getInstance("TLS").apply {
+            init(keyManagers.keyManagers, arrayOf(trustManager(store)), null)
+        }
+    }
+
+    private fun trustManager(store: KeyStore): X509TrustManager {
+        val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
             init(store)
         }
-        return SSLContext.getInstance("TLS").apply {
-            init(keyManagers.keyManagers, trustManagers.trustManagers, null)
-        }
+        return factory.trustManagers.filterIsInstance<X509TrustManager>().single()
     }
 
     private fun generateStore(san: String): KeyStore {
