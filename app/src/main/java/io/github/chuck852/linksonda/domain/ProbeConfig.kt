@@ -2,7 +2,11 @@ package io.github.chuck852.linksonda.domain
 
 import java.net.URI
 import kotlin.time.Duration
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 @JvmInline
 value class ProbeId(val value: String) {
     init { require(value.isNotBlank()) }
@@ -13,6 +17,7 @@ enum class HttpMethod { GET, HEAD }
 enum class DnsTransport { UDP, TCP }
 enum class TlsVersion { TLS_1_2, TLS_1_3 }
 
+@Serializable
 data class SocketEndpoint(val host: String, val port: Int, val family: IpFamily? = null) {
     init {
         require(host.isNotBlank())
@@ -20,13 +25,15 @@ data class SocketEndpoint(val host: String, val port: Int, val family: IpFamily?
     }
 }
 
-data class HttpExpectation(val status: IntRange, val bodyMarker: String? = null) {
+@Serializable
+data class HttpExpectation(@Contextual val status: IntRange, val bodyMarker: String? = null) {
     init {
         require(!status.isEmpty() && status.first >= 100 && status.last <= 599)
         require(bodyMarker == null || bodyMarker.isNotEmpty())
     }
 }
 
+@Serializable
 data class DnsQuestion(val name: String, val recordType: Int) {
     init {
         require(name.isNotBlank())
@@ -34,6 +41,7 @@ data class DnsQuestion(val name: String, val recordType: Int) {
     }
 }
 
+@Serializable
 data class DnsExpectation(val responseCode: Int, val requiresAnswer: Boolean) {
     init {
         require(responseCode in 0..4095)
@@ -41,9 +49,14 @@ data class DnsExpectation(val responseCode: Int, val requiresAnswer: Boolean) {
     }
 }
 
+@Serializable
 sealed interface ProbeRequest {
+    @Serializable
+    @SerialName("tcp")
     data class TcpConnect(val endpoint: SocketEndpoint) : ProbeRequest
 
+    @Serializable
+    @SerialName("tls")
     data class TlsHandshake(
         val endpoint: SocketEndpoint,
         val serverName: String? = null,
@@ -52,8 +65,10 @@ sealed interface ProbeRequest {
         init { require(serverName == null || serverName.isNotBlank()) }
     }
 
+    @Serializable
+    @SerialName("http")
     data class Http(
-        val url: URI,
+        @Contextual val url: URI,
         val method: HttpMethod,
         val expected: HttpExpectation,
         val family: IpFamily? = null,
@@ -64,11 +79,15 @@ sealed interface ProbeRequest {
         }
     }
 
+    @Serializable
+    @SerialName("system_dns")
     data class SystemDns(
         val question: DnsQuestion,
         val expected: DnsExpectation,
     ) : ProbeRequest
 
+    @Serializable
+    @SerialName("direct_dns")
     data class DirectDns(
         val resolver: SocketEndpoint,
         val transport: DnsTransport,
@@ -76,8 +95,10 @@ sealed interface ProbeRequest {
         val expected: DnsExpectation,
     ) : ProbeRequest
 
+    @Serializable
+    @SerialName("dns_over_https")
     data class DnsOverHttps(
-        val resolver: URI,
+        @Contextual val resolver: URI,
         val question: DnsQuestion,
         val expected: DnsExpectation,
         val family: IpFamily? = null,
@@ -85,6 +106,8 @@ sealed interface ProbeRequest {
         init { requireWebEndpoint(resolver, "https") }
     }
 
+    @Serializable
+    @SerialName("dns_over_tls")
     data class DnsOverTls(
         val resolver: SocketEndpoint,
         val serverName: String,
@@ -94,6 +117,8 @@ sealed interface ProbeRequest {
         init { require(serverName.isNotBlank()) }
     }
 
+    @Serializable
+    @SerialName("icmp")
     data class IcmpEcho(
         val host: String,
         val packetCount: Int,
@@ -107,11 +132,13 @@ sealed interface ProbeRequest {
     }
 }
 
+@Serializable
 @JvmInline
 value class ProbeRevision(val value: Long) {
     init { require(value > 0) }
 }
 
+@Serializable
 data class ProbeKey(val id: ProbeId, val revision: ProbeRevision)
 
 @ConsistentCopyVisibility

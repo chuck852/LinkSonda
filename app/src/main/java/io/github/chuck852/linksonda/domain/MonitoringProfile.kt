@@ -2,7 +2,10 @@ package io.github.chuck852.linksonda.domain
 
 import java.time.Instant
 import kotlin.time.Duration
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.Serializable
 
+@Serializable
 @JvmInline
 value class ProfileId(val value: String) {
     init { require(value.isNotBlank()) }
@@ -52,8 +55,13 @@ data class MonitoringProfile(
 
 enum class HypothesisKind { DNS_FAILURE, PROTOCOL_FILTERING, CAPTIVE_PORTAL, REGIONAL_RESTRICTION, SERVICE_FAILURE }
 
-data class DiagnosticEvidence(val context: ProbeContext, val recordedAt: Instant)
+@Serializable
+data class DiagnosticEvidence(
+    val context: ProbeContext,
+    @Contextual val recordedAt: Instant,
+)
 
+@Serializable
 data class DiagnosticHypothesis(
     val kind: HypothesisKind,
     val evidence: Set<DiagnosticEvidence>,
@@ -61,12 +69,13 @@ data class DiagnosticHypothesis(
     init { require(evidence.isNotEmpty()) }
 }
 
+@Serializable
 data class Incident(
     val id: String,
     val profileId: ProfileId,
     val networkId: NetworkId,
-    val openedAt: Instant,
-    val recoveredAt: Instant? = null,
+    @Contextual val openedAt: Instant,
+    @Contextual val recoveredAt: Instant? = null,
     val hypotheses: List<DiagnosticHypothesis> = emptyList(),
 ) {
     init {

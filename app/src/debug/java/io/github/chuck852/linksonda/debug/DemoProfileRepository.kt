@@ -1,6 +1,7 @@
 package io.github.chuck852.linksonda.debug
 
 import io.github.chuck852.linksonda.domain.MonitoringProfile
+import io.github.chuck852.linksonda.domain.ProfileId
 import io.github.chuck852.linksonda.domain.ProfileRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,5 +23,9 @@ class DemoProfileRepository(initial: List<MonitoringProfile> = emptyList()) : Pr
         profiles.update { current ->
             current.filterNot { it.id == profile.id } + profile
         }
+    }
+
+    override suspend fun deleteProfile(profileId: ProfileId) {
+        profiles.update { current -> current.filterNot { it.id == profileId } }
     }
 }

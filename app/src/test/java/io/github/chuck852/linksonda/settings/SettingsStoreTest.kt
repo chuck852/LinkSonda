@@ -25,6 +25,11 @@ class SettingsStoreTest {
             historyRetentionDays = 90,
             selectedProfileId = "profile-1",
             onboardingCompleted = true,
+            updateChecksEnabled = true,
+            updateChannel = UpdateChannel.PREVIEW,
+            lastUpdateCheckAt = java.time.Instant.parse("2026-11-27T12:00:00Z"),
+            updateEtag = "etag-1",
+            lastOfferedVersionCode = 42,
         )
 
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
@@ -43,6 +48,9 @@ class SettingsStoreTest {
                 SettingsCodec.KEY_HISTORY_RETENTION_DAYS to "31",
                 SettingsCodec.KEY_ONBOARDING_COMPLETED to "done",
                 SettingsCodec.KEY_SELECTED_PROFILE_ID to "  ",
+                SettingsCodec.KEY_UPDATE_CHANNEL to "NIGHTLY",
+                SettingsCodec.KEY_LAST_UPDATE_CHECK_AT to "not-a-time",
+                SettingsCodec.KEY_LAST_OFFERED_VERSION_CODE to "-1",
             ),
         )
 

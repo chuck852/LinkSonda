@@ -42,6 +42,7 @@ interface ResultRepository {
     /** History for one probe configuration revision on one network. */
     fun observeResults(context: ProbeContext): Flow<List<ProbeResult>>
     fun observeIncidents(profileId: ProfileId, networkId: NetworkId): Flow<List<Incident>>
+    suspend fun saveNetwork(snapshot: NetworkSnapshot)
     suspend fun saveResult(result: ProbeResult)
     suspend fun saveIncident(incident: Incident)
 }
@@ -53,4 +54,5 @@ interface ProfileRepository {
      * Independently editable copies use a new probe ID.
      */
     suspend fun saveProfile(profile: MonitoringProfile)
+    suspend fun deleteProfile(profileId: ProfileId)
 }

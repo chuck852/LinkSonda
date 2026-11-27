@@ -1,0 +1,557 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "bd2e959351de7aa4184f773beeeeb949",
+    "entities": [
+      {
+        "tableName": "probe_configs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`probe_id` TEXT NOT NULL, `revision` INTEGER NOT NULL, `name` TEXT NOT NULL, `request` TEXT NOT NULL, `timeout_millis` INTEGER NOT NULL, PRIMARY KEY(`probe_id`, `revision`))",
+        "fields": [
+          {
+            "fieldPath": "probeId",
+            "columnName": "probe_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "request",
+            "columnName": "request",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeoutMillis",
+            "columnName": "timeout_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "probe_id",
+            "revision"
+          ]
+        }
+      },
+      {
+        "tableName": "profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_id` TEXT NOT NULL, `name` TEXT NOT NULL, `preset_id` TEXT NOT NULL, `preset_name` TEXT NOT NULL, `interval_millis` INTEGER NOT NULL, `max_concurrent_probes` INTEGER NOT NULL, `consecutive_failures` INTEGER NOT NULL, `consecutive_successes` INTEGER NOT NULL, `notifications_enabled` INTEGER NOT NULL, `repeat_interval_millis` INTEGER, `saved_at` INTEGER NOT NULL, PRIMARY KEY(`profile_id`))",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "presetId",
+            "columnName": "preset_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "presetName",
+            "columnName": "preset_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalMillis",
+            "columnName": "interval_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxConcurrentProbes",
+            "columnName": "max_concurrent_probes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "consecutiveFailures",
+            "columnName": "consecutive_failures",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "consecutiveSuccesses",
+            "columnName": "consecutive_successes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notificationsEnabled",
+            "columnName": "notifications_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatIntervalMillis",
+            "columnName": "repeat_interval_millis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "savedAt",
+            "columnName": "saved_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_profiles_saved_at",
+            "unique": false,
+            "columnNames": [
+              "saved_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_profiles_saved_at` ON `${TABLE_NAME}` (`saved_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "profile_probes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_id` TEXT NOT NULL, `probe_id` TEXT NOT NULL, `revision` INTEGER NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`profile_id`, `probe_id`), FOREIGN KEY(`profile_id`) REFERENCES `profiles`(`profile_id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`probe_id`, `revision`) REFERENCES `probe_configs`(`probe_id`, `revision`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "probeId",
+            "columnName": "probe_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_id",
+            "probe_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_profile_probes_profile_id",
+            "unique": false,
+            "columnNames": [
+              "profile_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_profile_probes_profile_id` ON `${TABLE_NAME}` (`profile_id`)"
+          },
+          {
+            "name": "index_profile_probes_probe_id_revision",
+            "unique": false,
+            "columnNames": [
+              "probe_id",
+              "revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_profile_probes_probe_id_revision` ON `${TABLE_NAME}` (`probe_id`, `revision`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "profile_id"
+            ],
+            "referencedColumns": [
+              "profile_id"
+            ]
+          },
+          {
+            "table": "probe_configs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "probe_id",
+              "revision"
+            ],
+            "referencedColumns": [
+              "probe_id",
+              "revision"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "probe_groups",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_id` TEXT NOT NULL, `name` TEXT NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`profile_id`, `name`), FOREIGN KEY(`profile_id`) REFERENCES `profiles`(`profile_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_id",
+            "name"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_probe_groups_profile_id",
+            "unique": false,
+            "columnNames": [
+              "profile_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_probe_groups_profile_id` ON `${TABLE_NAME}` (`profile_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "profile_id"
+            ],
+            "referencedColumns": [
+              "profile_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "probe_group_members",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_id` TEXT NOT NULL, `group_name` TEXT NOT NULL, `probe_id` TEXT NOT NULL, PRIMARY KEY(`profile_id`, `group_name`, `probe_id`), FOREIGN KEY(`profile_id`, `group_name`) REFERENCES `probe_groups`(`profile_id`, `name`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`profile_id`, `probe_id`) REFERENCES `profile_probes`(`profile_id`, `probe_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "groupName",
+            "columnName": "group_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "probeId",
+            "columnName": "probe_id",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_id",
+            "group_name",
+            "probe_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_probe_group_members_profile_id_group_name",
+            "unique": false,
+            "columnNames": [
+              "profile_id",
+              "group_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_probe_group_members_profile_id_group_name` ON `${TABLE_NAME}` (`profile_id`, `group_name`)"
+          },
+          {
+            "name": "index_probe_group_members_profile_id_probe_id",
+            "unique": false,
+            "columnNames": [
+              "profile_id",
+              "probe_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_probe_group_members_profile_id_probe_id` ON `${TABLE_NAME}` (`profile_id`, `probe_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "probe_groups",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "profile_id",
+              "group_name"
+            ],
+            "referencedColumns": [
+              "profile_id",
+              "name"
+            ]
+          },
+          {
+            "table": "profile_probes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "profile_id",
+              "probe_id"
+            ],
+            "referencedColumns": [
+              "profile_id",
+              "probe_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "network_snapshots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`network_id` TEXT NOT NULL, `captured_at` INTEGER NOT NULL, `transports` TEXT NOT NULL, `ip_families` TEXT NOT NULL, `validation` TEXT NOT NULL, PRIMARY KEY(`network_id`))",
+        "fields": [
+          {
+            "fieldPath": "networkId",
+            "columnName": "network_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capturedAt",
+            "columnName": "captured_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "transports",
+            "columnName": "transports",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ipFamilies",
+            "columnName": "ip_families",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validation",
+            "columnName": "validation",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "network_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_network_snapshots_captured_at",
+            "unique": false,
+            "columnNames": [
+              "captured_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_network_snapshots_captured_at` ON `${TABLE_NAME}` (`captured_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "probe_results",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `probe_id` TEXT NOT NULL, `revision` INTEGER NOT NULL, `network_id` TEXT, `recorded_at` INTEGER NOT NULL, `result` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "probeId",
+            "columnName": "probe_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "networkId",
+            "columnName": "network_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "recordedAt",
+            "columnName": "recorded_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "result",
+            "columnName": "result",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_probe_results_probe_id_revision_network_id_recorded_at",
+            "unique": false,
+            "columnNames": [
+              "probe_id",
+              "revision",
+              "network_id",
+              "recorded_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_probe_results_probe_id_revision_network_id_recorded_at` ON `${TABLE_NAME}` (`probe_id`, `revision`, `network_id`, `recorded_at`)"
+          },
+          {
+            "name": "index_probe_results_recorded_at",
+            "unique": false,
+            "columnNames": [
+              "recorded_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_probe_results_recorded_at` ON `${TABLE_NAME}` (`recorded_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "incidents",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `profile_id` TEXT NOT NULL, `network_id` TEXT NOT NULL, `opened_at` INTEGER NOT NULL, `recovered_at` INTEGER, `incident` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "networkId",
+            "columnName": "network_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "openedAt",
+            "columnName": "opened_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recoveredAt",
+            "columnName": "recovered_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "incident",
+            "columnName": "incident",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_incidents_profile_id_network_id_opened_at",
+            "unique": false,
+            "columnNames": [
+              "profile_id",
+              "network_id",
+              "opened_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_incidents_profile_id_network_id_opened_at` ON `${TABLE_NAME}` (`profile_id`, `network_id`, `opened_at`)"
+          },
+          {
+            "name": "index_incidents_recovered_at",
+            "unique": false,
+            "columnNames": [
+              "recovered_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_incidents_recovered_at` ON `${TABLE_NAME}` (`recovered_at`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bd2e959351de7aa4184f773beeeeb949')"
+    ]
+  }
+}

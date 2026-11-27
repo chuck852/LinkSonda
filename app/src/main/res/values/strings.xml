@@ -281,7 +281,7 @@
     <string name="editor_test">Test request</string>
     <string name="editor_save">Save check</string>
     <string name="editor_test_unavailable">Test requests require the network engine, which is not connected in this build.</string>
-    <string name="editor_save_unavailable">Saving requires local profile storage, which is not connected in this build.</string>
+    <string name="editor_save_unavailable">Profile editing is not connected in this build.</string>
     <string name="editor_demo_note">Demo only: the test uses an in-memory runner and saving stays in the demo session. No network request is sent.</string>
     <string name="editor_validation_summary">Fix the highlighted fields before saving or testing.</string>
     <string name="editor_test_running">Running the probe runner…</string>
@@ -344,7 +344,7 @@
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
     </plurals>
-    <string name="settings_history_storage_unavailable">History storage is not connected in this build. Retention will apply when it is.</string>
+    <string name="settings_history_storage_unavailable">History will appear here when the monitoring engine is connected.</string>
 
     <string name="settings_local_data_title">Local data</string>
     <string name="settings_local_data_body">Settings and history are designed to stay on this device. LinkSonda has no account, no cloud backend and does not request location access.</string>
