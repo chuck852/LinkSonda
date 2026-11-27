@@ -5,8 +5,9 @@ import java.io.ByteArrayOutputStream
 import java.net.IDN
 
 /**
- * Facts observed in a DNS response header. [matchingAnswerCount] counts answer records of the
- * requested type; TTLs and record data are intentionally not persisted.
+ * Facts observed in a DNS response. [answerCount] is the number of complete answer records
+ * actually parsed; [matchingAnswerCount] additionally requires class IN and an owner reachable
+ * from the question through a CNAME chain. TTLs and record data are intentionally not persisted.
  */
 internal data class DnsMessage(
     val responseCode: Int,
@@ -60,39 +61,109 @@ internal object DnsWire {
         offset += 4
         if (!name.value.equals(asciiName(expected.name), ignoreCase = true) ||
             type != expected.recordType ||
-            recordClass != 1
+            recordClass != CLASS_IN
         ) {
             malformed("question does not match")
         }
 
-        val responseCode = flags and 0x0F
+        val baseRcode = flags and 0x0F
         val truncated = flags and 0x0200 != 0
         if (truncated) {
-            // The truncated message may end inside a section. The TCP retry performs full parsing.
-            return DnsMessage(responseCode, answerCount, truncated, matchingAnswerCount = 0)
+            // A TC message can end inside a section. Count only complete answer records; the TCP
+            // retry performs full validation and supplies the final facts.
+            var parsedAnswers = 0
+            var answerOffset = offset
+            repeat(answerCount) {
+                answerOffset = try {
+                    parseRecord(bytes, answerOffset).nextOffset
+                } catch (error: MalformedDnsResponseException) {
+                    return DnsMessage(baseRcode, parsedAnswers, true, matchingAnswerCount = 0)
+                }
+                parsedAnswers++
+            }
+            return DnsMessage(baseRcode, parsedAnswers, true, matchingAnswerCount = 0)
         }
 
-        var matchingAnswerCount = 0
+        val answers = ArrayList<ParsedRecord>(answerCount)
         repeat(answerCount) {
-            val record = skipRecord(bytes, offset)
+            val record = parseRecord(bytes, offset)
+            answers.add(record)
             offset = record.nextOffset
-            if (record.type == expected.recordType) matchingAnswerCount++
         }
-        repeat(authorityCount) { offset = skipRecord(bytes, offset).nextOffset }
-        repeat(additionalCount) { offset = skipRecord(bytes, offset).nextOffset }
+        repeat(authorityCount) { offset = parseRecord(bytes, offset).nextOffset }
+
+        var extendedRcode = 0
+        var optCount = 0
+        repeat(additionalCount) {
+            val record = parseRecord(bytes, offset)
+            if (record.type == TYPE_OPT) {
+                optCount++
+                if (optCount > 1) malformed("multiple OPT records")
+                extendedRcode = ((record.ttl ushr 24) and 0xFF).toInt()
+            }
+            offset = record.nextOffset
+        }
         if (offset != bytes.size) malformed("trailing bytes")
 
-        return DnsMessage(responseCode, answerCount, truncated, matchingAnswerCount)
+        val allowedOwners = allowedOwners(bytes, answers, asciiName(expected.name).lowercase())
+        val matchingAnswerCount = answers.count { record ->
+            record.type == expected.recordType &&
+                record.recordClass == CLASS_IN &&
+                record.name.lowercase() in allowedOwners
+        }
+
+        return DnsMessage(
+            responseCode = (extendedRcode shl 4) or baseRcode,
+            answerCount = answers.size,
+            truncated = false,
+            matchingAnswerCount = matchingAnswerCount,
+        )
     }
 
-    private fun skipRecord(bytes: ByteArray, start: Int): ParsedRecord {
-        var offset = readName(bytes, start).nextOffset
+    private fun allowedOwners(
+        bytes: ByteArray,
+        answers: List<ParsedRecord>,
+        questionName: String,
+    ): Set<String> {
+        val cnameTargets = mutableMapOf<String, String>()
+        for (record in answers) {
+            if (record.type != TYPE_CNAME || record.recordClass != CLASS_IN) continue
+            val target = readName(bytes, record.dataOffset)
+            if (target.nextOffset != record.dataOffset + record.dataLength) {
+                malformed("invalid CNAME data length")
+            }
+            val owner = record.name.lowercase()
+            val targetName = target.value.lowercase()
+            val previous = cnameTargets.put(owner, targetName)
+            if (previous != null && previous != targetName) malformed("multiple CNAME targets")
+        }
+
+        val allowed = mutableSetOf(questionName)
+        var current = questionName
+        while (true) {
+            val target = cnameTargets[current] ?: break
+            if (!allowed.add(target)) malformed("CNAME loop")
+            current = target
+        }
+        return allowed
+    }
+
+    private fun parseRecord(bytes: ByteArray, start: Int): ParsedRecord {
+        val name = readName(bytes, start)
+        var offset = name.nextOffset
         if (offset + 10 > bytes.size) malformed("truncated record")
         val type = u16(bytes, offset)
+        val recordClass = u16(bytes, offset + 2)
+        val ttl = u32(bytes, offset + 4)
         val dataLength = u16(bytes, offset + 8)
         offset += 10
         if (offset + dataLength > bytes.size) malformed("truncated record data")
-        return ParsedRecord(offset + dataLength, type)
+        if ((type == TYPE_A && dataLength != 4) ||
+            (type == TYPE_AAAA && dataLength != 16)
+        ) {
+            malformed("invalid address record data length")
+        }
+        return ParsedRecord(offset + dataLength, name.value, type, recordClass, ttl, offset, dataLength)
     }
 
     private fun readName(bytes: ByteArray, start: Int): ParsedName {
@@ -155,9 +226,31 @@ internal object DnsWire {
         return ((bytes[offset].toInt() and 0xFF) shl 8) or (bytes[offset + 1].toInt() and 0xFF)
     }
 
+    private fun u32(bytes: ByteArray, offset: Int): Long {
+        if (offset + 3 >= bytes.size) malformed("truncated integer")
+        return ((bytes[offset].toLong() and 0xFF) shl 24) or
+            ((bytes[offset + 1].toLong() and 0xFF) shl 16) or
+            ((bytes[offset + 2].toLong() and 0xFF) shl 8) or
+            (bytes[offset + 3].toLong() and 0xFF)
+    }
+
     private fun malformed(message: String): Nothing =
         throw MalformedDnsResponseException(message)
 
     private data class ParsedName(val value: String, val nextOffset: Int)
-    private data class ParsedRecord(val nextOffset: Int, val type: Int)
+    private data class ParsedRecord(
+        val nextOffset: Int,
+        val name: String,
+        val type: Int,
+        val recordClass: Int,
+        val ttl: Long,
+        val dataOffset: Int,
+        val dataLength: Int,
+    )
+
+    private const val CLASS_IN = 1
+    private const val TYPE_CNAME = 5
+    private const val TYPE_A = 1
+    private const val TYPE_AAAA = 28
+    private const val TYPE_OPT = 41
 }

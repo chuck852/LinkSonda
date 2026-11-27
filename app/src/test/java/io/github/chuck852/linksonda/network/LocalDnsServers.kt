@@ -64,6 +64,7 @@ internal class TcpDnsServer(
     bindAddress: String = "127.0.0.1",
     port: Int = 0,
     private val handler: (ByteArray) -> ByteArray? = { it },
+    private val responseChunkDelayMillis: Long = 0,
 ) : AutoCloseable {
     private val server = ServerSocket(port, 50, InetAddress.getByName(bindAddress))
     private val accepted = CountDownLatch(1)
@@ -86,8 +87,17 @@ internal class TcpDnsServer(
                 if (response != null) {
                     DataOutputStream(socket.getOutputStream()).use { output ->
                         output.writeShort(response.size)
-                        output.write(response)
                         output.flush()
+                        if (responseChunkDelayMillis == 0L) {
+                            output.write(response)
+                            output.flush()
+                        } else {
+                            response.forEach { byte ->
+                                Thread.sleep(responseChunkDelayMillis)
+                                output.write(byte.toInt())
+                                output.flush()
+                            }
+                        }
                     }
                 } else {
                     release.await(5, TimeUnit.SECONDS)

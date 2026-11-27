@@ -564,6 +564,102 @@ class DnsProbeRunnerTest {
     }
 
     @Test
+    fun directUdpMalformedAddressDataIsUnexpectedResponse() {
+        UdpDnsServer(handler = { query ->
+            dnsResponse(
+                query,
+                answerCount = 1,
+                answerBytes = rawRecord(
+                    byteArrayOf(0xC0.toByte(), 0x0C),
+                    type = 1,
+                    data = byteArrayOf(127, 0, 1),
+                ),
+            )
+        }).use { server ->
+            val result = runProbe(
+                runner = runner { _, _ -> error("unexpected resolver call") },
+                request = directRequest(server.port, DnsTransport.UDP),
+            )
+
+            failed(result, FailureReason.UNEXPECTED_RESPONSE)
+            assertNull(completed(result).observations.dns)
+        }
+    }
+
+    @Test
+    fun directUdpWrongClassAnswerIsUnexpectedResponse() {
+        UdpDnsServer(handler = { query ->
+            dnsResponse(query, answerCount = 1, answerBytes = aRecord(recordClass = 3))
+        }).use { server ->
+            val result = runProbe(
+                runner = runner { _, _ -> error("unexpected resolver call") },
+                request = directRequest(server.port, DnsTransport.UDP),
+            )
+
+            failed(result, FailureReason.UNEXPECTED_RESPONSE)
+            assertEquals(DnsObservation(0, 1, false), completed(result).observations.dns)
+        }
+    }
+
+    @Test
+    fun directUdpUnrelatedOwnerIsUnexpectedResponse() {
+        UdpDnsServer(handler = { query ->
+            dnsResponse(
+                query,
+                answerCount = 1,
+                answerBytes = aRecord(ownerName = "other.test"),
+            )
+        }).use { server ->
+            val result = runProbe(
+                runner = runner { _, _ -> error("unexpected resolver call") },
+                request = directRequest(server.port, DnsTransport.UDP),
+            )
+
+            failed(result, FailureReason.UNEXPECTED_RESPONSE)
+            assertEquals(DnsObservation(0, 1, false), completed(result).observations.dns)
+        }
+    }
+
+    @Test
+    fun directUdpCnameChainSatisfiesRequiredAnswer() {
+        UdpDnsServer(handler = { query ->
+            dnsResponse(
+                query,
+                answerCount = 2,
+                answerBytes = cnameRecord(target = "alias.test") +
+                    aRecord(address = "192.0.2.10", ownerName = "alias.test"),
+            )
+        }).use { server ->
+            val result = runProbe(
+                runner = runner { _, _ -> error("unexpected resolver call") },
+                request = directRequest(server.port, DnsTransport.UDP),
+            )
+
+            assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+            assertEquals(DnsObservation(0, 2, false), completed(result).observations.dns)
+        }
+    }
+
+    @Test
+    fun directUdpExtendedEdnsRcodeIsNotNoerror() {
+        UdpDnsServer(handler = { query ->
+            dnsResponse(
+                query,
+                additionalCount = 1,
+                additionalBytes = optRecord(extendedRcode = 1),
+            )
+        }).use { server ->
+            val result = runProbe(
+                runner = runner { _, _ -> error("unexpected resolver call") },
+                request = directRequest(server.port, DnsTransport.UDP),
+            )
+
+            failed(result, FailureReason.UNEXPECTED_DNS_RESPONSE_CODE)
+            assertEquals(DnsObservation(16, 0, false), completed(result).observations.dns)
+        }
+    }
+
+    @Test
     fun directUdpTruncationFallsBackToTcpWithASeparateAdmission() {
         TcpDnsServer(handler = { query ->
             dnsResponse(query, answerCount = 1, answerBytes = aRecord())
@@ -640,6 +736,128 @@ class DnsProbeRunnerTest {
                     completed(result).observations.dns,
                 )
                 assertTrue(tcp.awaitAccepted())
+            }
+        }
+    }
+
+    @Test
+    fun directUdpPartialTruncatedAnswerIsNotCountedWhenTcpFails() {
+        val partialRecord = byteArrayOf(0xC0.toByte(), 0x0C, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4)
+        TcpDnsServer(handler = { throw IOException("no TCP answer") }).use { tcp ->
+            UdpDnsServer(port = tcp.port, handler = { query ->
+                dnsResponse(
+                    query,
+                    truncated = true,
+                    answerCount = 1,
+                    answerBytes = partialRecord,
+                )
+            }).use { udp ->
+                val result = runProbe(
+                    runner = runner { _, _ -> error("unexpected resolver call") },
+                    request = directRequest(udp.port, DnsTransport.UDP),
+                )
+
+                failed(result, FailureReason.DNS)
+                assertEquals(
+                    DnsObservation(0, 0, true),
+                    completed(result).observations.dns,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun directDnsPhaseDurationsSumAcrossAddressAttempts() {
+        val slowMalformed = UdpDnsServer(
+            bindAddress = "127.0.0.2",
+            handler = { query ->
+                Thread.sleep(120)
+                query.copyOf(10)
+            },
+        )
+        slowMalformed.use {
+            UdpDnsServer(
+                bindAddress = "127.0.0.1",
+                port = slowMalformed.port,
+                handler = { query ->
+                    Thread.sleep(120)
+                    dnsResponse(query, answerCount = 1, answerBytes = aRecord())
+                },
+            ).use { server ->
+                val result = runProbe(
+                    runner = runner { host, family ->
+                        assertEquals("resolver.test", host)
+                        assertNull(family)
+                        listOf(InetAddress.getByName("127.0.0.2"), loopbackV4())
+                    },
+                    request = directRequest(
+                        server.port,
+                        DnsTransport.UDP,
+                        resolverHost = "resolver.test",
+                    ),
+                    timeout = 1.seconds,
+                )
+
+                val completed = completed(result)
+                assertEquals(ProbeOutcome.Matched, completed.outcome)
+                assertTrue(
+                    "DNS phase should accumulate both attempts",
+                    completed.timing.phases.getValue(ProbePhase.DNS) >= 180.milliseconds,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun directTcpSlowDripHonorsTheAttemptBudget() {
+        TcpDnsServer(
+            responseChunkDelayMillis = 100,
+            handler = { query ->
+                dnsResponse(query, answerCount = 1, answerBytes = aRecord())
+            },
+        ).use { server ->
+            val result = runProbe(
+                runner = runner { _, _ -> error("unexpected resolver call") },
+                request = directRequest(server.port, DnsTransport.TCP),
+                timeout = 400.milliseconds,
+            )
+
+            failed(result, FailureReason.TIMEOUT)
+            assertTrue(completed(result).timing.elapsed < 1.seconds)
+            assertTrue(server.awaitReceived())
+        }
+    }
+
+    @Test
+    fun directTcpSlowDripLeavesTimeForTheNextAddress() {
+        TcpDnsServer(handler = { query ->
+            dnsResponse(query, answerCount = 1, answerBytes = aRecord())
+        }).use { server ->
+            TcpDnsServer(
+                bindAddress = "127.0.0.2",
+                port = server.port,
+                responseChunkDelayMillis = 100,
+                handler = { query ->
+                    dnsResponse(query, answerCount = 1, answerBytes = aRecord())
+                },
+            ).use { slow ->
+                val result = runProbe(
+                    runner = runner { host, family ->
+                        assertEquals("resolver.test", host)
+                        assertNull(family)
+                        listOf(InetAddress.getByName("127.0.0.2"), loopbackV4())
+                    },
+                    request = directRequest(
+                        server.port,
+                        DnsTransport.TCP,
+                        resolverHost = "resolver.test",
+                    ),
+                    timeout = 1.seconds,
+                )
+
+                assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+                assertTrue(slow.awaitReceived())
+                assertTrue(server.awaitReceived())
             }
         }
     }

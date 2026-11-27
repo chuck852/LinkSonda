@@ -21,6 +21,7 @@ import io.github.chuck852.linksonda.domain.ProbeTiming
 import io.github.chuck852.linksonda.domain.SkipReason
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.EOFException
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -434,7 +435,7 @@ internal class DnsProbeRunner internal constructor(
             val query = DnsWire.query(random.nextInt(0x10000), question)
             val dnsStart = System.nanoTime()
             val response = try {
-                exchangeTcp(socket, query)
+                exchangeTcp(socket, query, deadlineNanos)
             } catch (cancelled: CancellationException) {
                 record(phases, ProbePhase.DNS, dnsStart)
                 throw cancelled
@@ -506,26 +507,49 @@ internal class DnsProbeRunner internal constructor(
             }
         }
 
-    private suspend fun exchangeTcp(socket: Socket, query: ByteArray): ByteArray =
-        withContext(Dispatchers.IO) {
-            suspendCancellableCoroutine { continuation ->
-                continuation.invokeOnCancellation { socket.closeQuietly() }
-                try {
-                    val output = DataOutputStream(socket.getOutputStream())
-                    output.writeShort(query.size)
-                    output.write(query)
-                    output.flush()
-                    val input = DataInputStream(socket.getInputStream())
-                    val length = input.readUnsignedShort()
-                    if (length <= 0) throw MalformedDnsResponseException("empty TCP response")
-                    val response = ByteArray(length)
-                    input.readFully(response)
-                    continuation.resumeWith(Result.success(response))
-                } catch (error: Throwable) {
-                    continuation.resumeWith(Result.failure(error))
+    private suspend fun exchangeTcp(
+        socket: Socket,
+        query: ByteArray,
+        deadlineNanos: Long,
+    ): ByteArray = withContext(Dispatchers.IO) {
+        suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { socket.closeQuietly() }
+            try {
+                val output = DataOutputStream(socket.getOutputStream())
+                if (System.nanoTime() >= deadlineNanos) throw SocketTimeoutException("TCP DNS budget exceeded")
+                output.writeShort(query.size)
+                output.write(query)
+                output.flush()
+                val input = DataInputStream(socket.getInputStream())
+                val high = readByteWithinDeadline(input, socket, deadlineNanos)
+                val low = readByteWithinDeadline(input, socket, deadlineNanos)
+                val length = (high shl 8) or low
+                if (length <= 0) throw MalformedDnsResponseException("empty TCP response")
+                val response = ByteArray(length)
+                var read = 0
+                while (read < length) {
+                    socket.soTimeout = remainingMillis(deadlineNanos)
+                    val count = input.read(response, read, length - read)
+                    if (count < 0) throw EOFException("truncated TCP response")
+                    read += count
                 }
+                continuation.resumeWith(Result.success(response))
+            } catch (error: Throwable) {
+                continuation.resumeWith(Result.failure(error))
             }
         }
+    }
+
+    private fun readByteWithinDeadline(
+        input: DataInputStream,
+        socket: Socket,
+        deadlineNanos: Long,
+    ): Int {
+        socket.soTimeout = remainingMillis(deadlineNanos)
+        val value = input.read()
+        if (value < 0) throw EOFException("truncated TCP response length")
+        return value
+    }
 
     private fun classifyDnsIo(error: Throwable): ProbeOutcome = when {
         error.isPermissionDenied() -> ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
@@ -574,7 +598,8 @@ internal class DnsProbeRunner internal constructor(
         phase: ProbePhase,
         startNanos: Long,
     ) {
-        phases[phase] = (System.nanoTime() - startNanos).nanoseconds
+        val duration = (System.nanoTime() - startNanos).nanoseconds
+        phases[phase] = phases[phase]?.plus(duration) ?: duration
     }
 
     private fun InetAddress.matches(family: IpFamily?): Boolean =

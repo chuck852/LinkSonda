@@ -80,7 +80,7 @@ class DnsWireTest {
         )
 
         assertEquals(true, message.truncated)
-        assertEquals(1, message.answerCount)
+        assertEquals(0, message.answerCount)
         assertEquals(0, message.matchingAnswerCount)
     }
 
@@ -135,6 +135,110 @@ class DnsWireTest {
     }
 
     @Test
+    fun parseRejectsMalformedARecordData() {
+        val query = DnsWire.query(id = 18, question = question)
+        val bytes = response(
+            query,
+            answerCount = 1,
+            answerBytes = rawRecord(byteArrayOf(0xC0.toByte(), 0x0C), type = 1, data = byteArrayOf(127, 0, 1)),
+        )
+
+        assertThrows(MalformedDnsResponseException::class.java) {
+            DnsWire.parseResponse(bytes, expectedId = 18, expected = question)
+        }
+    }
+
+    @Test
+    fun parseRejectsMalformedAaaaRecordData() {
+        val query = DnsWire.query(id = 19, question = question)
+        val bytes = response(
+            query,
+            answerCount = 1,
+            answerBytes = rawRecord(byteArrayOf(0xC0.toByte(), 0x0C), type = 28, data = ByteArray(15)),
+        )
+
+        assertThrows(MalformedDnsResponseException::class.java) {
+            DnsWire.parseResponse(bytes, expectedId = 19, expected = question)
+        }
+    }
+
+    @Test
+    fun parseDoesNotCountAnAnswerWithTheWrongClass() {
+        val query = DnsWire.query(id = 20, question = question)
+        val message = DnsWire.parseResponse(
+            response(query, answerCount = 1, answerBytes = aRecord(recordClass = 3)),
+            20,
+            question,
+        )
+
+        assertEquals(1, message.answerCount)
+        assertEquals(0, message.matchingAnswerCount)
+    }
+
+    @Test
+    fun parseDoesNotCountAnAnswerForAnUnrelatedOwner() {
+        val query = DnsWire.query(id = 21, question = question)
+        val message = DnsWire.parseResponse(
+            response(query, answerCount = 1, answerBytes = aRecord(ownerName = "other.test")),
+            21,
+            question,
+        )
+
+        assertEquals(1, message.answerCount)
+        assertEquals(0, message.matchingAnswerCount)
+    }
+
+    @Test
+    fun parseCountsAnAnswerReachedThroughACname() {
+        val query = DnsWire.query(id = 22, question = question)
+        val answers = cnameRecord(target = "alias.test") +
+            aRecord(address = "192.0.2.10", ownerName = "alias.test")
+        val message = DnsWire.parseResponse(
+            response(query, answerCount = 2, answerBytes = answers),
+            22,
+            question,
+        )
+
+        assertEquals(2, message.answerCount)
+        assertEquals(1, message.matchingAnswerCount)
+    }
+
+    @Test
+    fun parseReportsExtendedEdnsRcodeInsteadOfNoerror() {
+        val query = DnsWire.query(id = 23, question = question)
+        val message = DnsWire.parseResponse(
+            response(
+                query,
+                additionalCount = 1,
+                additionalBytes = optRecord(extendedRcode = 1),
+            ),
+            23,
+            question,
+        )
+
+        assertEquals(16, message.responseCode)
+    }
+
+    @Test
+    fun parseReportsOnlyCompleteAnswersFromATruncatedResponse() {
+        val query = DnsWire.query(id = 24, question = question)
+        val partialSecond = byteArrayOf(0xC0.toByte(), 0x0C, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4)
+        val message = DnsWire.parseResponse(
+            response(
+                query,
+                truncated = true,
+                answerCount = 2,
+                answerBytes = aRecord() + partialSecond,
+            ),
+            24,
+            question,
+        )
+
+        assertEquals(1, message.answerCount)
+        assertEquals(0, message.matchingAnswerCount)
+    }
+
+    @Test
     fun parseRejectsTruncatedHeader() {
         val query = DnsWire.query(id = 13, question = question)
 
@@ -172,6 +276,8 @@ class DnsWireTest {
         truncated: Boolean = false,
         answerCount: Int = 0,
         answerBytes: ByteArray = ByteArray(0),
+        additionalCount: Int = 0,
+        additionalBytes: ByteArray = ByteArray(0),
     ): ByteArray {
         val end = questionEnd(query)
         val result = query.copyOf(end)
@@ -179,7 +285,9 @@ class DnsWireTest {
         result[3] = (0x80 or (rcode and 0x0F)).toByte()
         result[6] = (answerCount ushr 8).toByte()
         result[7] = answerCount.toByte()
-        return result + answerBytes
+        result[10] = (additionalCount ushr 8).toByte()
+        result[11] = additionalCount.toByte()
+        return result + answerBytes + additionalBytes
     }
 
     private fun questionEnd(query: ByteArray): Int {
