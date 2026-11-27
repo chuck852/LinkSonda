@@ -54,12 +54,20 @@ An attempted check whose outcome is obscured by OS limits, Doze, or a network ch
 
 TLS uses the platform trust store and HTTPS endpoint identification. Certificate and hostname verification cannot be disabled. SNI is sent only for DNS names, and negotiated TLS 1.2 or 1.3 is recorded. DNS resolution runs on a bounded daemon worker pool; capacity exhaustion is inconclusive rather than a network failure, and a blocking resolver does not delay the run timeout or external cancellation. Timeouts and cancellation close the active socket promptly.
 
-The runner is internal to the app and is not connected to production UI. The manifest still has no `INTERNET` permission and no public endpoint is activated. HTTP, DNS and ICMP runners, Android network binding and engine integration remain planned. See [TCP Connect and TLS](NETWORK.md).
+The runner is internal to the app and is not connected to production UI. The manifest still has no `INTERNET` permission and no public endpoint is activated. HTTP and ICMP runners, Android network binding and engine integration remain planned. See [network transports](NETWORK.md).
+
+## DNS transport — public #11
+
+`DnsProbeRunner` implements `ProbeRunner` for system DNS and direct DNS over UDP or TCP. The system path supports A and AAAA, authorizes a lookup with the question host as endpoint and `system-dns` as infrastructure, and records only the count of matching resolved addresses; RCODE and truncation stay unset because the platform resolver does not expose the DNS header. Unknown names are `DNS` failures, permission denial and bounded-worker exhaustion are inconclusive, and the selected system server is not invented.
+
+The direct path uses the configured resolver. A resolver hostname is resolved through the bounded system resolver with its own admission; an IP literal needs no DNS lookup. Every query authorizes the normalized question host as endpoint and the normalized resolver host as infrastructure; port, UDP/TCP transport and question type cannot bypass the shared identity, and each resolved resolver address and the TCP fallback are separate attempts. Queries and responses validate the transaction ID, matching question, header and section structure, compression bounds and loops, and trailing bytes. The runner records only the wire facts exposed by `DnsObservation`: RCODE, answer count and truncation. UDP send is not success; a datagram must be answered and validated. A TC response triggers a separately authorized TCP fallback and keeps `truncated = true`; failures keep the observed UDP facts. TTLs, record data, peer addresses and the resolver identity are not persisted. Direct timeouts and cancellation close sockets, and external cancellation propagates.
+
+The DNS runner is internal and is not connected to production UI. The manifest still has no `INTERNET` permission, and DoH, DoT, HTTP and ICMP remain unimplemented. See [network transports](NETWORK.md).
 
 ## Planned components
 
 - UI presents probe results, their age and context, monitoring controls, and local history.
-- Probe runners perform bounded HTTP and DNS operations using platform trust defaults; TCP Connect and TLS handshake are implemented behind `ProbeRunner`. Additional transports depend on device support and validation.
+- Probe runners perform bounded HTTP and DNS operations using platform trust defaults; TCP Connect, TLS handshake, system DNS and direct UDP/TCP DNS are implemented behind `ProbeRunner`. HTTP, DoH, DoT and ICMP depend on device support and validation.
 - Monitoring uses a scheduler and an explicit, user-started session. A foreground service is a candidate for periodic work. Stopping a session must cancel active I/O and close sockets. Long device sleep and vendor power policies may introduce gaps.
 - Local persistence stores actual results and incidents. Scheduled slots missed through sleep, a permission denial, or rate limits preserve the last result and age without counting as network failures.
 

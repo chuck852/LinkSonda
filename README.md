@@ -4,7 +4,7 @@
 
 [На русском](docs/README.ru.md)
 
-LinkSonda is an Android project for diagnosing network and service availability. The published UI Developer Preview [`0.2.0`](https://github.com/chuck852/LinkSonda/releases/tag/v0.2.0) has the approved Material 3 design system, a four-tab navigation shell, a domain-backed checks list and details screen, a universal check editor for all P0 protocols, and localized settings with a first-run flow. The production overview stays empty until real monitoring is connected. An internal TCP Connect and TLS transport is implemented and tested against local servers, but there is still no network permission, no connected probe engine, no background monitoring and no incident history.
+LinkSonda is an Android project for diagnosing network and service availability. The published UI Developer Preview [`0.2.0`](https://github.com/chuck852/LinkSonda/releases/tag/v0.2.0) has the approved Material 3 design system, a four-tab navigation shell, a domain-backed checks list and details screen, a universal check editor for all P0 protocols, and localized settings with a first-run flow. The production overview stays empty until real monitoring is connected. Internal TCP Connect, TLS and system/direct DNS transports are implemented and tested against local servers, but there is still no network permission, no connected probe engine, no background monitoring and no incident history.
 
 The [UI Developer Preview v0.2.0](https://github.com/chuck852/LinkSonda/releases/tag/v0.2.0) is the current published preview. The earlier [technical Developer Preview v0.1.0-dev.1](https://github.com/chuck852/LinkSonda/releases/tag/v0.1.0-dev.1) remains available. See the [v0.2.0 release notes](docs/releases/v0.2.0.md) for scope, signature and limitations.
 
@@ -25,7 +25,7 @@ The APK supports Android 8.0 and later (min API 26, target API 37). Choose a dev
 ## Project resources
 
 - [Roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
-- [Architecture](docs/ARCHITECTURE.md), [TCP Connect and TLS](docs/NETWORK.md), [navigation and overview](docs/NAVIGATION.md), [checks and details](docs/CHECKS.md), [check editor](docs/CHECK_EDITOR.md), [settings, localization and first run](docs/SETTINGS.md), [theme and design system](docs/THEME.md), and [contributing guide](CONTRIBUTING.md)
+- [Architecture](docs/ARCHITECTURE.md), [network transports](docs/NETWORK.md), [navigation and overview](docs/NAVIGATION.md), [checks and details](docs/CHECKS.md), [check editor](docs/CHECK_EDITOR.md), [settings, localization and first run](docs/SETTINGS.md), [theme and design system](docs/THEME.md), and [contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md) and [code of conduct](CODE_OF_CONDUCT.md)
 
 LinkSonda is licensed under the [Apache License 2.0](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for dependencies and distributed build tooling.
