@@ -75,7 +75,7 @@ Supported scenarios are `EMPTY`, `UNKNOWN`, `RUNNING`, `PARTIAL`, `DOWN` and `UP
 
 ## Verification
 
-- 93 JVM tests cover the domain model, build configuration, theme contrast and palettes, navigation stack, overview state filtering, editor validation, settings persistence and demo-scenario consistency.
+- 94 JVM tests cover the domain model, build configuration, theme contrast and palettes, navigation stack, overview state filtering, editor validation, settings persistence and demo-scenario consistency.
 - Android 17 (API 37) emulator: all six states rendered at 1080 × 2400; group tap opened the filtered Checks screen and system back returned to Overview; tabs and Settings navigation were exercised.
 - Small screen: 320 dp width with 200% font scale has no horizontal overflow; status labels wrap and bottom-bar icons retain content descriptions.
 - Lint reports 0 errors and 6 pre-existing warnings. No dependency versions were changed.
