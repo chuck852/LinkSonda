@@ -5,8 +5,8 @@ For ideas, start with a feature request describing the use case and expected beh
 ## Branch and pull request
 
 1. Fetch `origin/main` and create a topic branch from it. Use a name such as `fix/timeout-handling` or `docs/build-guide`.
-2. Keep the change focused, use descriptive commits, and add or update tests relevant to the change. Use controlled or explicitly authorized targets for tests that send network traffic.
+2. Keep the change focused, use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), and add or update tests relevant to the change. Use controlled or explicitly authorized targets for tests that send network traffic.
 3. Run `./gradlew testDebugUnitTest lintDebug assembleDebug`. Update the docs when user-facing behavior changes.
-4. Open a pull request against `main` and include the verification results. Before merging, fetch `origin/main` again, check the base and review the current CI results. If updates are needed, merge `origin/main` into the topic branch and push normally.
+4. Open a pull request against `main` and include the verification results. Before merging, fetch `origin/main` again, check the base and review the current CI results. If updates are needed, merge `origin/main` into the topic branch and push normally. Merge the PR with squash after the required Debug APK check passes and review threads are resolved. Dependabot pull requests follow the same review process.
 
 Participate under the [code of conduct](CODE_OF_CONDUCT.md). Submit only changes you have permission to contribute under [Apache-2.0](LICENSE), with all required third-party notices preserved.

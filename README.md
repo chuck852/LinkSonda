@@ -16,7 +16,7 @@ adb shell am start -W -n io.github.chuck852.linksonda/.MainActivity
 
 The APK supports Android 8.0 and later (min API 26, target API 37). Choose a device with `adb -s SERIAL` when several are connected. See the [build guide](docs/BUILDING.md) for SDK and CI commands.
 
-GitHub Actions builds a debug APK for pull requests and pushes to `main`. Download the `LinkSonda-debug` artifact from a successful run. CI uses a debug signing key and provides a build for development and testing.
+[GitHub Releases](https://github.com/chuck852/LinkSonda/releases) is the distribution channel for approved builds. GitHub Actions builds a debug APK for pull requests and pushes to `main`. Download the `LinkSonda-debug` artifact from a successful run. CI uses a debug signing key and provides a build for development and testing.
 
 ## Project resources
 
