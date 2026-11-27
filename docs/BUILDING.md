@@ -21,4 +21,4 @@ Replace `SERIAL` with the device or emulator from `adb devices -l`. Updating an 
 
 [Android CI](../.github/workflows/android-ci.yml) runs on pull requests to `main`, pushes to `main`, and manual dispatch. The workflow validates the Gradle Wrapper, runs JVM tests and lint, and builds the debug APK on a GitHub-hosted Ubuntu runner. Each successful run uploads `LinkSonda-debug` for 14 days with the APK and its license notices. Compare the downloaded APK's SHA-256 with the value printed during the build.
 
-The workflow requires read access to repository contents and uses the runner's debug key. Release signing and distribution are a separate step on the [roadmap](../ROADMAP.md).
+The workflow requires read access to repository contents and uses the runner's debug key. Selected technical previews follow the [manual release procedure](RELEASING.md). Permanent release signing is tracked on the [roadmap](../ROADMAP.md).
