@@ -76,10 +76,18 @@ Phases from OkHttp's `EventListener` cover DNS, TCP connect, TLS handshake and t
 
 The runner is internal and not connected to production UI. The manifest still has no `INTERNET` permission, and no public endpoint is activated. DoH, DoT and ICMP remain unimplemented. See [network transports](NETWORK.md).
 
+## ICMP Echo — public #12
+
+`IcmpProbeRunner` implements `ProbeRunner` for `ProbeRequest.IcmpEcho` without root, shell or extra privileges. It invokes fixed `/system/bin/ping` or `/system/bin/ping6` binaries with an argument list and one `-c 1` process per packet; the payload size is the platform default because the approved contract has no size/interval fields. Each packet is separately authorized by normalized host before launch, and option-like or whitespace/control hosts are rejected. IPv4/IPv6 literals and hostname requests are supported; an IPv6 request uses `ping6`, and a literal-family conflict is `DNS`.
+
+The parser reads only actual `time=<decimal> ms` replies and computes min/avg/max RTT, launched packet count and reply count; no reply leaves RTT unset. A missing binary is `Skipped(UNSUPPORTED)`, permission is `Inconclusive(PERMISSION_DENIED)`, resource exhaustion is `Inconclusive(OS_LIMITATION)`, unknown-host output is `DNS`, network-unreachable output is `UNREACHABLE`, and a no-reply packet is `TIMEOUT`. Each packet receives a share of the remaining monotonic budget; timeout and external cancellation destroy the child process and release it. No ICMP phase is invented; total elapsed uses `System.nanoTime()`.
+
+Evidence is limited to the API 37 emulator, where both binaries exist and respond under `run-as` with the app UID. The actual `untrusted_app` process, API 26–36, physical devices and OEM restrictions are not verified. No `INTERNET`, production UI or public endpoint is enabled. See [network transports](NETWORK.md).
+
 ## Planned components
 
 - UI presents probe results, their age and context, monitoring controls, and local history.
-- Probe runners perform bounded HTTP and DNS operations using platform trust defaults; TCP Connect, TLS handshake, system DNS, direct UDP/TCP DNS, and HTTP/HTTPS are implemented behind `ProbeRunner`. DoH, DoT and ICMP depend on device support and validation.
+- Probe runners perform bounded HTTP and DNS operations using platform trust defaults; TCP Connect, TLS handshake, system DNS, direct UDP/TCP DNS, HTTP/HTTPS and ICMP Echo are implemented behind `ProbeRunner`. DoH and DoT remain to be implemented and validated.
 - Monitoring uses a scheduler and an explicit, user-started session. A foreground service is a candidate for periodic work. Stopping a session must cancel active I/O and close sockets. Long device sleep and vendor power policies may introduce gaps.
 - Local persistence stores actual results and incidents. Scheduled slots missed through sleep, a permission denial, or rate limits preserve the last result and age without counting as network failures.
 
