@@ -6,6 +6,8 @@
 
 LinkSonda is an Android project for diagnosing network and service availability. The current foundation (`0.1.0`) displays a starter screen and provides a build and test workflow. Network probes, background monitoring, and incident history are planned.
 
+The [technical Developer Preview v0.1.0-dev.1](https://github.com/chuck852/LinkSonda/releases/tag/v0.1.0-dev.1) includes the debug-signed starter-screen APK, SHA-256, and license notices. Network diagnostics are planned.
+
 ## Build and install
 
 Use JDK 25, Android SDK Platform 37.0, Build-Tools 36.0.0, and ADB. Set `JAVA_HOME` and `ANDROID_HOME` before running the Gradle Wrapper.
