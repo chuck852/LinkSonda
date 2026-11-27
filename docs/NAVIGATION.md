@@ -30,7 +30,7 @@ The production state is `OverviewUiState.Empty`: UNKNOWN availability, no result
 
 ## Checks, presets, history and settings
 
-Checks shows all probes or the probes of one selected group. Each row contains the name, protocol, target, result badge and latency or failure reason. Group headers are not repeated inside the filtered list; the active filter is shown as a removable chip.
+Checks shows all probes or a filtered subset. Search covers names, groups, targets and protocols; filters cover group, status and protocol. Each row contains the name, protocol, target, result badge and latency, failure, skip or inconclusive reason. Opening a row shows the full configuration, result, measured phases and observations. See [checks and details](CHECKS.md).
 
 Presets and History currently show honest empty states. Settings opens a placeholder until the settings and localization issue is implemented. The empty states do not imply that monitoring is running.
 

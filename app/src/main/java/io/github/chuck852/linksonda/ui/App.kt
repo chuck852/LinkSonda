@@ -46,6 +46,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.chuck852.linksonda.R
+import io.github.chuck852.linksonda.ui.checks.ChecksFilterState
+import io.github.chuck852.linksonda.ui.checks.ChecksFilterStateSaver
+import io.github.chuck852.linksonda.ui.checks.ProbeActions
+import io.github.chuck852.linksonda.ui.checks.initialChecksFilters
 import io.github.chuck852.linksonda.ui.navigation.AppNavigationState
 import io.github.chuck852.linksonda.ui.navigation.AppNavigationStateSaver
 import io.github.chuck852.linksonda.ui.navigation.AppRoute
@@ -57,6 +61,7 @@ import io.github.chuck852.linksonda.ui.overview.OverviewUiState
 import io.github.chuck852.linksonda.ui.screens.ChecksScreen
 import io.github.chuck852.linksonda.ui.screens.HistoryScreen
 import io.github.chuck852.linksonda.ui.screens.PresetsScreen
+import io.github.chuck852.linksonda.ui.screens.ProbeDetailsScreen
 import io.github.chuck852.linksonda.ui.screens.SettingsScreen
 import io.github.chuck852.linksonda.ui.theme.ConfirmedAggregateStatus
 import io.github.chuck852.linksonda.ui.theme.LinkSondaSpacing
@@ -72,9 +77,13 @@ fun LinkSondaApp(
         var navigation by rememberSaveable(stateSaver = AppNavigationStateSaver) {
             mutableStateOf(initialNavigation)
         }
+        var checksFilters by rememberSaveable(stateSaver = ChecksFilterStateSaver) {
+            mutableStateOf(initialChecksFilters(initialNavigation.checksFilter?.groupId))
+        }
         val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         val demoManualMessage = stringResource(R.string.overview_manual_demo)
+        val demoActionMessage = stringResource(R.string.action_demo)
         val onRunManualCheck: (() -> Unit)? =
             if (overviewState.isDemo && overviewState.manualCheck == ManualCheckState.IDLE) {
                 {
@@ -85,6 +94,18 @@ fun LinkSondaApp(
             } else {
                 null
             }
+        val probeActions = if (overviewState.isDemo) {
+            ProbeActions(
+                onRetry = {
+                    scope.launch { snackbarHostState.showSnackbar(demoActionMessage) }
+                },
+                onEdit = {
+                    scope.launch { snackbarHostState.showSnackbar(demoActionMessage) }
+                },
+            )
+        } else {
+            ProbeActions()
+        }
 
         BackHandler(enabled = navigation.canGoBack) {
             navigation.back()?.let { navigation = it }
@@ -105,7 +126,12 @@ fun LinkSondaApp(
             bottomBar = {
                 AppBottomBar(
                     selectedTab = navigation.selectedTab,
-                    onSelectTab = { navigation = navigation.selectTab(it) },
+                    onSelectTab = { tab ->
+                        navigation = navigation.selectTab(tab)
+                        if (tab == AppTab.CHECKS) {
+                            checksFilters = checksFilters.copy(groupId = null)
+                        }
+                    },
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -120,6 +146,7 @@ fun LinkSondaApp(
                         AppTab.OVERVIEW -> OverviewScreen(
                             state = overviewState,
                             onGroupClick = { group ->
+                                checksFilters = ChecksFilterState(groupId = group.id)
                                 navigation = navigation.openChecks(CheckGroupFilter(group.id))
                             },
                             onRunManualCheck = onRunManualCheck,
@@ -127,8 +154,9 @@ fun LinkSondaApp(
 
                         AppTab.CHECKS -> ChecksScreen(
                             state = overviewState,
-                            filter = null,
-                            onClearFilter = null,
+                            filters = checksFilters,
+                            onFiltersChange = { checksFilters = it },
+                            onProbeClick = { navigation = navigation.openProbeDetails(it.id.value) },
                         )
 
                         AppTab.PRESETS -> PresetsScreen()
@@ -137,8 +165,15 @@ fun LinkSondaApp(
 
                     is AppRoute.FilteredChecks -> ChecksScreen(
                         state = overviewState,
-                        filter = route.filter,
-                        onClearFilter = { navigation = navigation.clearFilter() },
+                        filters = checksFilters,
+                        onFiltersChange = { checksFilters = it },
+                        onProbeClick = { navigation = navigation.openProbeDetails(it.id.value) },
+                    )
+
+                    is AppRoute.ProbeDetails -> ProbeDetailsScreen(
+                        item = overviewState.probe(io.github.chuck852.linksonda.domain.ProbeId(route.probeId)),
+                        actions = probeActions,
+                        isDemo = overviewState.isDemo,
                     )
 
                     AppRoute.Settings -> SettingsScreen()
@@ -235,6 +270,7 @@ private fun AppBottomBar(
 private fun AppRoute.title(): String = when (this) {
     is AppRoute.Tab -> stringResource(tab.label())
     is AppRoute.FilteredChecks -> stringResource(R.string.nav_checks)
+    is AppRoute.ProbeDetails -> stringResource(R.string.probe_details_title)
     AppRoute.Settings -> stringResource(R.string.top_bar_settings)
 }
 

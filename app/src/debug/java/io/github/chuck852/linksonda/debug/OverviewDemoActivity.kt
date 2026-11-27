@@ -19,6 +19,7 @@ import io.github.chuck852.linksonda.ui.navigation.CheckGroupFilter
  * `adb shell am start -S -W -n io.github.chuck852.linksonda/.debug.OverviewDemoActivity`
  * `--es scenario PARTIAL --es tab OVERVIEW`
  * `--es filter regional`
+ * `--es probe https-global`
  *
  * Every screen shows a demo banner; no probe runs and no data is persisted.
  */
@@ -48,7 +49,14 @@ class OverviewDemoActivity : ComponentActivity() {
 
     private fun applyIntent(intent: Intent) {
         val scenario = intent.getStringExtra(EXTRA_SCENARIO)?.toScenario() ?: DemoScenario.EMPTY
-        val navigation = intent.getStringExtra(EXTRA_FILTER)?.takeIf(String::isNotBlank)?.let { groupId ->
+        val navigation = intent.getStringExtra(EXTRA_PROBE)?.takeIf(String::isNotBlank)?.let { probeId ->
+            AppNavigationState(
+                listOf(
+                    AppRoute.Tab(AppTab.CHECKS),
+                    AppRoute.ProbeDetails(probeId),
+                ),
+            )
+        } ?: intent.getStringExtra(EXTRA_FILTER)?.takeIf(String::isNotBlank)?.let { groupId ->
             AppNavigationState(
                 listOf(
                     AppRoute.Tab(AppTab.OVERVIEW),
@@ -76,5 +84,6 @@ class OverviewDemoActivity : ComponentActivity() {
         const val EXTRA_SCENARIO = "scenario"
         const val EXTRA_TAB = "tab"
         const val EXTRA_FILTER = "filter"
+        const val EXTRA_PROBE = "probe"
     }
 }

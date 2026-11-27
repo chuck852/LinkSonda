@@ -1,7 +1,18 @@
 package io.github.chuck852.linksonda.ui.overview
 
 import io.github.chuck852.linksonda.domain.AggregateStatus
+import io.github.chuck852.linksonda.domain.NetworkId
+import io.github.chuck852.linksonda.domain.ProbeConfig
+import io.github.chuck852.linksonda.domain.ProbeContext
+import io.github.chuck852.linksonda.domain.ProbeFreshness
+import io.github.chuck852.linksonda.domain.ProbeId
+import io.github.chuck852.linksonda.domain.ProbeLifecycle
+import io.github.chuck852.linksonda.domain.ProbeRequest
+import io.github.chuck852.linksonda.domain.ProbeState
 import io.github.chuck852.linksonda.domain.ProbeStatus
+import io.github.chuck852.linksonda.domain.SocketEndpoint
+import io.github.chuck852.linksonda.ui.checks.ProbeListItem
+import kotlin.time.Duration.Companion.seconds
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,14 +42,27 @@ class OverviewUiStateTest {
         assertEquals(listOf(first), state.probesFor("global"))
         assertEquals(listOf(second), state.probesFor("regional"))
         assertTrue(state.probesFor("missing").isEmpty())
+        assertEquals(first, state.probe(first.id))
     }
 
-    private fun probe(id: String, groupId: String) = ProbeUiSummary(
-        id = id,
-        groupId = groupId,
-        name = id,
-        kind = ProbeKind.TCP,
-        target = "192.0.2.1:443",
-        status = ProbeStatus.UNKNOWN,
-    )
+    private fun probe(id: String, groupId: String): ProbeListItem {
+        val config = ProbeConfig(
+            id = ProbeId(id),
+            name = id,
+            request = ProbeRequest.TcpConnect(SocketEndpoint("192.0.2.1", 443)),
+            timeout = 3.seconds,
+        )
+        val context = ProbeContext(config.key, NetworkId("test-network"))
+        return ProbeListItem(
+            config = config,
+            state = ProbeState(
+                context = context,
+                status = ProbeStatus.UNKNOWN,
+                lifecycle = ProbeLifecycle.IDLE,
+                freshness = ProbeFreshness.MISSING,
+            ),
+            groupId = groupId,
+            groupName = groupId,
+        )
+    }
 }

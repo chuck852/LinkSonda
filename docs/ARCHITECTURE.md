@@ -12,6 +12,12 @@ Production starts from `OverviewUiState.Empty`, so availability is UNKNOWN, fres
 
 The debug source set contains `OverviewDemoActivity`, demo scenarios and Compose previews. Every demo screen has a visible banner, sends no request and persists nothing. Debug classes and preview resources are excluded from release builds. See [navigation and overview](NAVIGATION.md) for screens, states and accessibility checks.
 
+## Checks and details — public #16
+
+The Checks tab keeps `ProbeConfig` and `ProbeState` in `ProbeListItem`, so the list and details screen preserve the configuration revision and every optional observation. Search and filters are a pure function over the list and are unit-tested separately from Compose. All P0 request families are mapped to a presentation protocol: TCP, TLS, HTTP, HTTPS, system DNS, DNS over UDP/TCP, DoH, DoT and ICMP.
+
+The details screen renders protocol-specific configuration, the latest `ProbeResult.Completed` or `Skipped`, freshness, outcome, measured phases and optional observations. Missing facts are rendered as not observed or not measured; the UI never substitutes zero. Retry and edit use nullable callbacks with a `ProbeKey`; production keeps them disabled until the runner and profile editor are connected, while demo callbacks only show a banner. See [checks and details](CHECKS.md).
+
 ## Theme and design system
 
 `LinkSondaTheme` owns the root Material 3 color scheme, shapes and semantic result colors. It accepts light, dark or system brightness and adaptive, accents or static color modes. Only a `ConfirmedAggregateStatus` can change the adaptive palette; probe lifecycle is rendered separately, including a local blue running state. All root roles animate together for 650 ms with ease-in-out, while sizes and positions stay fixed. Compose's duration scale disables the transition when system animations are off. Contrast tests cover static schemes and sampled transitions. See [theme and design system](THEME.md) for tokens, previews, screenshots and verification.

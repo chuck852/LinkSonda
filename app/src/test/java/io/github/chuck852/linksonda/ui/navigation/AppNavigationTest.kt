@@ -54,6 +54,17 @@ class AppNavigationTest {
     }
 
     @Test
+    fun probeDetailsReturnsToChecks() {
+        val checks = AppNavigationState().selectTab(AppTab.CHECKS)
+        val details = checks.openProbeDetails("probe:regional")
+
+        assertEquals(AppRoute.ProbeDetails("probe:regional"), details.current)
+        assertEquals(AppTab.CHECKS, details.selectedTab)
+        assertTrue(details.canGoBack)
+        assertEquals(checks, details.back())
+    }
+
+    @Test
     fun settingsReturnsToPreviousTab() {
         val checks = AppNavigationState().selectTab(AppTab.CHECKS)
         val settings = checks.openSettings()
@@ -68,6 +79,7 @@ class AppNavigationTest {
     fun saverRestoresNestedRoutesAndGroupIds() {
         val state = AppNavigationState()
             .openChecks(CheckGroupFilter("group:regional"))
+            .openProbeDetails("probe:regional")
         val scope = SaverScope { true }
 
         val saved = AppNavigationStateSaver.run { scope.save(state) }

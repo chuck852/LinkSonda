@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.chuck852.linksonda.R
@@ -111,6 +112,7 @@ fun LabeledValue(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    valueFontFamily: FontFamily? = null,
 ) {
     Column(
         modifier = modifier,
@@ -124,6 +126,7 @@ fun LabeledValue(
         Text(
             text = value,
             style = MaterialTheme.typography.bodyLarge,
+            fontFamily = valueFontFamily,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }

@@ -45,6 +45,7 @@ import io.github.chuck852.linksonda.ui.components.DemoBanner
 import io.github.chuck852.linksonda.ui.components.EmptyState
 import io.github.chuck852.linksonda.ui.components.LabeledValue
 import io.github.chuck852.linksonda.ui.components.SectionHeader
+import io.github.chuck852.linksonda.ui.checks.ProbeListItem
 import io.github.chuck852.linksonda.ui.theme.AggregateStatusBadge
 import io.github.chuck852.linksonda.ui.theme.LinkSondaSpacing
 import io.github.chuck852.linksonda.ui.theme.LinkSondaTheme
@@ -173,7 +174,7 @@ private fun ProfileCard(profile: ProfileUiSummary?) {
 @Composable
 private fun GroupCard(
     group: GroupUiSummary,
-    probes: List<ProbeUiSummary>,
+    probes: List<ProbeListItem>,
     onClick: () -> Unit,
 ) {
     Card(
