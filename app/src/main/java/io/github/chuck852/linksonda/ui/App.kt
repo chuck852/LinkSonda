@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -183,6 +184,7 @@ fun LinkSondaApp(
         var checksFilters by rememberSaveable(stateSaver = ChecksFilterStateSaver) {
             mutableStateOf(initialChecksFilters(initialNavigation.checksFilter?.groupId))
         }
+        val profileEditorStateHolder = rememberSaveableStateHolder()
         val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         var editorBusy by remember { mutableStateOf(false) }
@@ -456,7 +458,10 @@ fun LinkSondaApp(
                             activeProfileId = settings.selectedProfileId,
                             onCreate = onCreateProfile,
                             onActivate = onActivateProfile,
-                            onEdit = { profile -> navigation = navigation.openProfileEditor(profile.id.value) },
+                            onEdit = { profile ->
+                                profileEditorStateHolder.removeState(profile.id.value)
+                                navigation = navigation.openProfileEditor(profile.id.value)
+                            },
                             onCopy = onCopyProfile,
                             onDelete = onDeleteProfileAction,
                         )
@@ -564,8 +569,9 @@ fun LinkSondaApp(
                                 )
                             }
                         } else {
-                            ProfileEditorScreen(
-                                profile = profile,
+                            profileEditorStateHolder.SaveableStateProvider(profile.id.value) {
+                                ProfileEditorScreen(
+                                    profile = profile,
                                 isBusy = profileEditorBusy,
                                 canSave = onSaveProfile != null,
                                 onSave = { updated ->
@@ -610,8 +616,9 @@ fun LinkSondaApp(
                                         )
                                     }
                                 },
-                                onAddCheck = { openNewEditor(profile.id.value) },
-                            )
+                                    onAddCheck = { openNewEditor(profile.id.value) },
+                                )
+                            }
                         }
                     }
 
