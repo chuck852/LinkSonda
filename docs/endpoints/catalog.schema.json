@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chuck852/LinkSonda/docs/endpoints/catalog.schema.json",
+  "title": "LinkSonda endpoint catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "catalogVersion", "updatedAt", "policy", "statuses", "entries"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "catalogVersion": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$" },
+    "updatedAt": { "type": "string", "format": "date" },
+    "policy": { "type": "string", "minLength": 1 },
+    "statuses": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": { "enum": ["UNVERIFIED", "MANUAL_ONLY", "BACKGROUND_APPROVED", "DISABLED"] }
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "admissionGroup",
+        "owner",
+        "kind",
+        "protocol",
+        "address",
+        "expectedResponse",
+        "regionGroup",
+        "officialSources",
+        "checkedAt",
+        "allowedModes",
+        "minIntervalSeconds",
+        "dailyBudget",
+        "status",
+        "statusReason",
+        "notes"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "admissionGroup": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "owner": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["SERVICE", "DNS_RESOLVER", "CAPTIVE_PORTAL", "OS_VALIDATION", "PUBLIC_SITE"]
+        },
+        "protocol": {
+          "enum": ["HTTP", "HTTPS", "TCP", "TLS", "DNS_UDP", "DNS_TCP", "DOH", "DOT", "ICMP"]
+        },
+        "address": { "type": "string", "minLength": 1 },
+        "method": { "type": ["string", "null"], "enum": ["GET", "HEAD", "POST", null] },
+        "expectedResponse": { "type": "string", "minLength": 1 },
+        "regionGroup": { "enum": ["GLOBAL", "RU", "US", "EU"] },
+        "officialSources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "format": "uri" }
+        },
+        "checkedAt": { "type": "string", "format": "date" },
+        "allowedModes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["MANUAL", "BACKGROUND"] }
+        },
+        "minIntervalSeconds": { "type": ["integer", "null"], "minimum": 1 },
+        "dailyBudget": { "type": "integer", "minimum": 0 },
+        "status": { "enum": ["UNVERIFIED", "MANUAL_ONLY", "BACKGROUND_APPROVED", "DISABLED"] },
+        "statusReason": { "type": "string", "minLength": 1 },
+        "limits": { "type": "string" },
+        "blockedRegions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z]{2}$" }
+        },
+        "redirectPolicy": { "type": "string" },
+        "retryPolicy": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "enum": ["DISABLED", "UNVERIFIED"] } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "allowedModes": { "maxItems": 0 },
+              "dailyBudget": { "const": 0 },
+              "minIntervalSeconds": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "BACKGROUND_APPROVED" } },
+            "required": ["status"]
+          },
+          "then": { "properties": { "allowedModes": { "contains": { "const": "BACKGROUND" } } } }
+        }
+      ]
+    }
+  }
+}

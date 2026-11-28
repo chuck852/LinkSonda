@@ -9,7 +9,7 @@ Profiles are stored locally in Room and connected to the production UI. The scre
 - **Activate** stores the selected profile id in settings. It does not start monitoring.
 - **Delete** removes the profile and its checks from this device; deleting the active profile clears the selection.
 
-The built-in endpoint catalog is intentionally not populated in this build. The formal dependency on public #20 remains: verified endpoints and final catalog integration are separate work. No check is created from an unverified endpoint catalog, and the UI shows an explicit empty state instead.
+The built-in endpoint catalog is intentionally not populated in this build. Public #20 documents the verification of candidate endpoints; final catalog integration remains separate work under #22. No check is created from an unverified endpoint catalog, and the UI shows an explicit empty state instead.
 
 ## Defaults and inheritance
 
