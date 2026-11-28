@@ -1,6 +1,6 @@
 # Roadmap
 
-The current foundation contains the Material 3 design system, the four-tab navigation shell, the overview, the domain-backed checks list and details, the universal check editor for all P0 protocols, localized settings with a first-run flow, internal TCP Connect, TLS, system/direct DNS, HTTP/HTTPS and ICMP Echo probe runners tested with controlled fakes, local servers and local child processes, a Gradle Wrapper build, JVM tests, and CI-generated debug APKs.
+The current foundation contains the Material 3 design system, the four-tab navigation shell, the overview, the domain-backed checks list and details, the universal check editor for all P0 protocols, localized settings with a first-run flow, internal TCP Connect, TLS, system/direct DNS, HTTP/HTTPS, ICMP Echo, DoH and DoT probe runners tested with controlled fakes, local servers and local child processes, a Gradle Wrapper build, JVM tests, and CI-generated debug APKs.
 
 | Milestone | Planned work |
 | --- | --- |
