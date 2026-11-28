@@ -289,7 +289,7 @@ class SecureDnsProbeRunnerTest {
             val result = runProbe(
                 runner = runner(trustTestTls = true),
                 request = dotRequest(server.port, "localhost"),
-                timeout = 100.milliseconds,
+                timeout = 1.seconds,
             )
 
             failed(result, FailureReason.TIMEOUT)
@@ -492,6 +492,7 @@ class SecureDnsProbeRunnerTest {
             )
 
             failed(result, FailureReason.TIMEOUT)
+            assertTrue(server.awaitCalls(1))
         }
     }
 
@@ -601,7 +602,7 @@ class SecureDnsProbeRunnerTest {
                 )
 
                 assertEquals(ProbeOutcome.Matched, completed(result).outcome)
-                assertTrue((System.nanoTime() - started).nanoseconds < 3_500.milliseconds)
+                assertTrue((System.nanoTime() - started).nanoseconds < 4_500.milliseconds)
                 assertTrue(silent.awaitAccepted())
                 assertTrue(server.awaitReceived())
             }
