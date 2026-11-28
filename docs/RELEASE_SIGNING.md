@@ -2,7 +2,7 @@
 
 Official LinkSonda APKs are signed on the owner's Fedora machine. The signing key is never stored in Git, CI, a GitHub secret or an artifact. Android CI only produces an unsigned release APK.
 
-This is the owner's step-by-step runbook. Do not create the production key until the owner has approved the storage layout, password manager entries and the clean-terminal procedure below. A temporary test key may be used to rehearse the process, but it must never sign a published release.
+This is the owner's step-by-step runbook. The production key now exists. Do not recreate it, copy it into a repository or move it to another machine. A temporary test key may be used to rehearse the process, but it must never sign a published release.
 
 ## 0. Fedora prerequisites and isolation
 
@@ -53,7 +53,23 @@ The external HDD uses a filesystem that may not honour Unix modes; a copied encr
 
 Keep the key and backups out of every checkout. Do not sync `$HOME/.secure` or the HDD copy to cloud storage. Keep the passwords in the owner's password manager, separate from the media. Detach the external HDD after the ceremony.
 
-## 2. Run the ceremony
+## 2. Production certificate
+
+The production key was created on 2026-11-28 and is now the only key allowed to sign official LinkSonda APKs.
+
+| Field | Value |
+| --- | --- |
+| Alias | `linksonda` |
+| Key | RSA 4096, PKCS12 |
+| Valid until | 2054-04-15 |
+| Certificate SHA-256 | `E0:67:06:69:8C:5F:F1:9D:5B:E3:FE:78:08:7F:03:73:55:5F:AA:20:04:5D:C3:BE:57:8B:AB:E9:31:10:8D:90` |
+| Signer digest (`release.json`) | `e06706698c5ff19d5be3fe78087f0373555faa20045dc3be578babe931108d90` |
+
+The fingerprint is public and must be recorded in release metadata. It is not a secret and does not allow signing. Do not publish the keystore, its password or the backup passphrase.
+
+## 3. Run the ceremony (completed)
+
+The ceremony was completed successfully on 2026-11-28. Do not run it again against the existing keystore: without `--resume` it refuses to overwrite the key, and `--resume` is only for finishing an interrupted backup/report run. The procedure is kept here for audit and disaster-recovery review, not as a routine signing step.
 
 The owner-run script is stored outside the repositories:
 
@@ -89,7 +105,7 @@ After the run, read the report, confirm that both backups say `restore fingerpri
 
 A disposable-key rehearsal can use `LINKSONDA_SECURE_DIR` and a temporary directory on the HDD, but it must never use the production passwords or leave artefacts behind. The production ceremony is run only by the owner.
 
-## 3. Manual restore verification
+## 4. Manual restore verification
 
 Use this if the ceremony script is unavailable or a backup must be verified during recovery. Restore into tmpfs, not into the home directory:
 
@@ -142,7 +158,7 @@ rm -rf "$restore_dir"
 
 If either fingerprint or signature differs, stop and do not publish.
 
-## 4. Sign the first official APK
+## 5. Sign the first official APK
 
 Prerequisites: the commit is accepted, its Android CI run is successful, `version.properties` contains a versionCode higher than every published release, release notes exist at `docs/releases/v<versionName>.md`, and the annotated tag `v<versionName>` is pushed to the same commit.
 
@@ -180,13 +196,13 @@ sha256sum -c SHA256SUMS
 
 After creating the draft, download its assets again and repeat the checksum and certificate checks. Do not publish if any listed asset is missing.
 
-## 5. Test-only mode
+## 6. Test-only mode
 
 `prepare-release.sh --unsigned-apk` is only for local testing and recovery rehearsal. It refuses a commit on `origin/main` and a tag that already exists on `origin`, marks `release.json` with `"testOnly": true`, and never prints a publish command. Test bundles must not be uploaded to GitHub Releases.
 
 Official releases always use the CI-artifact mode shown in section 4.
 
-## 6. Recovery and residual risk
+## 7. Recovery and residual risk
 
 - **Lost SSD or machine:** restore the keystore from the external HDD copy, verify the fingerprint and test signature as in section 3, then continue. The SSD copy is lost with the machine.
 - **Lost external HDD:** the SSD copy remains on the machine; replace the external backup and test the restore again. This is not off-machine protection.
