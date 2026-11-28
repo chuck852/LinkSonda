@@ -22,6 +22,6 @@ adb shell am start -W -n io.github.chuck852.linksonda/.MainActivity
 
 ## Документация
 
-- [Архитектура](ARCHITECTURE.md), [сетевые транспорты](NETWORK.md), [обновления](UPDATER.md), [навигация и обзор](NAVIGATION.md), [проверки и детали](CHECKS.md), [конструктор проверок](CHECK_EDITOR.md), [настройки, локализация и первый запуск](SETTINGS.md), [тема и дизайн-система](THEME.md) и [дорожная карта](../ROADMAP.md)
+- [Архитектура](ARCHITECTURE.md), [сетевые транспорты](NETWORK.md), [каталог контрольных endpoints](ENDPOINTS.md), [обновления](UPDATER.md), [навигация и обзор](NAVIGATION.md), [проверки и детали](CHECKS.md), [конструктор проверок](CHECK_EDITOR.md), [настройки, локализация и первый запуск](SETTINGS.md), [тема и дизайн-система](THEME.md) и [дорожная карта](../ROADMAP.md)
 - [Участие в проекте](../CONTRIBUTING.md) и [сообщения об уязвимостях](../SECURITY.md)
 - [Apache-2.0](../LICENSE) и [уведомления о сторонних компонентах](../THIRD_PARTY_NOTICES.md)
