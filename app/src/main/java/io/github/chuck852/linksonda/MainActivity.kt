@@ -61,10 +61,33 @@ class MainActivity : ComponentActivity() {
         val application = application as LinkSondaApplication
         setContent {
             val settings by settingsStore.settings.collectAsState()
+            val profiles by application.profileRepository.observeProfiles()
+                .collectAsState(initial = emptyList())
             val updaterState by application.updater.state.collectAsState()
             val scope = rememberCoroutineScope()
             LinkSondaApp(
                 settings = settings,
+                profiles = profiles,
+                onSaveProfile = { profile ->
+                    try {
+                        application.profileRepository.saveProfile(profile)
+                        true
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        false
+                    }
+                },
+                onDeleteProfile = { profileId ->
+                    try {
+                        application.profileRepository.deleteProfile(profileId)
+                        true
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        false
+                    }
+                },
                 updaterState = updaterState,
                 updaterActions = UpdaterActions(
                     checkNow = application.updater::checkNow,

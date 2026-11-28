@@ -1,6 +1,6 @@
 # Local storage — public #13
 
-LinkSonda keeps settings in DataStore and monitoring data in Room. Everything stays in the app's private storage: there is no account, cloud sync or telemetry. The updater uses `INTERNET` only for GitHub Releases; diagnostic traffic is not connected. Android cloud backup and device transfer are disabled for the app; the policy and OEM limits are described below. The storage layer is app-scoped in `LinkSondaApplication`; screens are connected in later work, so the current UI still shows honest empty states.
+LinkSonda keeps settings in DataStore and monitoring data in Room. Everything stays in the app's private storage: there is no account, cloud sync or telemetry. The updater uses `INTERNET` only for GitHub Releases; diagnostic traffic is not connected. Android cloud backup and device transfer are disabled for the app; the policy and OEM limits are described below. The storage layer is app-scoped in `LinkSondaApplication`. Profile screens are connected to Room; result-backed screens remain honest empty states until the monitoring engine writes results.
 
 ## Settings
 
@@ -37,7 +37,7 @@ Indices cover history by probe/revision/network/time, history by time, incidents
 
 `ProbeRequest`, `ProbeResult` and `Incident` are stored as JSON with a stable `type` discriminator. `StorageJson` uses contextual serializers for `URI`, `Duration`, `Instant` and `IntRange`; no platform object is serialized directly. The stored observations contain only the fields in the domain model: HTTP status and marker match, DNS response code/count/truncation, TLS version, and ICMP counts/RTT. Response bodies, headers, raw DNS records, certificates, peer addresses and credentials are not stored.
 
-`RoomProfileRepository` saves a profile and its probe configurations in one transaction. A probe revision is immutable: a stale revision is rejected, and the same revision with different request or timeout is rejected. Renaming a probe at the same revision updates the name only. Editing execution parameters creates a new revision through `ProbeConfig.update`, so old results remain attached to the definition that produced them.
+`RoomProfileRepository` saves a profile and its probe configurations in one transaction. A probe revision is immutable: a stale revision is rejected, and the same revision with different request or timeout is rejected. Renaming a probe at the same revision updates the name only. Editing execution parameters creates a new revision through `ProbeConfig.update`, so old results remain attached to the definition that produced them. Group names are unique per profile, groups cannot be empty, and deleting a profile removes its memberships. Profile copy operations are documented in [monitoring profiles](PROFILES.md).
 
 `RoomResultRepository.saveResult(result, network)` and `saveIncident(incident, network)` write the network snapshot and the record in one Room transaction. A result whose context has a network must supply a matching snapshot; a skipped result with no network supplies none. Retention runs in its own transaction, so it cannot remove a snapshot between those two writes. Results are observed by `ProbeKey` and optional network; incidents by profile and network.
 
@@ -71,5 +71,6 @@ The settings migration from SharedPreferences to DataStore is covered by a Robol
 - `HistoryMaintenanceTest`: retention cutoff, open-incident preservation, network cleanup, full history deletion.
 - `DataStoreSettingsStorageTest`: legacy SharedPreferences migration, authoritative DataStore writes, startup snapshot repair after an interrupted write.
 - `SettingsStoreTest`/`AppSettingsTest`: codec round-trip, corrupt-value fallback, initialization-before-write, cancellation after the write and updater-reserved fields.
-- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (296 JVM tests, including updater tests).
+- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (310 JVM tests, including updater tests).
 - API 36 emulator: changing History retention to 90 days survives force-stop and relaunch; the DataStore preferences file is present in app-private storage.
+- Profile CRUD/activation and selected-profile persistence use the same Room/DataStore path; see [monitoring profiles](PROFILES.md).

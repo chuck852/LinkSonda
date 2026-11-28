@@ -4,7 +4,7 @@ LinkSonda stores user preferences locally and applies the selected language and 
 
 ## First run
 
-The first-run screen states that checks run from the device, LinkSonda is designed for local monitoring, and it has no account, cloud backend or location access. The user can continue with manual checks or choose an available monitoring profile. No placeholder profiles are created: until presets and profiles are connected, the manual option is the only one shown.
+The first-run screen states that checks run from the device, LinkSonda is designed for local monitoring, and it has no account, cloud backend or location access. The user can continue with manual checks or choose an available stored monitoring profile. No placeholder profiles are created. The chosen profile id is saved as `selected_profile_id`; choosing manual checks leaves it empty. Either choice only records intent: it does not start monitoring or send traffic.
 
 Notifications are not requested during onboarding. Android asks for `POST_NOTIFICATIONS` only when the user enables notifications in Settings.
 
@@ -35,9 +35,10 @@ Settings rows use selectable or toggleable semantics with radio/switch roles, se
 
 ## Verification
 
-- 296 JVM tests, 0 failures, including the storage and updater tests.
+- 310 JVM tests, 0 failures, including the storage and updater tests.
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` and `assembleRelease` passed.
-- Android 17 (API 37) emulator: first run, profile selection in the debug harness, completion, Russian/English switch, platform app-locale synchronization, language and dark-theme persistence after force-stop, notification permission denial and rationale persistence, permission revocation while enabled, editor access after denial, and 200% font scale.
+- Android 17 (API 37) emulator: first run, profile selection, completion, Russian/English switch, platform app-locale synchronization, language and dark-theme persistence after force-stop, notification permission denial and rationale persistence, permission revocation while enabled, editor access after denial, and 200% font scale.
+- Selected-profile persistence and profile CRUD are covered by [monitoring profiles](PROFILES.md).
 - Release APK contains the Russian resources and no demo screens or demo settings data.
 
 ## Screenshots

@@ -44,7 +44,7 @@
     <string name="transport_other">Other</string>
     <string name="overview_profile_title">Active profile</string>
     <string name="overview_profile_none">No active profile</string>
-    <string name="overview_profile_schedule">Every %1$d s</string>
+    <string name="overview_profile_schedule">Configured every %1$d s</string>
     <string name="overview_groups_title">Groups</string>
     <string name="overview_groups_empty_title">No groups yet</string>
     <string name="overview_groups_empty_body">Groups from the active profile will appear here.</string>
@@ -60,8 +60,6 @@
 
     <string name="checks_empty_title">No checks yet</string>
     <string name="checks_empty_body">Checks will appear after a profile is configured.</string>
-    <string name="presets_empty_title">No presets yet</string>
-    <string name="presets_empty_body">Built-in and custom presets will appear here.</string>
     <string name="history_empty_title">No history yet</string>
     <string name="history_empty_body">Results and incidents will appear after monitoring starts.</string>
     <string name="demo_banner">Demo data. No network requests are made.</string>
@@ -356,9 +354,10 @@
     <string name="first_run_local_body">Checks run from this device. LinkSonda is designed for local monitoring: no account, no cloud backend and no location access.</string>
     <string name="first_run_profile_title">Monitoring profile</string>
     <string name="first_run_profile_manual">Manual checks</string>
-    <string name="first_run_profile_manual_body">Start without background monitoring. Profile selection will be available when profiles are connected.</string>
-    <string name="first_run_profile_available_body">Use this profile when monitoring is connected.</string>
-    <string name="first_run_profiles_empty">No monitoring profiles are available yet. Continue with manual checks; profiles will appear when they are connected.</string>
+    <string name="first_run_profile_manual_body">Start without background monitoring. You can create or choose a profile later in Presets.</string>
+    <string name="first_run_profile_available_body">Select this profile. Monitoring does not start automatically.</string>
+    <string name="first_run_profile_details">%1$d checks · every %2$d s</string>
+    <string name="first_run_profiles_empty">No profiles yet. Continue manually and create one in Presets.</string>
     <string name="first_run_notifications_note">Android notification permission is requested only when you enable notifications in Settings.</string>
     <string name="first_run_privacy_note">No account. No location access.</string>
     <string name="first_run_continue">Continue</string>
@@ -409,4 +408,104 @@
     <string name="update_notification_body">Tap to review and install the update.</string>
     <string name="update_notification_channel">Updates</string>
     <string name="update_notification_channel_description">New signed LinkSonda releases</string>
+
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_copy">Copy</string>
+
+    <string name="overview_profile_manage">Open profiles</string>
+    <string name="checks_no_profile_title">No active profile</string>
+    <string name="checks_no_profile_body">Create or select a monitoring profile to add and edit checks.</string>
+    <string name="checks_open_profiles">Open profiles</string>
+
+    <string name="profile_builtin_title">Built-in presets</string>
+    <string name="profile_builtin_empty_title">No built-in presets yet</string>
+    <string name="profile_builtin_empty_body">The built-in endpoint catalog is not populated in this build. Only verified endpoints will be added.</string>
+    <string name="profile_user_title">Your profiles</string>
+    <plurals name="profile_count">
+        <item quantity="one">%1$d profile</item>
+        <item quantity="other">%1$d profiles</item>
+    </plurals>
+    <string name="profile_create">Create profile</string>
+    <string name="profile_default_name">Profile %1$d</string>
+    <string name="profile_copy_name">Copy of %1$s</string>
+    <string name="profile_list_empty_title">No profiles yet</string>
+    <string name="profile_list_empty_body">Create a profile to group checks and save schedule settings.</string>
+    <string name="profile_no_auto_start_note">Saving or activating a profile does not start monitoring. This build sends no check traffic.</string>
+    <string name="profile_active">Active</string>
+    <string name="profile_activate">Activate</string>
+    <string name="profile_activated">Profile activated. Monitoring has not started.</string>
+    <string name="profile_delete_title">Delete profile?</string>
+    <string name="profile_delete_body">Delete "%1$s" and its checks from this device? This cannot be undone.</string>
+    <string name="profile_deleted">Profile deleted.</string>
+    <string name="profile_delete_failed">The profile could not be deleted.</string>
+    <string name="profile_created">Profile created.</string>
+    <string name="profile_copied">Profile copied.</string>
+    <string name="profile_create_failed">The profile could not be created.</string>
+    <string name="profile_copy_failed">The profile could not be copied.</string>
+    <string name="profile_save_failed">The profile could not be saved.</string>
+    <string name="profile_saved">Profile settings saved.</string>
+    <string name="profile_edit">Edit profile</string>
+    <string name="profile_editor_title">Edit profile</string>
+    <string name="profile_not_found_title">Profile not found</string>
+    <string name="profile_not_found_body">The selected profile is no longer available.</string>
+    <plurals name="profile_check_count">
+        <item quantity="one">%1$d check</item>
+        <item quantity="other">%1$d checks</item>
+    </plurals>
+    <plurals name="profile_group_count">
+        <item quantity="one">%1$d group</item>
+        <item quantity="other">%1$d groups</item>
+    </plurals>
+    <string name="profile_interval_short">Every %1$d s</string>
+
+    <string name="profile_settings_title">Schedule and alerts</string>
+    <string name="profile_name_label">Profile name</string>
+    <string name="profile_save">Save profile</string>
+    <string name="profile_saving">Saving…</string>
+    <string name="profile_interval_label">Configured monitoring interval</string>
+    <string name="profile_interval_option">%1$d s</string>
+    <string name="profile_interval_10_note">10 s is reserved for your own or explicitly allowed endpoints. It stays disabled until that catalog is verified.</string>
+    <string name="profile_concurrency_label">Max concurrent checks (1–4)</string>
+    <string name="profile_failures_label">Failures to DOWN (1–10)</string>
+    <string name="profile_successes_label">Successes to recover (1–10)</string>
+    <string name="profile_notifications_label">Incident notifications</string>
+    <string name="profile_repeat_label">Repeat after (minutes)</string>
+    <string name="profile_effective_title">Effective settings</string>
+    <string name="profile_configured_interval">Configured interval</string>
+    <string name="profile_concurrency_value">Concurrency limit</string>
+    <string name="profile_concurrency_configured">Up to %1$d checks at once</string>
+    <string name="profile_effective_note">The configured interval is a target. Actual execution can be less frequent while the monitoring engine applies endpoint and admission limits. This build sends no check traffic.</string>
+    <string name="profile_no_groups_note">Add a check to create the first group.</string>
+    <string name="profile_groups_title">Groups</string>
+    <string name="profile_groups_empty">No groups yet. Groups are created with their first check and disappear when their last check is removed.</string>
+    <string name="profile_group_ungrouped">Ungrouped</string>
+    <string name="profile_rename_group">Rename group</string>
+    <string name="profile_rename_group_title">Rename group</string>
+    <string name="profile_group_name_label">Group name</string>
+    <string name="profile_group_duplicate">A group with this name already exists.</string>
+    <string name="profile_group_renamed">Group renamed.</string>
+    <string name="profile_group_rename_failed">The group could not be renamed.</string>
+    <string name="profile_checks_title">Checks</string>
+    <string name="profile_checks_empty">No checks in this profile yet.</string>
+    <string name="profile_delete_check_title">Delete check?</string>
+    <string name="profile_delete_check_body">Delete "%1$s"? The group disappears if this was its last check.</string>
+    <string name="profile_check_deleted">Check deleted.</string>
+    <string name="profile_check_delete_failed">The check could not be deleted.</string>
+    <string name="profile_no_traffic_note">Saving or activating a profile does not start monitoring. This build sends no check traffic.</string>
+    <string name="profile_error_required">Required.</string>
+    <string name="profile_error_interval">Use 60 or 300 seconds. 10 seconds is not available yet.</string>
+    <string name="profile_error_concurrency">Enter a number from 1 to 4.</string>
+    <string name="profile_error_threshold">Enter a number from 1 to 10.</string>
+    <string name="profile_error_repeat">Enter 1 to 1440 minutes.</string>
+    <string name="profile_manage">Open profiles</string>
+    <string name="overview_profile_none_body">Create or select a monitoring profile to see its groups and checks.</string>
+    <string name="overview_groups_no_profile_body">No active profile is selected. Open profiles to create or select one.</string>
+    <string name="profile_default_group_name">Checks</string>
+    <string name="profile_check_detail">%1$s · %2$s</string>
+    <plurals name="overview_group_configured_probes">
+        <item quantity="one">%1$d check configured · no result yet</item>
+        <item quantity="other">%1$d checks configured · no result yet</item>
+    </plurals>
 </resources>

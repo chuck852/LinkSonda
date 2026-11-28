@@ -59,6 +59,7 @@ data class MonitoringProfile(
         require(name.isNotBlank())
         val configuredIds = preset.probes.map { it.id }.toSet()
         require(groups.all { configuredIds.containsAll(it.probeIds) })
+        require(groups.map { it.name }.distinct().size == groups.size) { "Group names must be unique" }
     }
 }
 
