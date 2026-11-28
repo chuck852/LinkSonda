@@ -22,18 +22,24 @@ import io.github.chuck852.linksonda.domain.ProbeResult
 import io.github.chuck852.linksonda.domain.ProbeRunRequest
 import io.github.chuck852.linksonda.domain.SkipReason
 import io.github.chuck852.linksonda.domain.SocketEndpoint
+import java.io.IOException
 import java.net.InetAddress
+import java.net.SocketException
 import java.net.URI
 import java.time.Instant
 import javax.net.ssl.SSLContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -288,6 +294,7 @@ class SecureDnsProbeRunnerTest {
 
             failed(result, FailureReason.TIMEOUT)
             assertTrue(server.awaitAccepted())
+            assertTrue(server.awaitClosed(2_000))
         }
     }
 
@@ -386,6 +393,56 @@ class SecureDnsProbeRunnerTest {
     }
 
     @Test
+    fun dotBootstrapEaccesIsPermissionDenied() {
+        val result = runProbe(
+            runner = runner(
+                trustTestTls = true,
+                hostResolver = HostResolver { _, _ -> throw SocketException("EACCES") },
+            ),
+            request = ProbeRequest.DnsOverTls(
+                resolver = SocketEndpoint("resolver.test", 853),
+                serverName = "localhost",
+                question = question(),
+                expected = DnsExpectation(0, true),
+            ),
+        )
+
+        assertEquals(
+            ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED),
+            completed(result).outcome,
+        )
+    }
+
+    @Test
+    fun dohBootstrapEaccesIsPermissionDenied() {
+        val result = runProbe(
+            runner = runner(
+                trustTestTls = true,
+                hostResolver = HostResolver { _, _ -> throw SocketException("EACCES") },
+            ),
+            request = dohRequest("https://localhost:1/dns-query"),
+        )
+
+        assertEquals(
+            ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED),
+            completed(result).outcome,
+        )
+    }
+
+    @Test
+    fun dohBootstrapGenericIoIsDnsFailure() {
+        val result = runProbe(
+            runner = runner(
+                trustTestTls = true,
+                hostResolver = HostResolver { _, _ -> throw IOException("resolver failure") },
+            ),
+            request = dohRequest("https://localhost:1/dns-query"),
+        )
+
+        failed(result, FailureReason.DNS)
+    }
+
+    @Test
     fun dotRejectsHostnameMismatch() {
         DotDnsServer { query ->
             dnsResponse(query, answerCount = 1, answerBytes = aRecord())
@@ -429,9 +486,9 @@ class SecureDnsProbeRunnerTest {
             )
         }.use { server ->
             val result = runProbe(
-                runner = runner(trustTestTls = true),
+                runner = runner(trustTestTls = true, readTimeout = 100.milliseconds),
                 request = dohRequest(server.url("/dns-query")),
-                timeout = 100.milliseconds,
+                timeout = 2.seconds,
             )
 
             failed(result, FailureReason.TIMEOUT)
@@ -457,7 +514,9 @@ class SecureDnsProbeRunnerTest {
                 admission = admission,
             )
 
-            assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+            val completed = completed(result)
+            assertEquals(ProbeOutcome.Matched, completed.outcome)
+            assertEquals(IpFamily.IPV4, completed.observations.connectedIpFamily)
             assertEquals(
                 listOf(
                     ProbeAttempt("example.test", "localhost"),
@@ -524,6 +583,7 @@ class SecureDnsProbeRunnerTest {
                     dnsResponse(query, answerCount = 1, answerBytes = aRecord())
                 },
             ).use { server ->
+                val started = System.nanoTime()
                 val result = runProbe(
                     runner = runner(
                         trustTestTls = true,
@@ -537,12 +597,47 @@ class SecureDnsProbeRunnerTest {
                         question = question(),
                         expected = DnsExpectation(0, true),
                     ),
-                    timeout = 6.seconds,
+                    timeout = 4.seconds,
                 )
 
                 assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+                assertTrue((System.nanoTime() - started).nanoseconds < 3_500.milliseconds)
                 assertTrue(silent.awaitAccepted())
                 assertTrue(server.awaitReceived())
+            }
+        }
+    }
+
+    @Test
+    fun dohExternalCancellationPropagates() {
+        LocalHttpServer(https = true) {
+            HttpResponseSpec(status = 200, delayBeforeHeadersMillis = 2_000)
+        }.use { server ->
+            assertThrows(TimeoutCancellationException::class.java) {
+                runBlocking {
+                    withTimeout(100.milliseconds) {
+                        runner(trustTestTls = true).run(
+                            probeRunRequest(dohRequest(server.url("/dns-query")), 5.seconds),
+                            RecordingAdmission(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun dotExternalCancellationPropagates() {
+        DotDnsServer(handler = { null }).use { server ->
+            assertThrows(TimeoutCancellationException::class.java) {
+                runBlocking {
+                    withTimeout(100.milliseconds) {
+                        runner(trustTestTls = true).run(
+                            probeRunRequest(dotRequest(server.port, "localhost"), 5.seconds),
+                            RecordingAdmission(),
+                        )
+                    }
+                }
             }
         }
     }
@@ -550,10 +645,14 @@ class SecureDnsProbeRunnerTest {
     private fun runner(
         trustTestTls: Boolean = false,
         hostResolver: HostResolver = SystemHostResolver(),
+        readTimeout: Duration? = null,
     ): SecureDnsProbeRunner {
         val client = OkHttpClient.Builder().apply {
             if (trustTestTls) {
                 sslSocketFactory(TestTls.clientContext.socketFactory, TestTls.clientTrustManager)
+            }
+            if (readTimeout != null) {
+                readTimeout(readTimeout.inWholeMilliseconds, java.util.concurrent.TimeUnit.MILLISECONDS)
             }
         }.build()
         val tls = if (trustTestTls) TestTls.clientContext else SSLContext.getDefault()

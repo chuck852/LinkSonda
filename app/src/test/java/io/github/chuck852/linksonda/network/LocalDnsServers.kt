@@ -74,14 +74,17 @@ internal class DotDnsServer(
     private val accepted = CountDownLatch(1)
     private val received = CountDownLatch(1)
     private val finished = CountDownLatch(1)
+    private val closed = CountDownLatch(1)
     private val release = CountDownLatch(1)
     private val closing = AtomicBoolean(false)
+    private val acceptedSocket = AtomicReference<javax.net.ssl.SSLSocket?>()
     private val query = AtomicReference<ByteArray?>()
     private val sni = AtomicReference<String?>()
     private val failure = AtomicReference<Throwable?>()
     private val worker = thread(isDaemon = true, name = "test-dns-dot-${server.localPort}") {
         try {
             (server.accept() as javax.net.ssl.SSLSocket).use { socket ->
+                acceptedSocket.set(socket)
                 accepted.countDown()
                 socket.startHandshake()
                 val session = socket.session as? javax.net.ssl.ExtendedSSLSession
@@ -104,7 +107,15 @@ internal class DotDnsServer(
                         output.flush()
                     }
                 } else {
-                    release.await(5, TimeUnit.SECONDS)
+                    try {
+                        while (input.read() >= 0) {
+                            // Wait for the client to close the connection.
+                        }
+                    } catch (error: Throwable) {
+                        // A socket close is expected here.
+                    } finally {
+                        closed.countDown()
+                    }
                 }
             }
         } catch (error: Throwable) {
@@ -126,6 +137,9 @@ internal class DotDnsServer(
     fun awaitFinished(timeoutMillis: Long = 3_000): Boolean =
         finished.await(timeoutMillis, TimeUnit.MILLISECONDS)
 
+    fun awaitClosed(timeoutMillis: Long = 3_000): Boolean =
+        closed.await(timeoutMillis, TimeUnit.MILLISECONDS)
+
     fun query(): ByteArray? = query.get()
 
     fun sni(): String? = sni.get()
@@ -135,6 +149,7 @@ internal class DotDnsServer(
     override fun close() {
         closing.set(true)
         release.countDown()
+        acceptedSocket.get()?.close()
         server.close()
         worker.join(2_500)
     }

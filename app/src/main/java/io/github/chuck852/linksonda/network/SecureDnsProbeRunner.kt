@@ -153,6 +153,18 @@ internal class SecureDnsProbeRunner internal constructor(
             if (error.hasCause<DnsCapacityExceededException>()) {
                 return completed(request, startNanos, state, ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION))
             }
+            error.findBootstrapDns()?.let { bootstrap ->
+                return completed(
+                    request,
+                    startNanos,
+                    state,
+                    if (bootstrap.cause?.isPermissionDenied() == true) {
+                        ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
+                    } else {
+                        ProbeOutcome.Failed(FailureReason.DNS)
+                    },
+                )
+            }
             return completed(request, startNanos, state, classifyTransport(error))
         }
 
@@ -236,7 +248,16 @@ internal class SecureDnsProbeRunner internal constructor(
                 } catch (error: UnknownHostException) {
                     return completed(request, startNanos, state, ProbeOutcome.Failed(FailureReason.DNS))
                 } catch (error: IOException) {
-                    return completed(request, startNanos, state, ProbeOutcome.Failed(FailureReason.DNS))
+                    return completed(
+                        request,
+                        startNanos,
+                        state,
+                        if (error.isPermissionDenied()) {
+                            ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
+                        } else {
+                            ProbeOutcome.Failed(FailureReason.DNS)
+                        },
+                    )
                 }
             }
         }
@@ -303,8 +324,16 @@ internal class SecureDnsProbeRunner internal constructor(
                         withTimeout(remainingMillis(startNanos, timeout).milliseconds) {
                             val dns = admission.authorize(ProbeAttempt(host, SYSTEM_DNS))
                             if (dns is AdmissionDecision.Denied) throw AdmissionDeniedException(dns)
-                            val addresses = resolver.resolve(host, probe.family)
-                                .filter { probe.family == null || it.family() == probe.family }
+                            val addresses = try {
+                                resolver.resolve(host, probe.family)
+                                    .filter { probe.family == null || it.family() == probe.family }
+                            } catch (error: DnsCapacityExceededException) {
+                                throw error
+                            } catch (error: SecurityException) {
+                                throw BootstrapDnsException(error)
+                            } catch (error: IOException) {
+                                throw BootstrapDnsException(error)
+                            }
                             if (addresses.isEmpty()) throw UnknownHostException(hostname)
                             val allowed = addresses.filter { address ->
                                 val transport = admission.authorize(ProbeAttempt(host, host))
@@ -364,6 +393,7 @@ internal class SecureDnsProbeRunner internal constructor(
                 if (ssl.session.protocol !in TLS_PROTOCOLS) {
                     throw SSLException("Negotiated protocol is not TLS 1.2 or 1.3")
                 }
+                state.connectedIpFamily = address.family()
                 ssl.soTimeout = remainingMillis(deadlineNanos).toInt()
                 val query = DnsWire.query(nextId(), question)
                 val output = DataOutputStream(ssl.outputStream)
@@ -382,13 +412,12 @@ internal class SecureDnsProbeRunner internal constructor(
                 } catch (error: MalformedDnsResponseException) {
                     throw error
                 }
-                state.connectedIpFamily = address.family()
                 continuation.resumeWith(Result.success(message))
             } catch (error: Throwable) {
                 if (continuation.isActive) continuation.resumeWith(Result.failure(error))
             } finally {
-                runCatching { ssl?.close() }
                 raw.closeQuietly()
+                runCatching { ssl?.close() }
             }
         }
     }
@@ -580,6 +609,9 @@ internal class SecureDnsProbeRunner internal constructor(
     private fun Throwable.findAdmissionDenied(): AdmissionDeniedException? =
         generateSequence(this) { it.cause }.filterIsInstance<AdmissionDeniedException>().firstOrNull()
 
+    private fun Throwable.findBootstrapDns(): BootstrapDnsException? =
+        generateSequence(this) { it.cause }.filterIsInstance<BootstrapDnsException>().firstOrNull()
+
     private inline fun <reified T : Throwable> Throwable.hasCause(): Boolean =
         generateSequence(this) { it.cause }.any { it is T }
 
@@ -593,6 +625,9 @@ internal class SecureDnsProbeRunner internal constructor(
 
     private class AdmissionDeniedException(val decision: AdmissionDecision.Denied) :
         IOException("admission denied")
+
+    private class BootstrapDnsException(cause: Throwable) :
+        IOException("bootstrap DNS failed", cause)
 
     internal companion object {
         const val MAX_DNS_MESSAGE = 65_535
