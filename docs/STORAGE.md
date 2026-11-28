@@ -71,5 +71,5 @@ The settings migration from SharedPreferences to DataStore is covered by a Robol
 - `HistoryMaintenanceTest`: retention cutoff, open-incident preservation, network cleanup, full history deletion.
 - `DataStoreSettingsStorageTest`: legacy SharedPreferences migration, authoritative DataStore writes, startup snapshot repair after an interrupted write.
 - `SettingsStoreTest`/`AppSettingsTest`: codec round-trip, corrupt-value fallback, initialization-before-write, cancellation after the write and updater-reserved fields.
-- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (260 JVM tests, including updater tests).
+- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (296 JVM tests, including updater tests).
 - API 36 emulator: changing History retention to 90 days survives force-stop and relaunch; the DataStore preferences file is present in app-private storage.
