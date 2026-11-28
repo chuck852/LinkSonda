@@ -281,4 +281,19 @@ class ProbeEditorStateTest {
         minimumTls = TlsVersion.TLS_1_2,
         timeoutSeconds = "5",
     )
+
+    @Test
+    fun blankGroupNameBlocksSave() {
+        val state = ProbeEditorState.forNew("probe-1").copy(
+            name = "Example",
+            groupName = " ",
+            protocol = ProbeProtocol.TCP,
+            host = "example.com",
+        )
+
+        val validation = state.validate()
+
+        assertNull(validation.config)
+        assertEquals(ProbeEditorError.REQUIRED, validation.errors[ProbeEditorField.GROUP])
+    }
 }

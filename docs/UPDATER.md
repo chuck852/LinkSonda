@@ -52,6 +52,6 @@ It does not declare a background location, account, analytics or diagnostic endp
 
 ## Testing boundary
 
-Unit tests use controlled GitHub/`release.json` fixtures and exercise ETag/304 handling, persisted retry enforcement, automatic-check consent, versionCode/channel selection, the metadata scan limit, one-signer/field rejection and the test-source boundary. The full local command passes 296 JVM tests with no failures, including slow-drip deadline and cancellation-during-body-read tests.
+Unit tests use controlled GitHub/`release.json` fixtures and exercise ETag/304 handling, persisted retry enforcement, automatic-check consent, versionCode/channel selection, the metadata scan limit, one-signer/field rejection and the test-source boundary. The full local command passes 310 JVM tests with no failures, including slow-drip deadline and cancellation-during-body-read tests.
 
 E2E used a release APK with the build-time local fixture URL, a temporary test key and a separate API 36 emulator. The app discovered versionCode 3 through its Settings UI, downloaded it with progress, verified the APK, requested the Android unknown-sources permission, showed the system PackageInstaller confirmation, cancelled it once, then retried and completed the update. It launched version 0.2.1 (3), with History retention still set to 90 days. A downgrade and an APK signed by a different test key were rejected. No official release, production key, test release or tag was created; the temporary key was removed after the run.

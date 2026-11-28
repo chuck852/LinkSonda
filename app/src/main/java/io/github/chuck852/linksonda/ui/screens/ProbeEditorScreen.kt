@@ -53,7 +53,6 @@ import io.github.chuck852.linksonda.domain.IpFamily
 import io.github.chuck852.linksonda.domain.ProbeConfig
 import io.github.chuck852.linksonda.domain.ProbeOutcome
 import io.github.chuck852.linksonda.domain.TlsVersion
-import io.github.chuck852.linksonda.ui.checks.DEFAULT_GROUP_ID
 import io.github.chuck852.linksonda.ui.checks.ProbeDraft
 import io.github.chuck852.linksonda.ui.checks.ProbeEditorError
 import io.github.chuck852.linksonda.ui.checks.ProbeEditorField
@@ -185,17 +184,12 @@ private fun BasicsCard(
             label = stringResource(R.string.editor_name_label),
             error = errors[ProbeEditorField.NAME],
         )
-        LabeledValue(
-            label = stringResource(R.string.editor_group_label),
+        EditorTextField(
             value = state.groupName,
+            onValueChange = { onStateChange(state.copy(groupName = it)) },
+            label = stringResource(R.string.editor_group_label),
+            error = errors[ProbeEditorField.GROUP],
         )
-        if (state.groupId == DEFAULT_GROUP_ID) {
-            Text(
-                text = stringResource(R.string.editor_group_unavailable),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         Text(
             text = stringResource(R.string.editor_profile_scope_note),
             style = MaterialTheme.typography.bodySmall,

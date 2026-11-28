@@ -42,7 +42,7 @@
     <string name="transport_other">Другое</string>
     <string name="overview_profile_title">Активный профиль</string>
     <string name="overview_profile_none">Нет активного профиля</string>
-    <string name="overview_profile_schedule">Каждые %1$d с</string>
+    <string name="overview_profile_schedule">Настроено: каждые %1$d с</string>
     <string name="overview_groups_title">Группы</string>
     <string name="overview_groups_empty_title">Групп пока нет</string>
     <string name="overview_groups_empty_body">Группы из активного профиля появятся здесь.</string>
@@ -60,8 +60,6 @@
 
     <string name="checks_empty_title">Проверок пока нет</string>
     <string name="checks_empty_body">Проверки появятся после настройки профиля.</string>
-    <string name="presets_empty_title">Пресетов пока нет</string>
-    <string name="presets_empty_body">Встроенные и пользовательские пресеты появятся здесь.</string>
     <string name="history_empty_title">Истории пока нет</string>
     <string name="history_empty_body">Результаты и инциденты появятся после запуска мониторинга.</string>
     <string name="demo_banner">Демо-данные. Сетевые запросы не выполняются.</string>
@@ -364,9 +362,10 @@
     <string name="first_run_local_body">Проверки выполняются с этого устройства. LinkSonda рассчитана на локальный мониторинг: без аккаунта, облачного сервера и доступа к местоположению.</string>
     <string name="first_run_profile_title">Профиль мониторинга</string>
     <string name="first_run_profile_manual">Ручные проверки</string>
-    <string name="first_run_profile_manual_body">Начать без фонового мониторинга. Выбор профиля появится после подключения профилей.</string>
-    <string name="first_run_profile_available_body">Использовать этот профиль после подключения мониторинга.</string>
-    <string name="first_run_profiles_empty">Профили мониторинга пока недоступны. Продолжите с ручными проверками; профили появятся после подключения.</string>
+    <string name="first_run_profile_manual_body">Начать без фонового мониторинга. Профиль можно создать или выбрать позже в разделе «Пресеты».</string>
+    <string name="first_run_profile_available_body">Выбрать этот профиль. Мониторинг не запускается автоматически.</string>
+    <string name="first_run_profile_details">Проверок: %1$d · каждые %2$d с</string>
+    <string name="first_run_profiles_empty">Профилей пока нет. Продолжите с ручными проверками и создайте профиль в разделе «Пресеты».</string>
     <string name="first_run_notifications_note">Разрешение Android на уведомления запрашивается только при включении уведомлений в настройках.</string>
     <string name="first_run_privacy_note">Без аккаунта. Без доступа к местоположению.</string>
     <string name="first_run_continue">Продолжить</string>
@@ -417,4 +416,112 @@
     <string name="update_notification_body">Нажмите, чтобы просмотреть и установить обновление.</string>
     <string name="update_notification_channel">Обновления</string>
     <string name="update_notification_channel_description">Новые подписанные релизы LinkSonda</string>
+
+    <string name="action_delete">Удалить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_copy">Копировать</string>
+
+    <string name="overview_profile_manage">Открыть профили</string>
+    <string name="checks_no_profile_title">Нет активного профиля</string>
+    <string name="checks_no_profile_body">Создайте или выберите профиль мониторинга, чтобы добавлять и редактировать проверки.</string>
+    <string name="checks_open_profiles">Открыть профили</string>
+
+    <string name="profile_builtin_title">Встроенные пресеты</string>
+    <string name="profile_builtin_empty_title">Встроенных пресетов пока нет</string>
+    <string name="profile_builtin_empty_body">Встроенный каталог endpoints в этой сборке не заполнен. В него попадут только проверенные endpoints.</string>
+    <string name="profile_user_title">Ваши профили</string>
+    <plurals name="profile_count">
+        <item quantity="one">%1$d профиль</item>
+        <item quantity="few">%1$d профиля</item>
+        <item quantity="many">%1$d профилей</item>
+        <item quantity="other">%1$d профиля</item>
+    </plurals>
+    <string name="profile_create">Создать профиль</string>
+    <string name="profile_default_name">Профиль %1$d</string>
+    <string name="profile_copy_name">Копия %1$s</string>
+    <string name="profile_list_empty_title">Профилей пока нет</string>
+    <string name="profile_list_empty_body">Создайте профиль, чтобы объединить проверки в группы и сохранить настройки расписания.</string>
+    <string name="profile_no_auto_start_note">Сохранение или активация профиля не запускает мониторинг. В этой сборке проверки не отправляют трафик.</string>
+    <string name="profile_active">Активен</string>
+    <string name="profile_activate">Активировать</string>
+    <string name="profile_activated">Профиль активирован. Мониторинг не запущен.</string>
+    <string name="profile_delete_title">Удалить профиль?</string>
+    <string name="profile_delete_body">Удалить «%1$s» и его проверки с этого устройства? Действие необратимо.</string>
+    <string name="profile_deleted">Профиль удалён.</string>
+    <string name="profile_delete_failed">Не удалось удалить профиль.</string>
+    <string name="profile_created">Профиль создан.</string>
+    <string name="profile_copied">Профиль скопирован.</string>
+    <string name="profile_create_failed">Не удалось создать профиль.</string>
+    <string name="profile_copy_failed">Не удалось скопировать профиль.</string>
+    <string name="profile_save_failed">Не удалось сохранить профиль.</string>
+    <string name="profile_saved">Настройки профиля сохранены.</string>
+    <string name="profile_edit">Изменить профиль</string>
+    <string name="profile_editor_title">Редактирование профиля</string>
+    <string name="profile_not_found_title">Профиль не найден</string>
+    <string name="profile_not_found_body">Выбранный профиль больше недоступен.</string>
+    <plurals name="profile_check_count">
+        <item quantity="one">%1$d проверка</item>
+        <item quantity="few">%1$d проверки</item>
+        <item quantity="many">%1$d проверок</item>
+        <item quantity="other">%1$d проверки</item>
+    </plurals>
+    <plurals name="profile_group_count">
+        <item quantity="one">%1$d группа</item>
+        <item quantity="few">%1$d группы</item>
+        <item quantity="many">%1$d групп</item>
+        <item quantity="other">%1$d группы</item>
+    </plurals>
+    <string name="profile_interval_short">Каждые %1$d с</string>
+
+    <string name="profile_settings_title">Расписание и оповещения</string>
+    <string name="profile_name_label">Название профиля</string>
+    <string name="profile_save">Сохранить профиль</string>
+    <string name="profile_saving">Сохранение…</string>
+    <string name="profile_interval_label">Настроенный интервал мониторинга</string>
+    <string name="profile_interval_option">%1$d с</string>
+    <string name="profile_interval_10_note">10 с зарезервированы для собственных или явно разрешённых endpoints. Интервал недоступен, пока каталог не проверен.</string>
+    <string name="profile_concurrency_label">Одновременных проверок (1–4)</string>
+    <string name="profile_failures_label">Отказов до DOWN (1–10)</string>
+    <string name="profile_successes_label">Успехов до восстановления (1–10)</string>
+    <string name="profile_notifications_label">Уведомления об инцидентах</string>
+    <string name="profile_repeat_label">Повтор через (минуты)</string>
+    <string name="profile_effective_title">Эффективные настройки</string>
+    <string name="profile_configured_interval">Настроенный интервал</string>
+    <string name="profile_concurrency_value">Лимит одновременности</string>
+    <string name="profile_concurrency_configured">До %1$d проверок одновременно</string>
+    <string name="profile_effective_note">Настроенный интервал — целевой. Фактическое выполнение может быть реже, когда движок мониторинга применяет ограничения endpoints и admission controller. В этой сборке проверки не отправляют трафик.</string>
+    <string name="profile_no_groups_note">Добавьте проверку, чтобы создать первую группу.</string>
+    <string name="profile_groups_title">Группы</string>
+    <string name="profile_groups_empty">Групп пока нет. Группа создаётся вместе с первой проверкой и исчезает после удаления последней.</string>
+    <string name="profile_group_ungrouped">Без группы</string>
+    <string name="profile_rename_group">Переименовать группу</string>
+    <string name="profile_rename_group_title">Переименовать группу</string>
+    <string name="profile_group_name_label">Название группы</string>
+    <string name="profile_group_duplicate">Группа с таким названием уже существует.</string>
+    <string name="profile_group_renamed">Группа переименована.</string>
+    <string name="profile_group_rename_failed">Не удалось переименовать группу.</string>
+    <string name="profile_checks_title">Проверки</string>
+    <string name="profile_checks_empty">В этом профиле пока нет проверок.</string>
+    <string name="profile_delete_check_title">Удалить проверку?</string>
+    <string name="profile_delete_check_body">Удалить «%1$s»? Группа исчезнет, если это была её последняя проверка.</string>
+    <string name="profile_check_deleted">Проверка удалена.</string>
+    <string name="profile_check_delete_failed">Не удалось удалить проверку.</string>
+    <string name="profile_no_traffic_note">Сохранение или активация профиля не запускает мониторинг. В этой сборке проверки не отправляют трафик.</string>
+    <string name="profile_error_required">Обязательное поле.</string>
+    <string name="profile_error_interval">Используйте 60 или 300 секунд. Интервал 10 секунд пока недоступен.</string>
+    <string name="profile_error_concurrency">Введите число от 1 до 4.</string>
+    <string name="profile_error_threshold">Введите число от 1 до 10.</string>
+    <string name="profile_error_repeat">Введите от 1 до 1440 минут.</string>
+    <string name="profile_manage">Открыть профили</string>
+    <string name="overview_profile_none_body">Создайте или выберите профиль мониторинга, чтобы увидеть его группы и проверки.</string>
+    <string name="overview_groups_no_profile_body">Активный профиль не выбран. Откройте профили, чтобы создать или выбрать его.</string>
+    <string name="profile_default_group_name">Проверки</string>
+    <string name="profile_check_detail">%1$s · %2$s</string>
+    <plurals name="overview_group_configured_probes">
+        <item quantity="one">%1$d проверка настроена · результата пока нет</item>
+        <item quantity="few">%1$d проверки настроены · результата пока нет</item>
+        <item quantity="many">%1$d проверок настроено · результата пока нет</item>
+        <item quantity="other">%1$d проверки настроены · результата пока нет</item>
+    </plurals>
 </resources>

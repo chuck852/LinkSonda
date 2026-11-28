@@ -21,6 +21,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 enum class ProbeEditorField {
     NAME,
+    GROUP,
     HOST,
     PORT,
     URL,
@@ -131,6 +132,9 @@ data class ProbeEditorState(
         val trimmedName = name.trim()
         if (trimmedName.isEmpty()) {
             errors[ProbeEditorField.NAME] = ProbeEditorError.REQUIRED
+        }
+        if (groupName.trim().isEmpty()) {
+            errors[ProbeEditorField.GROUP] = ProbeEditorError.REQUIRED
         }
         val timeout = parseTimeout(timeoutSeconds)
         if (timeout == null) {
