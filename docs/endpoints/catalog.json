@@ -667,7 +667,7 @@
       "protocol": "HTTPS",
       "address": "https://ya.ru/",
       "method": "GET",
-      "expectedResponse": "HTTP 200 or 3xx under normal conditions; not measured. A redirect may be regional.",
+      "expectedResponse": "HTTP 200 or 3xx under normal conditions; availability not measured. A redirect may be regional.",
       "regionGroup": "RU",
       "officialSources": [
         "https://ya.ru/",
@@ -693,7 +693,7 @@
       "protocol": "HTTPS",
       "address": "https://vk.com/",
       "method": "GET",
-      "expectedResponse": "HTTP 200 or 3xx under normal conditions; not measured. A redirect may be regional.",
+      "expectedResponse": "HTTP 200 or 3xx under normal conditions; availability not measured. A redirect may be regional.",
       "regionGroup": "RU",
       "officialSources": [
         "https://vk.com/terms"
@@ -718,7 +718,7 @@
       "protocol": "HTTPS",
       "address": "https://mail.ru/",
       "method": "GET",
-      "expectedResponse": "HTTP 200 or 3xx under normal conditions; not measured. A redirect may be regional.",
+      "expectedResponse": "HTTP 200 or 3xx under normal conditions; availability not measured. A redirect may be regional.",
       "regionGroup": "RU",
       "officialSources": [
         "https://mail.ru/",
@@ -744,7 +744,7 @@
       "protocol": "HTTPS",
       "address": "https://www.gosuslugi.ru/",
       "method": "GET",
-      "expectedResponse": "HTTP 200 or 3xx under normal conditions; not measured. A redirect may be regional.",
+      "expectedResponse": "HTTP 200 or 3xx under normal conditions; availability not measured. A redirect may be regional.",
       "regionGroup": "RU",
       "officialSources": [
         "https://www.gosuslugi.ru/",
@@ -770,7 +770,7 @@
       "protocol": "HTTPS",
       "address": "https://ria.ru/",
       "method": "GET",
-      "expectedResponse": "HTTP 200 or 3xx under normal conditions; not measured. A redirect may be regional.",
+      "expectedResponse": "HTTP 200 or 3xx under normal conditions; availability not measured. A redirect may be regional.",
       "regionGroup": "RU",
       "officialSources": [
         "https://ria.ru/",
@@ -786,7 +786,7 @@
       "blockedRegions": [],
       "redirectPolicy": "NONE; a redirect is recorded, never followed.",
       "retryPolicy": "None.",
-      "notes": "Documentary control candidate only. Do not send an HTTP request without written owner permission."
+      "notes": "Documentary control candidate only. Do not send an HTTP request without written owner permission. DNS resolution is also not approved for this target."
     },
     {
       "id": "ru-rt",
@@ -796,7 +796,7 @@
       "protocol": "HTTPS",
       "address": "https://rt.ru/",
       "method": "GET",
-      "expectedResponse": "HTTP 200 or 3xx under normal conditions; not measured. A redirect may be regional.",
+      "expectedResponse": "HTTP 200 or 3xx under normal conditions; availability not measured. A redirect to a regional site was observed during source review.",
       "regionGroup": "RU",
       "officialSources": [
         "https://rt.ru/",
@@ -822,7 +822,7 @@
       "protocol": "HTTPS",
       "address": "https://sber.ru/",
       "method": "GET",
-      "expectedResponse": "HTTP 200 or 3xx under normal conditions; not measured. A redirect may be regional.",
+      "expectedResponse": "HTTP 200 or 3xx under normal conditions; availability not measured. A redirect may be regional.",
       "regionGroup": "RU",
       "officialSources": [
         "https://sber.ru/",

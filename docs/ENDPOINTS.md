@@ -11,7 +11,7 @@ Documentation review was completed on 2026-11-28. No diagnostic probe or load te
 - Technical reachability is not permission. A successful response, the absence of a `429`, or a public "status" page does not authorize automated monitoring.
 - Only official owner documentation is evidence. Third-party blogs and independent availability probes are not permission.
 - No endpoint in this catalog is activated by this change. The app's built-in catalog remains empty until #22 integrates the approved subset.
-- No load test, burst test or automated probe was sent to a third-party service during this verification. Sources were read as documentation only.
+- No load test, burst test or automated diagnostic probe was sent to a third-party service during this verification. Source pages were fetched only to read terms and documentation, as disclosed above.
 - The safe default is `DISABLED`. Unknown permission is not permission.
 
 ## Status model
@@ -58,7 +58,7 @@ Each entry carries:
 
 ### Russian carrier DNS
 
-MTS and MegaFon document different resolvers per federal district; some MegaFon addresses are private `10.x` addresses. Beeline, T2 and Rostelecom did not document a public recursive resolver service for third-party use in the reviewed official materials; subscriber addresses are normally assigned by DHCP. The separate Beeline DNS service is authoritative hosting, not a recursive resolver. None of these is documented for third-party use. MTS and MegaFon are therefore `DISABLED`; Beeline, T2 and Rostelecom are `UNVERIFIED` outside the JSON with no usable public address. They are deliberately not JSON catalog entries, because an entry without an approved address would invite a request that has no permission. Do not query them.
+MTS and MegaFon document different resolvers per federal district; some MegaFon addresses are private `10.x` addresses. Beeline, T2 and Rostelecom did not document a public recursive resolver service for third-party use in the reviewed official materials; subscriber addresses are normally assigned by DHCP. The separate Beeline DNS service is authoritative hosting, not a recursive resolver. None of these is documented for third-party use. MTS and MegaFon are therefore `DISABLED`; Beeline, T2 and Rostelecom are `UNVERIFIED` outside the JSON with no usable public address. They are deliberately not JSON catalog entries, because an entry without an approved address would invite a request that has no permission. This carrier summary is a non-authoritative exclusion note, not a catalog entry or an approval source. Do not query them.
 
 ## Passive Android validation
 
@@ -123,7 +123,7 @@ This is an owner-run, low-volume verification, not a production feature and not 
 6. Stop the run on a DNS timeout over 5 seconds, `SERVFAIL`, `REFUSED`, malformed/truncated response, an HTTP `403`/`429`/`503` from DoH with `Retry-After`, a block/CAPTCHA page, a TLS error, three consecutive failures, or any sign of rate limiting. End the run, wait at least 24 hours and report the exact values. Do not retry from another network to obtain a successful response.
 7. Never test login, API, payment or account pages. Do not scrape, crawl, scan ports, run zone transfers, loop, parallelize or load-test. Do not query private `10.x` carrier resolvers from outside their network, bypass blocks or use a VPN to "prove" Russian availability.
 
-Budget: at most 12 DNS queries per day; no HTTP or HTTPS requests. A single **"Run once"** session is one manual verification check; its fixed four UDP queries count against the UDP entry budget, and the 300-second entry interval applies between sessions, not between packets in that fixed set. Do not repeat a session within 24 hours. This is a one-time verification, not a monitoring schedule. It does not approve any endpoint for background use, and it does not turn a `DISABLED` or `UNVERIFIED` candidate into an approved target.
+Budget: at most 12 DNS queries per day; no direct HTTP or HTTPS page requests (DoH is a DNS query carried over HTTPS). A single **"Run once"** session is one manual verification check; its fixed four UDP queries count against the UDP entry budget, and the 300-second entry interval applies between sessions, not between packets in that fixed set. Do not repeat a session within 24 hours. This is a one-time verification, not a monitoring schedule. It does not approve any endpoint for background use, and it does not turn a `DISABLED` or `UNVERIFIED` candidate into an approved target.
 
 ## Decisions and maintenance
 
