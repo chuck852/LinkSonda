@@ -79,6 +79,8 @@ import io.github.chuck852.linksonda.ui.screens.PresetsScreen
 import io.github.chuck852.linksonda.ui.screens.ProbeDetailsScreen
 import io.github.chuck852.linksonda.ui.screens.ProbeEditorScreen
 import io.github.chuck852.linksonda.ui.screens.SettingsScreen
+import io.github.chuck852.linksonda.ui.screens.UpdaterActions
+import io.github.chuck852.linksonda.updater.UpdaterUiState
 import io.github.chuck852.linksonda.ui.theme.ConfirmedAggregateStatus
 import io.github.chuck852.linksonda.ui.theme.LinkSondaSpacing
 import io.github.chuck852.linksonda.ui.theme.LinkSondaTheme
@@ -95,6 +97,8 @@ fun LinkSondaApp(
     settings: AppSettings = AppSettings.Default,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit = {},
     firstRunProfiles: List<FirstRunProfile> = emptyList(),
+    updaterState: UpdaterUiState = UpdaterUiState(),
+    updaterActions: UpdaterActions = UpdaterActions(),
 ) {
     LinkSondaTheme(
         confirmedAggregateStatus = ConfirmedAggregateStatus(overviewState.aggregateStatus),
@@ -119,11 +123,12 @@ fun LinkSondaApp(
         if (!settings.onboardingCompleted) {
             FirstRunScreen(
                 profiles = availableProfiles,
-                onComplete = { profileId ->
+                onComplete = { profileId, updateChecksEnabled ->
                     onSettingsChange {
                         it.copy(
                             onboardingCompleted = true,
                             selectedProfileId = profileId,
+                            updateChecksEnabled = updateChecksEnabled,
                         )
                     }
                 },
@@ -357,6 +362,8 @@ fun LinkSondaApp(
                         settings = settings,
                         monitoringAvailable = false,
                         onSettingsChange = onSettingsChange,
+                        updaterState = updaterState,
+                        updaterActions = updaterActions,
                     )
                 }
             }

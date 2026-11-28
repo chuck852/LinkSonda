@@ -287,6 +287,12 @@ IFS=$'\t' read -r app_package apk_code apk_name app_min_sdk app_target_sdk \
 if grep -qx 'application-debuggable' <<< "$unsigned_badging"; then
   fail "Refusing to sign a debuggable APK"
 fi
+manifest_xml=$("$aapt2" dump xmltree --file AndroidManifest.xml "$unsigned")
+grep -A2 'io.github.chuck852.linksonda.UPDATER_TEST_SOURCE' <<< "$manifest_xml" |
+  grep -q 'value(0x01010024)=false' ||
+  fail "Refusing to sign an APK built with UPDATER_TEST_SOURCE enabled"
+grep -Eq 'usesCleartextTraffic\([^)]*\)=false' <<< "$manifest_xml" ||
+  fail "Refusing to sign an APK with cleartext traffic enabled"
 
 signed="$stage/LinkSonda-$version_name.apk"
 set +x

@@ -1,6 +1,6 @@
 # Local storage — public #13
 
-LinkSonda keeps settings in DataStore and monitoring data in Room. Everything stays in the app's private storage: there is no account, cloud sync, telemetry or network permission. Android cloud backup and device transfer are disabled for the app; the policy and OEM limits are described below. The storage layer is app-scoped in `LinkSondaApplication`; screens are connected in later work, so the current UI still shows honest empty states.
+LinkSonda keeps settings in DataStore and monitoring data in Room. Everything stays in the app's private storage: there is no account, cloud sync or telemetry. The updater uses `INTERNET` only for GitHub Releases; diagnostic traffic is not connected. Android cloud backup and device transfer are disabled for the app; the policy and OEM limits are described below. The storage layer is app-scoped in `LinkSondaApplication`; screens are connected in later work, so the current UI still shows honest empty states.
 
 ## Settings
 
@@ -16,7 +16,7 @@ The production adapter is `DataStoreSettingsStorage`:
 - `SettingsStore.initialize()` asynchronously reads DataStore, replaces the in-memory state and refreshes the startup snapshot. Writes wait for this load, so a stale snapshot cannot overwrite DataStore. If the process dies between the DataStore commit and the snapshot refresh, the next initialization restores the authoritative values and repairs the snapshot;
 - `PersistentSettingsStore` serializes updates. A cancellation before the write leaves the state unchanged; once the write starts it completes non-cancellably, so a committed DataStore value is also published to the `StateFlow`. A regression test covers cancellation after the write.
 
-The model also reserves the fields needed by the future updater (#57): whether automatic checks are enabled, the selected channel (`STABLE` or `PREVIEW`), the last check time, the last ETag and the last offered versionCode. No updater, notification, download or installation code exists yet.
+The model stores updater preferences and the last check/result, ETag, offered version and release notes, and the last notified versionCode. The updater is documented in [in-app updates](UPDATER.md).
 
 ## Room schema
 
@@ -71,5 +71,5 @@ The settings migration from SharedPreferences to DataStore is covered by a Robol
 - `HistoryMaintenanceTest`: retention cutoff, open-incident preservation, network cleanup, full history deletion.
 - `DataStoreSettingsStorageTest`: legacy SharedPreferences migration, authoritative DataStore writes, startup snapshot repair after an interrupted write.
 - `SettingsStoreTest`/`AppSettingsTest`: codec round-trip, corrupt-value fallback, initialization-before-write, cancellation after the write and updater-reserved fields.
-- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (137 JVM tests).
+- `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` passes (296 JVM tests, including updater tests).
 - API 36 emulator: changing History retention to 90 days survives force-stop and relaunch; the DataStore preferences file is present in app-private storage.

@@ -61,6 +61,7 @@ import io.github.chuck852.linksonda.ui.components.SectionHeader
 import io.github.chuck852.linksonda.ui.theme.LinkSondaSpacing
 import io.github.chuck852.linksonda.ui.theme.ThemeBrightness
 import io.github.chuck852.linksonda.ui.theme.ThemeMode
+import io.github.chuck852.linksonda.updater.UpdaterUiState
 
 @Composable
 fun SettingsScreen(
@@ -68,6 +69,8 @@ fun SettingsScreen(
     monitoringAvailable: Boolean,
     onSettingsChange: ((AppSettings) -> AppSettings) -> Unit,
     modifier: Modifier = Modifier,
+    updaterState: UpdaterUiState = UpdaterUiState(),
+    updaterActions: UpdaterActions = UpdaterActions(),
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -96,6 +99,14 @@ fun SettingsScreen(
         item {
             HistorySection(
                 settings = settings,
+                onSettingsChange = onSettingsChange,
+            )
+        }
+        item {
+            UpdatesSection(
+                settings = settings,
+                state = updaterState,
+                actions = updaterActions,
                 onSettingsChange = onSettingsChange,
             )
         }
@@ -322,7 +333,7 @@ private fun LocalDataSection() {
 }
 
 @Composable
-private fun SettingsRadioRow(
+internal fun SettingsRadioRow(
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -374,7 +385,7 @@ private fun SettingsRadioRow(
 }
 
 @Composable
-private fun SettingsSwitchRow(
+internal fun SettingsSwitchRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
@@ -427,7 +438,7 @@ private fun SettingsSwitchRow(
 }
 
 @Composable
-private fun SettingsSubheading(text: String) {
+internal fun SettingsSubheading(text: String) {
     Text(
         text = text,
         modifier = Modifier.semantics { heading() },
@@ -437,7 +448,7 @@ private fun SettingsSubheading(text: String) {
 }
 
 @Composable
-private fun SettingsNote(text: String) {
+internal fun SettingsNote(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodySmall,
@@ -446,7 +457,7 @@ private fun SettingsNote(text: String) {
 }
 
 @Composable
-private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

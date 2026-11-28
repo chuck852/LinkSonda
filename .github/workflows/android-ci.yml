@@ -64,6 +64,14 @@ jobs:
           test -f app/build/outputs/apk/release/app-release-unsigned.apk
           sha256sum app/build/outputs/apk/release/app-release-unsigned.apk
 
+      - name: Verify official updater build flags
+        run: |
+          aapt2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          manifest="$("$aapt2" dump xmltree --file AndroidManifest.xml app/build/outputs/apk/release/app-release-unsigned.apk)"
+          grep -A2 'io.github.chuck852.linksonda.UPDATER_TEST_SOURCE' <<< "$manifest" |
+            grep -q 'value(0x01010024)=false'
+          grep -Eq 'usesCleartextTraffic\([^)]*\)=false' <<< "$manifest"
+
       - name: Stage APK and license notices
         run: |
           mkdir -p "$RUNNER_TEMP/linksonda-debug"

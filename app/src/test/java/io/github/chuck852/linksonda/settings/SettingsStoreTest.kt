@@ -30,6 +30,13 @@ class SettingsStoreTest {
             lastUpdateCheckAt = java.time.Instant.parse("2026-11-27T12:00:00Z"),
             updateEtag = "etag-1",
             lastOfferedVersionCode = 42,
+            lastOfferedVersionName = "0.4.0",
+            lastOfferedReleaseNotes = "Notes",
+            lastOfferedChannel = UpdateChannel.PREVIEW,
+            lastOfferedUpdateJson = "{\"test\":true}",
+            lastUpdateStatus = UpdateCheckStatus.UPDATE_AVAILABLE,
+            lastUpdateRetryAt = java.time.Instant.parse("2026-11-28T13:00:00Z"),
+            lastNotifiedVersionCode = 42,
         )
 
         assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
@@ -51,6 +58,10 @@ class SettingsStoreTest {
                 SettingsCodec.KEY_UPDATE_CHANNEL to "NIGHTLY",
                 SettingsCodec.KEY_LAST_UPDATE_CHECK_AT to "not-a-time",
                 SettingsCodec.KEY_LAST_OFFERED_VERSION_CODE to "-1",
+                SettingsCodec.KEY_LAST_UPDATE_STATUS to "BROKEN",
+                SettingsCodec.KEY_LAST_UPDATE_RETRY_AT to "not-a-time",
+                SettingsCodec.KEY_LAST_NOTIFIED_VERSION_CODE to "0",
+                SettingsCodec.KEY_LAST_OFFERED_UPDATE_JSON to "{}",
             ),
         )
 

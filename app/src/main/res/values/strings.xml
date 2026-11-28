@@ -362,4 +362,51 @@
     <string name="first_run_notifications_note">Android notification permission is requested only when you enable notifications in Settings.</string>
     <string name="first_run_privacy_note">No account. No location access.</string>
     <string name="first_run_continue">Continue</string>
+
+    <string name="settings_updates_title">Updates</string>
+    <string name="settings_updates_auto">Check for updates automatically</string>
+    <string name="settings_updates_auto_body">Checks GitHub Releases about once a day when a network is available. Monitoring is not affected if GitHub is unavailable.</string>
+    <string name="settings_updates_channel_title">Update channel</string>
+    <string name="settings_updates_channel_stable">Stable</string>
+    <string name="settings_updates_channel_stable_body">Stable releases only.</string>
+    <string name="settings_updates_channel_preview">Preview</string>
+    <string name="settings_updates_channel_preview_body">Pre-releases and stable releases.</string>
+    <string name="settings_updates_current">Current version: %1$s (%2$d)</string>
+    <string name="settings_updates_check">Check now</string>
+    <string name="settings_updates_checking">Checking…</string>
+    <string name="settings_updates_last_check">Last check: %1$s</string>
+    <string name="settings_updates_never">Never checked</string>
+    <string name="settings_updates_available">Available version: %1$s</string>
+    <string name="settings_updates_notes">Release notes</string>
+    <string name="settings_updates_download">Download update</string>
+    <string name="settings_updates_downloading">Downloading %1$d%%</string>
+    <string name="settings_updates_cancel_download">Cancel download</string>
+    <string name="settings_updates_ready">The update is verified and ready to install.</string>
+    <string name="settings_updates_install">Install update</string>
+    <string name="settings_updates_allow_install">Allow app installation</string>
+    <string name="settings_updates_allow_install_body">Android must allow LinkSonda to install the downloaded update. Android will still ask for confirmation.</string>
+    <string name="settings_updates_install_permission">Allow app installation in Android settings.</string>
+    <string name="settings_updates_status_up_to_date">You have the latest version.</string>
+    <string name="settings_updates_status_not_modified">No newer version was published.</string>
+    <string name="settings_updates_status_rate_limited">GitHub rate limit reached. Try again after %1$s.</string>
+    <string name="settings_updates_status_network">GitHub is unavailable. Monitoring status is unaffected.</string>
+    <string name="settings_updates_status_invalid">The published update could not be trusted.</string>
+    <string name="settings_updates_status_no_release">No update metadata is available yet.</string>
+    <string name="settings_updates_status_update_available">A newer signed version is available.</string>
+    <string name="settings_updates_error_verify">The downloaded APK did not pass verification.</string>
+    <string name="settings_updates_error_download">The update could not be downloaded.</string>
+    <string name="settings_updates_error_install">Installation failed or was cancelled.</string>
+    <string name="settings_updates_error_busy">A check or download is already running.</string>
+    <string name="settings_updates_no_notes">No release notes.</string>
+    <string name="settings_updates_disabled_debug">Updates are unavailable in debug builds.</string>
+    <string name="settings_updates_source">Source: GitHub Releases. No account or token is used.</string>
+
+    <string name="first_run_updates_title">Update checks</string>
+    <string name="first_run_updates_body">LinkSonda can check GitHub Releases about once a day for a newer signed version. You can change this later in Settings.</string>
+    <string name="first_run_updates_switch">Check for updates automatically</string>
+
+    <string name="update_notification_title">LinkSonda %1$s is available</string>
+    <string name="update_notification_body">Tap to review and install the update.</string>
+    <string name="update_notification_channel">Updates</string>
+    <string name="update_notification_channel_description">New signed LinkSonda releases</string>
 </resources>

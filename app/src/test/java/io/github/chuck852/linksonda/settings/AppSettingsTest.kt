@@ -26,6 +26,13 @@ class AppSettingsTest {
         assertNull(settings.lastUpdateCheckAt)
         assertNull(settings.updateEtag)
         assertNull(settings.lastOfferedVersionCode)
+        assertNull(settings.lastOfferedVersionName)
+        assertNull(settings.lastOfferedReleaseNotes)
+        assertNull(settings.lastOfferedChannel)
+        assertNull(settings.lastOfferedUpdateJson)
+        assertEquals(UpdateCheckStatus.NEVER, settings.lastUpdateStatus)
+        assertNull(settings.lastUpdateRetryAt)
+        assertNull(settings.lastNotifiedVersionCode)
     }
 
     @Test

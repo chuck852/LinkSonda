@@ -16,9 +16,10 @@ Notifications are not requested during onboarding. Android asks for `POST_NOTIFI
 | Monitoring | Background-monitoring switch; disabled with an explanation until the monitoring engine is connected |
 | Notifications | Incident-notification switch; permission is requested only when enabling it |
 | History | 7, 30, 90 or 365 days; used by the local retention maintenance |
+| Updates | Automatic checks, Stable/Preview channel, manual check, current/available version, release notes and install actions |
 | Local data | A statement that settings and history are designed to stay on the device, plus the app version |
 
-If notification permission is denied, the switch remains off and Settings explains that other features continue to work and that permission can be changed in Android settings. The rationale is stored with the preference, so it survives leaving the screen and process recreation. On resume the app rechecks the OS permission: a revoked permission turns the effective switch off, keeps the user's preference and shows the same explanation. A denial does not block the editor, the checks list or any other screen.
+The Updates section is separate from monitoring: GitHub failures are shown as update status and never change a probe state. If notification permission is denied, the switch remains off and Settings explains that other features continue to work and that permission can be changed in Android settings. The rationale is stored with the preference, so it survives leaving the screen and process recreation. On resume the app rechecks the OS permission: a revoked permission turns the effective switch off, keeps the user's preference and shows the same explanation. A denial does not block the editor, the checks list or any other screen.
 
 ## Persistence boundary
 
@@ -34,7 +35,7 @@ Settings rows use selectable or toggleable semantics with radio/switch roles, se
 
 ## Verification
 
-- 137 JVM tests, 0 failures, including the storage tests listed in [local storage](STORAGE.md).
+- 296 JVM tests, 0 failures, including the storage and updater tests.
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` and `assembleRelease` passed.
 - Android 17 (API 37) emulator: first run, profile selection in the debug harness, completion, Russian/English switch, platform app-locale synchronization, language and dark-theme persistence after force-stop, notification permission denial and rationale persistence, permission revocation while enabled, editor access after denial, and 200% font scale.
 - Release APK contains the Russian resources and no demo screens or demo settings data.
