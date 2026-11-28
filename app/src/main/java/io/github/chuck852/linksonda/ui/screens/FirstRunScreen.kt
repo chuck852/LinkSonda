@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.Button
@@ -25,6 +26,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,10 +53,11 @@ import io.github.chuck852.linksonda.ui.theme.LinkSondaSpacing
 @Composable
 fun FirstRunScreen(
     profiles: List<FirstRunProfile>,
-    onComplete: (profileId: String?) -> Unit,
+    onComplete: (profileId: String?, updateChecksEnabled: Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var savedProfileId by rememberSaveable { mutableStateOf<String?>(null) }
+    var updateChecksEnabled by rememberSaveable { mutableStateOf(false) }
 
     // A restored id may no longer be offered; the visible selection stays the source of truth.
     val availableProfileIds = profiles.mapTo(HashSet()) { it.id }
@@ -79,8 +82,14 @@ fun FirstRunScreen(
         }
         item { NotificationNoteCard() }
         item {
+            UpdateChecksCard(
+                checked = updateChecksEnabled,
+                onCheckedChange = { updateChecksEnabled = it },
+            )
+        }
+        item {
             Button(
-                onClick = { onComplete(selectedProfileId) },
+                onClick = { onComplete(selectedProfileId, updateChecksEnabled) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = LinkSondaSpacing.minTouchTarget),
@@ -154,6 +163,41 @@ private fun ProfileChoiceCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun UpdateChecksCard(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    FirstRunCard {
+        SectionHeader(stringResource(R.string.first_run_updates_title))
+        Text(
+            text = stringResource(R.string.first_run_updates_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = LinkSondaSpacing.minTouchTarget)
+                .toggleable(
+                    value = checked,
+                    role = Role.Switch,
+                    onValueChange = onCheckedChange,
+                )
+                .padding(vertical = LinkSondaSpacing.small),
+            horizontalArrangement = Arrangement.spacedBy(LinkSondaSpacing.medium),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.first_run_updates_switch),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Switch(checked = checked, onCheckedChange = null)
         }
     }
 }

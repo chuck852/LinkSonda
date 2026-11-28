@@ -370,4 +370,51 @@
     <string name="first_run_notifications_note">Разрешение Android на уведомления запрашивается только при включении уведомлений в настройках.</string>
     <string name="first_run_privacy_note">Без аккаунта. Без доступа к местоположению.</string>
     <string name="first_run_continue">Продолжить</string>
+
+    <string name="settings_updates_title">Обновления</string>
+    <string name="settings_updates_auto">Проверять обновления автоматически</string>
+    <string name="settings_updates_auto_body">Проверка GitHub Releases примерно раз в сутки при наличии сети. Недоступность GitHub не влияет на статус мониторинга.</string>
+    <string name="settings_updates_channel_title">Канал обновлений</string>
+    <string name="settings_updates_channel_stable">Стабильный</string>
+    <string name="settings_updates_channel_stable_body">Только стабильные релизы.</string>
+    <string name="settings_updates_channel_preview">Preview</string>
+    <string name="settings_updates_channel_preview_body">Пре-релизы и стабильные релизы.</string>
+    <string name="settings_updates_current">Текущая версия: %1$s (%2$d)</string>
+    <string name="settings_updates_check">Проверить сейчас</string>
+    <string name="settings_updates_checking">Проверка…</string>
+    <string name="settings_updates_last_check">Последняя проверка: %1$s</string>
+    <string name="settings_updates_never">Проверок ещё не было</string>
+    <string name="settings_updates_available">Доступная версия: %1$s</string>
+    <string name="settings_updates_notes">Описание релиза</string>
+    <string name="settings_updates_download">Скачать обновление</string>
+    <string name="settings_updates_downloading">Загрузка %1$d%%</string>
+    <string name="settings_updates_cancel_download">Отменить загрузку</string>
+    <string name="settings_updates_ready">Обновление проверено и готово к установке.</string>
+    <string name="settings_updates_install">Установить обновление</string>
+    <string name="settings_updates_allow_install">Разрешить установку приложений</string>
+    <string name="settings_updates_allow_install_body">Android должен разрешить LinkSonda устанавливать скачанное обновление. Система всё равно запросит подтверждение.</string>
+    <string name="settings_updates_install_permission">Разрешите установку приложений в настройках Android.</string>
+    <string name="settings_updates_status_up_to_date">Установлена последняя версия.</string>
+    <string name="settings_updates_status_not_modified">Новая версия не публиковалась.</string>
+    <string name="settings_updates_status_rate_limited">Достигнут лимит запросов GitHub. Повторите после %1$s.</string>
+    <string name="settings_updates_status_network">GitHub недоступен. На статус мониторинга это не влияет.</string>
+    <string name="settings_updates_status_invalid">Опубликованное обновление не прошло проверку доверия.</string>
+    <string name="settings_updates_status_no_release">Метаданные обновления пока недоступны.</string>
+    <string name="settings_updates_status_update_available">Доступна новая подписанная версия.</string>
+    <string name="settings_updates_error_verify">Скачанный APK не прошёл проверку.</string>
+    <string name="settings_updates_error_download">Не удалось скачать обновление.</string>
+    <string name="settings_updates_error_install">Установка не удалась или была отменена.</string>
+    <string name="settings_updates_error_busy">Проверка или загрузка уже выполняется.</string>
+    <string name="settings_updates_no_notes">Описание релиза отсутствует.</string>
+    <string name="settings_updates_disabled_debug">В debug-сборках обновления недоступны.</string>
+    <string name="settings_updates_source">Источник: GitHub Releases. Аккаунт и токен не используются.</string>
+
+    <string name="first_run_updates_title">Проверка обновлений</string>
+    <string name="first_run_updates_body">LinkSonda может примерно раз в сутки проверять GitHub Releases на новую подписанную версию. Это можно изменить в настройках.</string>
+    <string name="first_run_updates_switch">Проверять обновления автоматически</string>
+
+    <string name="update_notification_title">Доступна LinkSonda %1$s</string>
+    <string name="update_notification_body">Нажмите, чтобы просмотреть и установить обновление.</string>
+    <string name="update_notification_channel">Обновления</string>
+    <string name="update_notification_channel_description">Новые подписанные релизы LinkSonda</string>
 </resources>

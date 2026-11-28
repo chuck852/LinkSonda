@@ -133,6 +133,13 @@ object SettingsCodec {
     const val KEY_LAST_UPDATE_CHECK_AT = "last_update_check_at"
     const val KEY_UPDATE_ETAG = "update_etag"
     const val KEY_LAST_OFFERED_VERSION_CODE = "last_offered_version_code"
+    const val KEY_LAST_OFFERED_VERSION_NAME = "last_offered_version_name"
+    const val KEY_LAST_OFFERED_RELEASE_NOTES = "last_offered_release_notes"
+    const val KEY_LAST_OFFERED_CHANNEL = "last_offered_channel"
+    const val KEY_LAST_OFFERED_UPDATE_JSON = "last_offered_update_json"
+    const val KEY_LAST_UPDATE_STATUS = "last_update_status"
+    const val KEY_LAST_UPDATE_RETRY_AT = "last_update_retry_at"
+    const val KEY_LAST_NOTIFIED_VERSION_CODE = "last_notified_version_code"
 
     fun decode(values: Map<String, String?>): AppSettings {
         val defaults = AppSettings.Default
@@ -141,6 +148,18 @@ object SettingsCodec {
             ?.toIntOrNull()
             ?.takeIf { it in AppSettings.HISTORY_RETENTION_DAYS }
             ?: defaults.historyRetentionDays
+        val offeredCode = values[KEY_LAST_OFFERED_VERSION_CODE]
+            ?.trim()
+            ?.toLongOrNull()
+            ?.takeIf { it > 0 }
+        val offeredName = values[KEY_LAST_OFFERED_VERSION_NAME]
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
+        val offeredChannel = values[KEY_LAST_OFFERED_CHANNEL]
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
+            ?.let { name -> UpdateChannel.entries.firstOrNull { it.name == name } }
+        val offeredValid = offeredCode != null && offeredName != null && offeredChannel != null
         return AppSettings(
             language = enumValue(values[KEY_LANGUAGE], defaults.language),
             themeMode = enumValue(values[KEY_THEME_MODE], defaults.themeMode),
@@ -165,7 +184,24 @@ object SettingsCodec {
             updateEtag = values[KEY_UPDATE_ETAG]
                 ?.trim()
                 ?.takeIf(String::isNotEmpty),
-            lastOfferedVersionCode = values[KEY_LAST_OFFERED_VERSION_CODE]
+            lastOfferedVersionCode = offeredCode.takeIf { offeredValid },
+            lastOfferedVersionName = offeredName.takeIf { offeredValid },
+            lastOfferedReleaseNotes = values[KEY_LAST_OFFERED_RELEASE_NOTES]
+                ?.trim()
+                ?.takeIf { offeredValid && it.isNotEmpty() },
+            lastOfferedChannel = offeredChannel.takeIf { offeredValid },
+            lastOfferedUpdateJson = values[KEY_LAST_OFFERED_UPDATE_JSON]
+                ?.trim()
+                ?.takeIf { offeredValid && it.isNotEmpty() },
+            lastUpdateStatus = values[KEY_LAST_UPDATE_STATUS]
+                ?.trim()
+                ?.let { name -> UpdateCheckStatus.entries.firstOrNull { it.name == name } }
+                ?: defaults.lastUpdateStatus,
+            lastUpdateRetryAt = values[KEY_LAST_UPDATE_RETRY_AT]
+                ?.trim()
+                ?.toLongOrNull()
+                ?.let { runCatching { Instant.ofEpochMilli(it) }.getOrNull() },
+            lastNotifiedVersionCode = values[KEY_LAST_NOTIFIED_VERSION_CODE]
                 ?.trim()
                 ?.toLongOrNull()
                 ?.takeIf { it > 0 },
@@ -187,6 +223,13 @@ object SettingsCodec {
         KEY_LAST_UPDATE_CHECK_AT to settings.lastUpdateCheckAt?.toEpochMilli()?.toString().orEmpty(),
         KEY_UPDATE_ETAG to settings.updateEtag.orEmpty(),
         KEY_LAST_OFFERED_VERSION_CODE to settings.lastOfferedVersionCode?.toString().orEmpty(),
+        KEY_LAST_OFFERED_VERSION_NAME to settings.lastOfferedVersionName.orEmpty(),
+        KEY_LAST_OFFERED_RELEASE_NOTES to settings.lastOfferedReleaseNotes.orEmpty(),
+        KEY_LAST_OFFERED_CHANNEL to settings.lastOfferedChannel?.name.orEmpty(),
+        KEY_LAST_OFFERED_UPDATE_JSON to settings.lastOfferedUpdateJson.orEmpty(),
+        KEY_LAST_UPDATE_STATUS to settings.lastUpdateStatus.name,
+        KEY_LAST_UPDATE_RETRY_AT to settings.lastUpdateRetryAt?.toEpochMilli()?.toString().orEmpty(),
+        KEY_LAST_NOTIFIED_VERSION_CODE to settings.lastNotifiedVersionCode?.toString().orEmpty(),
     )
 
     private inline fun <reified T : Enum<T>> enumValue(name: String?, fallback: T): T =
