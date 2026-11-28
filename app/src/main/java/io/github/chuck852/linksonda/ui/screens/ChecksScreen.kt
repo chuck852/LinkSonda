@@ -71,7 +71,8 @@ fun ChecksScreen(
     filters: ChecksFilterState,
     onFiltersChange: (ChecksFilterState) -> Unit,
     onProbeClick: (ProbeListItem) -> Unit,
-    onAddCheck: () -> Unit,
+    onAddCheck: (() -> Unit)?,
+    onOpenProfiles: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val filtered = remember(state.probes, filters) { state.probes.applyFilters(filters) }
@@ -84,6 +85,26 @@ fun ChecksScreen(
     ) {
         if (state.isDemo) {
             item { DemoBanner() }
+        }
+
+        if (state.activeProfile == null) {
+            item {
+                EmptyState(
+                    title = R.string.checks_no_profile_title,
+                    body = R.string.checks_no_profile_body,
+                )
+            }
+            if (onOpenProfiles != null) {
+                item {
+                    OutlinedButton(
+                        onClick = onOpenProfiles,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.checks_open_profiles))
+                    }
+                }
+            }
+            return@LazyColumn
         }
 
         if (state.probes.isNotEmpty()) {
@@ -114,20 +135,22 @@ fun ChecksScreen(
             }
         }
 
-        item {
-            OutlinedButton(
-                onClick = onAddCheck,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = stringResource(R.string.action_add_check),
-                    modifier = Modifier.padding(start = LinkSondaSpacing.small),
-                )
+        if (onAddCheck != null) {
+            item {
+                OutlinedButton(
+                    onClick = onAddCheck,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.action_add_check),
+                        modifier = Modifier.padding(start = LinkSondaSpacing.small),
+                    )
+                }
             }
         }
 

@@ -26,6 +26,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -37,6 +38,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.chuck852.linksonda.R
+import io.github.chuck852.linksonda.domain.AggregateStatus
 import io.github.chuck852.linksonda.domain.NetworkTransport
 import io.github.chuck852.linksonda.domain.NetworkValidation
 import io.github.chuck852.linksonda.domain.ProbeLifecycle
@@ -57,6 +59,7 @@ fun OverviewScreen(
     state: OverviewUiState,
     onGroupClick: (GroupUiSummary) -> Unit,
     onRunManualCheck: (() -> Unit)?,
+    onOpenProfiles: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -69,14 +72,18 @@ fun OverviewScreen(
         }
 
         item { AvailabilityCard(state) }
-        item { ProfileCard(state.activeProfile) }
+        item { ProfileCard(state.activeProfile, onOpenProfiles) }
 
         item { SectionHeader(stringResource(R.string.overview_groups_title)) }
         if (state.groups.isEmpty()) {
             item {
                 EmptyState(
                     title = R.string.overview_groups_empty_title,
-                    body = R.string.overview_groups_empty_body,
+                    body = if (state.activeProfile == null) {
+                        R.string.overview_groups_no_profile_body
+                    } else {
+                        R.string.overview_groups_empty_body
+                    },
                 )
             }
         } else {
@@ -137,7 +144,7 @@ private fun AvailabilityCard(state: OverviewUiState) {
 }
 
 @Composable
-private fun ProfileCard(profile: ProfileUiSummary?) {
+private fun ProfileCard(profile: ProfileUiSummary?, onOpenProfiles: (() -> Unit)?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -165,6 +172,15 @@ private fun ProfileCard(profile: ProfileUiSummary?) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            } else if (onOpenProfiles != null) {
+                Text(
+                    text = stringResource(R.string.overview_profile_none_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(onClick = onOpenProfiles) {
+                    Text(stringResource(R.string.overview_profile_manage))
+                }
             }
         }
     }
@@ -200,12 +216,20 @@ private fun GroupCard(
             ) {
                 AggregateStatusBadge(status = group.status)
                 Text(
-                    text = pluralStringResource(
-                        R.plurals.overview_group_probes,
-                        group.totalProbes,
-                        group.availableProbes,
-                        group.totalProbes,
-                    ),
+                    text = if (group.status == AggregateStatus.UNKNOWN) {
+                        pluralStringResource(
+                            R.plurals.overview_group_configured_probes,
+                            group.totalProbes,
+                            group.totalProbes,
+                        )
+                    } else {
+                        pluralStringResource(
+                            R.plurals.overview_group_probes,
+                            group.totalProbes,
+                            group.availableProbes,
+                            group.totalProbes,
+                        )
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

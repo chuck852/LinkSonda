@@ -18,11 +18,16 @@ sealed interface AppRoute {
     data class ProbeEditor(
         val probeId: String? = null,
         val initialProtocol: String? = null,
+        val profileId: String? = null,
     ) : AppRoute {
         init {
             require(probeId == null || probeId.isNotBlank())
             require(initialProtocol == null || initialProtocol.isNotBlank())
+            require(profileId == null || profileId.isNotBlank())
         }
+    }
+    data class ProfileEditor(val profileId: String) : AppRoute {
+        init { require(profileId.isNotBlank()) }
     }
     data object Settings : AppRoute
 }
@@ -46,6 +51,7 @@ data class AppNavigationState(
         get() = when (val route = current) {
             is AppRoute.Tab -> route.tab
             is AppRoute.FilteredChecks, is AppRoute.ProbeDetails, is AppRoute.ProbeEditor -> AppTab.CHECKS
+            is AppRoute.ProfileEditor -> AppTab.PRESETS
             AppRoute.Settings -> stack.asReversed().drop(1).firstNotNullOfOrNull(AppRoute::tabOrNull)
                 ?: AppTab.OVERVIEW
         }
@@ -62,8 +68,15 @@ data class AppNavigationState(
     fun openProbeDetails(probeId: String): AppNavigationState =
         copy(stack = stack + AppRoute.ProbeDetails(probeId))
 
-    fun openProbeEditor(probeId: String? = null, initialProtocol: String? = null): AppNavigationState =
-        copy(stack = stack + AppRoute.ProbeEditor(probeId, initialProtocol))
+    fun openProbeEditor(
+        probeId: String? = null,
+        initialProtocol: String? = null,
+        profileId: String? = null,
+    ): AppNavigationState =
+        copy(stack = stack + AppRoute.ProbeEditor(probeId, initialProtocol, profileId))
+
+    fun openProfileEditor(profileId: String): AppNavigationState =
+        copy(stack = stack + AppRoute.ProfileEditor(profileId))
 
     fun openSettings(): AppNavigationState =
         copy(stack = stack + AppRoute.Settings)
@@ -77,6 +90,7 @@ data class AppNavigationState(
 fun AppRoute.tabOrNull(): AppTab? = when (this) {
     is AppRoute.Tab -> tab
     is AppRoute.FilteredChecks, is AppRoute.ProbeDetails, is AppRoute.ProbeEditor -> AppTab.CHECKS
+    is AppRoute.ProfileEditor -> AppTab.PRESETS
     AppRoute.Settings -> null
 }
 
@@ -94,7 +108,9 @@ private fun AppRoute.toSaveableKey(): String = when (this) {
     is AppRoute.Tab -> "tab:${tab.name}"
     is AppRoute.FilteredChecks -> "checks:${filter.groupId}"
     is AppRoute.ProbeDetails -> "details:${probeId}"
-    is AppRoute.ProbeEditor -> "editor:${probeId.orEmpty()}|${initialProtocol.orEmpty()}"
+    is AppRoute.ProbeEditor ->
+        "editor:${probeId.orEmpty()}|${initialProtocol.orEmpty()}|${profileId.orEmpty()}"
+    is AppRoute.ProfileEditor -> "profile:$profileId"
     AppRoute.Settings -> "settings"
 }
 
@@ -112,12 +128,17 @@ private fun routeFromSaveableKey(key: String): AppRoute? = when {
         ?.let(AppRoute::ProbeDetails)
 
     key.startsWith(EDITOR_PREFIX) -> {
-        val values = key.removePrefix(EDITOR_PREFIX).split('|', limit = 2)
+        val values = key.removePrefix(EDITOR_PREFIX).split('|', limit = 3)
         AppRoute.ProbeEditor(
             probeId = values.getOrNull(0)?.takeIf(String::isNotBlank),
             initialProtocol = values.getOrNull(1)?.takeIf(String::isNotBlank),
+            profileId = values.getOrNull(2)?.takeIf(String::isNotBlank),
         )
     }
+
+    key.startsWith(PROFILE_PREFIX) -> key.removePrefix(PROFILE_PREFIX)
+        .takeIf(String::isNotBlank)
+        ?.let(AppRoute::ProfileEditor)
 
     key == SETTINGS_KEY -> AppRoute.Settings
     else -> null
@@ -127,4 +148,5 @@ private const val TAB_PREFIX = "tab:"
 private const val CHECKS_PREFIX = "checks:"
 private const val DETAILS_PREFIX = "details:"
 private const val EDITOR_PREFIX = "editor:"
+private const val PROFILE_PREFIX = "profile:"
 private const val SETTINGS_KEY = "settings"

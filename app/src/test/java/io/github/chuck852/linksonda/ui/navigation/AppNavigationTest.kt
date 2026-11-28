@@ -76,6 +76,31 @@ class AppNavigationTest {
     }
 
     @Test
+    fun profileEditorReturnsToProfiles() {
+        val profiles = AppNavigationState().selectTab(AppTab.PRESETS)
+        val editor = profiles.openProfileEditor("profile-1")
+
+        assertEquals(AppRoute.ProfileEditor("profile-1"), editor.current)
+        assertEquals(AppTab.PRESETS, editor.selectedTab)
+        assertTrue(editor.canGoBack)
+        assertEquals(profiles, editor.back())
+    }
+
+    @Test
+    fun checkEditorCanTargetAnotherProfileAndSurvivesSaver() {
+        val state = AppNavigationState()
+            .selectTab(AppTab.PRESETS)
+            .openProfileEditor("profile-1")
+            .openProbeEditor("probe-1", "HTTPS", "profile-1")
+        val scope = SaverScope { true }
+
+        val saved = AppNavigationStateSaver.run { scope.save(state) }
+        val restored = AppNavigationStateSaver.restore(requireNotNull(saved))
+
+        assertEquals(state, restored)
+    }
+
+    @Test
     fun settingsReturnsToPreviousTab() {
         val checks = AppNavigationState().selectTab(AppTab.CHECKS)
         val settings = checks.openSettings()
