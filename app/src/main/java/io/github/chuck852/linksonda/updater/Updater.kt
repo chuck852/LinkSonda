@@ -30,6 +30,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 internal const val ACTION_INSTALL_STATUS = "io.github.chuck852.linksonda.updater.INSTALL_STATUS"
+internal const val EXTRA_INSTALL_SESSION_ID = "io.github.chuck852.linksonda.updater.INSTALL_SESSION_ID"
 internal const val UPDATE_NOTIFICATION_CHANNEL = "updates"
 internal const val UPDATE_NOTIFICATION_ID = 4001
 
@@ -69,6 +70,7 @@ internal class Updater(
     private var downloadGeneration = 0L
     @Volatile
     private var installGeneration = 0L
+    private val installSessions = InstallSessionTracker()
     private val downloadLock = Any()
 
     init {
@@ -184,7 +186,7 @@ internal class Updater(
     }
 
     fun install() {
-        if (installJob?.isActive == true) return
+        if (installJob?.isActive == true || installSessions.current() != null) return
         val update = _state.value.available ?: return
         val file = synchronized(downloadLock) { readyFile?.takeIf { it.isFile } } ?: return
         val generation = ++installGeneration
@@ -238,7 +240,8 @@ internal class Updater(
                     ) {
                         return@use
                     }
-                    session.commit(installPendingIntent().intentSender)
+                    if (!installSessions.begin(sessionId)) return@use
+                    session.commit(installPendingIntent(sessionId).intentSender)
                     committed = true
                 }
                 if (committed && isCurrent()) {
@@ -264,14 +267,20 @@ internal class Updater(
                     sessionId?.let { id ->
                         runCatching { appContext.packageManager.packageInstaller.abandonSession(id) }
                     }
+                    sessionId?.let(installSessions::finish)
                 }
             }
         }
     }
 
-    fun onInstallResult(status: Int) {
+    fun isInstallSessionCurrent(sessionId: Int): Boolean = installSessions.isCurrent(sessionId)
+
+    fun onInstallResult(sessionId: Int?, status: Int) {
+        val expected = installSessions.current() ?: return
+        if (sessionId != expected) return
         when (status) {
             PackageInstaller.STATUS_SUCCESS -> {
+                installSessions.finish(expected)
                 synchronized(downloadLock) {
                     readyFile?.delete()
                     readyFile = null
@@ -283,12 +292,15 @@ internal class Updater(
             PackageInstaller.STATUS_PENDING_USER_ACTION -> _state.update {
                 it.copy(installState = InstallState.INSTALLING)
             }
-            else -> _state.update {
-                it.copy(
-                    installState = InstallState.FAILED,
-                    readyToInstall = readyFile?.isFile == true,
-                    error = UpdaterError.INSTALL_FAILED,
-                )
+            else -> {
+                installSessions.finish(expected)
+                _state.update {
+                    it.copy(
+                        installState = InstallState.FAILED,
+                        readyToInstall = readyFile?.isFile == true,
+                        error = UpdaterError.INSTALL_FAILED,
+                    )
+                }
             }
         }
     }
@@ -525,6 +537,10 @@ internal class Updater(
             }
             installGeneration++
             installJob?.cancel()
+            installSessions.current()?.let { id ->
+                runCatching { appContext.packageManager.packageInstaller.abandonSession(id) }
+                installSessions.finish(id)
+            }
         }
         _state.update {
             val base = if (discardDownload) {
@@ -566,11 +582,12 @@ internal class Updater(
         return File(appContext.cacheDir, "updates/$generation-$name")
     }
 
-    private fun installPendingIntent(): PendingIntent {
+    private fun installPendingIntent(sessionId: Int): PendingIntent {
         val intent = Intent(appContext, InstallResultReceiver::class.java)
             .setAction(ACTION_INSTALL_STATUS)
+            .putExtra(EXTRA_INSTALL_SESSION_ID, sessionId)
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        return PendingIntent.getBroadcast(appContext, 0, intent, flags)
+        return PendingIntent.getBroadcast(appContext, sessionId, intent, flags)
     }
 
     private companion object {

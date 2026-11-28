@@ -26,3 +26,8 @@ Replace `SERIAL` with the device or emulator from `adb devices -l`. Updating an 
 The workflow requires read access to repository contents and uses the runner's debug key for the debug APK. The release artifact is unsigned and contains no signing secret. Selected releases follow the [manual release procedure](RELEASING.md).
 
 The JVM tests run Robolectric offline against the pinned `android-all-instrumented` test artifact; it is copied by a Gradle task and is not part of the APK.
+
+
+## Updater test source
+
+A controlled updater fixture can be compiled with `-PupdaterTestUrl=http://10.0.2.2:PORT`. That build sets `UPDATER_TEST_SOURCE=true` and enables cleartext only for the fixture. It is for local E2E only: Android CI checks the official release APK for `UPDATER_TEST_SOURCE=false` and `usesCleartextTraffic=false`, and `scripts/prepare-release.sh` refuses to sign an APK that fails either check. Do not attach such a test APK to a GitHub Release.

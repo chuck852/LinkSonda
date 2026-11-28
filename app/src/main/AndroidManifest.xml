@@ -17,6 +17,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:theme="@style/Theme.LinkSonda">
+        <meta-data
+            android:name="io.github.chuck852.linksonda.UPDATER_TEST_SOURCE"
+            android:value="${updaterTestSource}" />
         <receiver
             android:name=".updater.InstallResultReceiver"
             android:exported="false">

@@ -10,6 +10,9 @@ import io.github.chuck852.linksonda.LinkSondaApplication
 class InstallResultReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_INSTALL_STATUS) return
+        val sessionId = intent.getIntExtra(EXTRA_INSTALL_SESSION_ID, -1)
+        val updater = (context.applicationContext as? LinkSondaApplication)?.updater ?: return
+        if (!updater.isInstallSessionCurrent(sessionId)) return
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
         if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
             val confirmation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -21,6 +24,6 @@ class InstallResultReceiver : BroadcastReceiver() {
             confirmation?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (confirmation != null) context.startActivity(confirmation)
         }
-        (context.applicationContext as? LinkSondaApplication)?.updater?.onInstallResult(status)
+        updater.onInstallResult(sessionId, status)
     }
 }

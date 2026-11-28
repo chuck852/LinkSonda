@@ -36,6 +36,7 @@ android {
         buildConfigField("String", "UPDATER_TEST_URL", "\"$escapedUpdaterTestUrl\"")
         buildConfigField("boolean", "UPDATER_TEST_SOURCE", updaterTestUrl.isNotBlank().toString())
         manifestPlaceholders["usesCleartextTraffic"] = updaterTestUrl.isNotBlank().toString()
+        manifestPlaceholders["updaterTestSource"] = updaterTestUrl.isNotBlank().toString()
     }
 
     buildFeatures {
