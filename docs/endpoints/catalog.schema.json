@@ -99,6 +99,23 @@
         },
         {
           "if": {
+            "properties": { "status": { "const": "MANUAL_ONLY" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "allowedModes": {
+                "minItems": 1,
+                "maxItems": 1,
+                "contains": { "const": "MANUAL" }
+              },
+              "dailyBudget": { "type": "integer", "minimum": 1 },
+              "minIntervalSeconds": { "type": "integer", "minimum": 300 }
+            }
+          }
+        },
+        {
+          "if": {
             "properties": { "status": { "const": "BACKGROUND_APPROVED" } },
             "required": ["status"]
           },

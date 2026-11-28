@@ -102,7 +102,7 @@
       "protocol": "HTTPS",
       "address": "https://cp.cloudflare.com/",
       "method": "GET",
-      "expectedResponse": "HTTP 204 is the commonly observed captive-portal check response, but the endpoint is not documented by Cloudflare.",
+      "expectedResponse": "HTTP 204 is the commonly reported/expected captive-portal check response, but the endpoint is not documented by Cloudflare.",
       "regionGroup": "GLOBAL",
       "officialSources": [
         "https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/deployment/firewall/",
@@ -368,7 +368,7 @@
         "MANUAL"
       ],
       "minIntervalSeconds": 300,
-      "dailyBudget": 50,
+      "dailyBudget": 40,
       "status": "MANUAL_ONLY",
       "statusReason": "Google Public DNS is free and documents rate limits, but there is no explicit permission for background synthetic monitoring.",
       "limits": "Free service, no SLA. Published per-client limits are about 1,000-1,500 QPS per IPv4 address or IPv6 /64; above 1,000 QPS may be throttled, and throttled queries may receive a small error response or no response. DoH returns 429 with Retry-After and limits GET/POST DNS messages to 512 bytes.",
@@ -398,7 +398,7 @@
         "MANUAL"
       ],
       "minIntervalSeconds": 300,
-      "dailyBudget": 50,
+      "dailyBudget": 40,
       "status": "MANUAL_ONLY",
       "statusReason": "Google Public DNS is free and documents rate limits, but there is no explicit permission for background synthetic monitoring.",
       "limits": "Free service, no SLA. Published per-client limits are about 1,000-1,500 QPS per IPv4 address or IPv6 /64; above 1,000 QPS may be throttled, and throttled queries may receive a small error response or no response. DoH returns 429 with Retry-After and limits GET/POST DNS messages to 512 bytes.",
@@ -428,7 +428,7 @@
         "MANUAL"
       ],
       "minIntervalSeconds": 300,
-      "dailyBudget": 50,
+      "dailyBudget": 40,
       "status": "MANUAL_ONLY",
       "statusReason": "Google Public DNS is free and documents rate limits, but there is no explicit permission for background synthetic monitoring.",
       "limits": "Free service, no SLA. Published per-client limits are about 1,000-1,500 QPS per IPv4 address or IPv6 /64; above 1,000 QPS may be throttled, and throttled queries may receive a small error response or no response. DoH returns 429 with Retry-After and limits GET/POST DNS messages to 512 bytes.",
@@ -590,7 +590,7 @@
       "allowedModes": [
         "MANUAL"
       ],
-      "minIntervalSeconds": 3600,
+      "minIntervalSeconds": 300,
       "dailyBudget": 4,
       "status": "MANUAL_ONLY",
       "statusReason": "The service is documented for personal non-commercial use; other use requires Yandex's prior written consent, and Yandex may prohibit automated access.",
@@ -620,7 +620,7 @@
       "allowedModes": [
         "MANUAL"
       ],
-      "minIntervalSeconds": 3600,
+      "minIntervalSeconds": 300,
       "dailyBudget": 4,
       "status": "MANUAL_ONLY",
       "statusReason": "The service is documented for personal non-commercial use; other use requires Yandex's prior written consent, and Yandex may prohibit automated access.",
@@ -650,7 +650,7 @@
       "allowedModes": [
         "MANUAL"
       ],
-      "minIntervalSeconds": 3600,
+      "minIntervalSeconds": 300,
       "dailyBudget": 4,
       "status": "MANUAL_ONLY",
       "statusReason": "The service is documented for personal non-commercial use; other use requires Yandex's prior written consent, and Yandex may prohibit automated access.",
