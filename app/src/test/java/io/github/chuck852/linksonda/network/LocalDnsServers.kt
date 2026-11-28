@@ -60,6 +60,85 @@ internal class UdpDnsServer(
     }
 }
 
+internal class DotDnsServer(
+    bindAddress: String = "127.0.0.1",
+    serverContext: javax.net.ssl.SSLContext = TestTls.serverContext,
+    private val handler: (ByteArray) -> ByteArray? = { it },
+) : AutoCloseable {
+    private val server = (serverContext.serverSocketFactory.createServerSocket(
+        0,
+        50,
+        InetAddress.getByName(bindAddress),
+    ) as javax.net.ssl.SSLServerSocket)
+    private val accepted = CountDownLatch(1)
+    private val received = CountDownLatch(1)
+    private val finished = CountDownLatch(1)
+    private val release = CountDownLatch(1)
+    private val closing = AtomicBoolean(false)
+    private val query = AtomicReference<ByteArray?>()
+    private val sni = AtomicReference<String?>()
+    private val failure = AtomicReference<Throwable?>()
+    private val worker = thread(isDaemon = true, name = "test-dns-dot-${server.localPort}") {
+        try {
+            (server.accept() as javax.net.ssl.SSLSocket).use { socket ->
+                accepted.countDown()
+                socket.startHandshake()
+                val session = socket.session as? javax.net.ssl.ExtendedSSLSession
+                sni.set(
+                    session?.requestedServerNames
+                        ?.filterIsInstance<javax.net.ssl.SNIHostName>()
+                        ?.firstOrNull()
+                        ?.asciiName,
+                )
+                val input = DataInputStream(socket.getInputStream())
+                val length = input.readUnsignedShort()
+                val bytes = ByteArray(length).also(input::readFully)
+                query.set(bytes)
+                received.countDown()
+                val response = handler(bytes)
+                if (response != null) {
+                    DataOutputStream(socket.getOutputStream()).use { output ->
+                        output.writeShort(response.size)
+                        output.write(response)
+                        output.flush()
+                    }
+                } else {
+                    release.await(5, TimeUnit.SECONDS)
+                }
+            }
+        } catch (error: Throwable) {
+            if (!closing.get()) failure.set(error)
+            received.countDown()
+        } finally {
+            finished.countDown()
+        }
+    }
+
+    val port: Int get() = server.localPort
+
+    fun awaitAccepted(timeoutMillis: Long = 3_000): Boolean =
+        accepted.await(timeoutMillis, TimeUnit.MILLISECONDS)
+
+    fun awaitReceived(timeoutMillis: Long = 3_000): Boolean =
+        received.await(timeoutMillis, TimeUnit.MILLISECONDS)
+
+    fun awaitFinished(timeoutMillis: Long = 3_000): Boolean =
+        finished.await(timeoutMillis, TimeUnit.MILLISECONDS)
+
+    fun query(): ByteArray? = query.get()
+
+    fun sni(): String? = sni.get()
+
+    fun failure(): Throwable? = failure.get()
+
+    override fun close() {
+        closing.set(true)
+        release.countDown()
+        server.close()
+        worker.join(2_500)
+    }
+}
+
 internal class TcpDnsServer(
     bindAddress: String = "127.0.0.1",
     port: Int = 0,
