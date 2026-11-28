@@ -19,6 +19,7 @@ internal data class HttpCall(
     val method: String,
     val path: String,
     val headers: Map<String, String>,
+    val body: ByteArray = ByteArray(0),
 ) {
     fun header(name: String): String? =
         headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
@@ -65,6 +66,7 @@ internal class LocalHttpServer(
                 headers = exchange.requestHeaders.entries.associate { entry ->
                     entry.key to entry.value.joinToString(", ")
                 },
+                body = exchange.requestBody.readBytes(),
             )
             calls.add(call)
             try {

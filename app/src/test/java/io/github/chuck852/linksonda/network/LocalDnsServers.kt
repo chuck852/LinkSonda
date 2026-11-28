@@ -60,6 +60,116 @@ internal class UdpDnsServer(
     }
 }
 
+internal class DotDnsServer(
+    bindAddress: String = "127.0.0.1",
+    port: Int = 0,
+    serverContext: javax.net.ssl.SSLContext = TestTls.serverContext,
+    private val responseChunkSize: Int = 0,
+    private val responseChunkMillis: Long = 0,
+    private val handler: (ByteArray) -> ByteArray? = { it },
+) : AutoCloseable {
+    private val server = (serverContext.serverSocketFactory.createServerSocket(
+        port,
+        50,
+        InetAddress.getByName(bindAddress),
+    ) as javax.net.ssl.SSLServerSocket)
+    private val accepted = CountDownLatch(1)
+    private val received = CountDownLatch(1)
+    private val finished = CountDownLatch(1)
+    private val closed = CountDownLatch(1)
+    private val release = CountDownLatch(1)
+    private val closing = AtomicBoolean(false)
+    private val acceptedSocket = AtomicReference<javax.net.ssl.SSLSocket?>()
+    private val query = AtomicReference<ByteArray?>()
+    private val sni = AtomicReference<String?>()
+    private val failure = AtomicReference<Throwable?>()
+    private val worker = thread(isDaemon = true, name = "test-dns-dot-${server.localPort}") {
+        try {
+            (server.accept() as javax.net.ssl.SSLSocket).use { socket ->
+                acceptedSocket.set(socket)
+                accepted.countDown()
+                socket.startHandshake()
+                val session = socket.session as? javax.net.ssl.ExtendedSSLSession
+                sni.set(
+                    session?.requestedServerNames
+                        ?.filterIsInstance<javax.net.ssl.SNIHostName>()
+                        ?.firstOrNull()
+                        ?.asciiName,
+                )
+                val input = DataInputStream(socket.getInputStream())
+                val length = input.readUnsignedShort()
+                val bytes = ByteArray(length).also(input::readFully)
+                query.set(bytes)
+                received.countDown()
+                val response = handler(bytes)
+                if (response != null) {
+                    DataOutputStream(socket.getOutputStream()).use { output ->
+                        output.writeShort(response.size)
+                        if (responseChunkSize <= 0) {
+                            output.write(response)
+                        } else {
+                            var offset = 0
+                            while (offset < response.size) {
+                                val length = minOf(responseChunkSize, response.size - offset)
+                                output.write(response, offset, length)
+                                output.flush()
+                                offset += length
+                                if (offset < response.size && responseChunkMillis > 0) {
+                                    Thread.sleep(responseChunkMillis)
+                                }
+                            }
+                        }
+                        output.flush()
+                    }
+                } else {
+                    try {
+                        while (input.read() >= 0) {
+                            // Wait for the client to close the connection.
+                        }
+                    } catch (error: Throwable) {
+                        // A socket close is expected here.
+                    } finally {
+                        closed.countDown()
+                    }
+                }
+            }
+        } catch (error: Throwable) {
+            if (!closing.get()) failure.set(error)
+            received.countDown()
+        } finally {
+            finished.countDown()
+        }
+    }
+
+    val port: Int get() = server.localPort
+
+    fun awaitAccepted(timeoutMillis: Long = 3_000): Boolean =
+        accepted.await(timeoutMillis, TimeUnit.MILLISECONDS)
+
+    fun awaitReceived(timeoutMillis: Long = 3_000): Boolean =
+        received.await(timeoutMillis, TimeUnit.MILLISECONDS)
+
+    fun awaitFinished(timeoutMillis: Long = 3_000): Boolean =
+        finished.await(timeoutMillis, TimeUnit.MILLISECONDS)
+
+    fun awaitClosed(timeoutMillis: Long = 3_000): Boolean =
+        closed.await(timeoutMillis, TimeUnit.MILLISECONDS)
+
+    fun query(): ByteArray? = query.get()
+
+    fun sni(): String? = sni.get()
+
+    fun failure(): Throwable? = failure.get()
+
+    override fun close() {
+        closing.set(true)
+        release.countDown()
+        acceptedSocket.get()?.close()
+        server.close()
+        worker.join(2_500)
+    }
+}
+
 internal class TcpDnsServer(
     bindAddress: String = "127.0.0.1",
     port: Int = 0,
