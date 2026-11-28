@@ -20,13 +20,21 @@ import io.github.chuck852.linksonda.domain.ProbeOutcome
 import io.github.chuck852.linksonda.domain.ProbeRequest
 import io.github.chuck852.linksonda.domain.ProbeResult
 import io.github.chuck852.linksonda.domain.ProbeRunRequest
+import io.github.chuck852.linksonda.domain.RestrictionReason
 import io.github.chuck852.linksonda.domain.SkipReason
 import io.github.chuck852.linksonda.domain.SocketEndpoint
 import java.io.IOException
 import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.ServerSocket
 import java.net.SocketException
 import java.net.URI
+import java.time.Clock
 import java.time.Instant
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.net.ssl.SSLContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -45,6 +53,8 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class SecureDnsProbeRunnerTest {
+    private val fixedNow = Instant.parse("2026-11-28T10:00:00Z")
+
     @Test
     fun dohPostsDnsMessageAndMatches() {
         val server = LocalHttpServer(https = true) { call ->
@@ -53,6 +63,7 @@ class SecureDnsProbeRunnerTest {
             assertEquals("application/dns-message", call.header("Accept"))
             assertEquals("identity", call.header("Accept-Encoding"))
             assertTrue(call.body.isNotEmpty())
+            assertEquals(0, ((call.body[0].toInt() and 0xFF) shl 8) or (call.body[1].toInt() and 0xFF))
             HttpResponseSpec(
                 status = 200,
                 body = dnsResponse(call.body, answerCount = 1, answerBytes = aRecord()),
@@ -96,9 +107,9 @@ class SecureDnsProbeRunnerTest {
     }
 
     @Test
-    fun dohRejectsNonSuccessStatus() {
+    fun dohRejectsServerErrorStatus() {
         LocalHttpServer(https = true) {
-            HttpResponseSpec(status = 503, headers = mapOf("Content-Type" to "application/dns-message"))
+            HttpResponseSpec(status = 500, headers = mapOf("Content-Type" to "application/dns-message"))
         }.use { server ->
             val result = runProbe(
                 runner = runner(trustTestTls = true),
@@ -106,6 +117,106 @@ class SecureDnsProbeRunnerTest {
             )
 
             failed(result, FailureReason.HTTP)
+        }
+    }
+
+    @Test
+    fun dohTooManyRequestsIsRateLimitedWithRetryAfter() {
+        LocalHttpServer(https = true) {
+            HttpResponseSpec(status = 429, headers = mapOf("Retry-After" to "120"))
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(trustTestTls = true, clock = Clock.fixed(fixedNow, java.time.ZoneOffset.UTC)),
+                request = dohRequest(server.url("/dns-query")),
+            )
+
+            assertEquals(
+                ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, fixedNow.plusSeconds(120)),
+                completed(result).outcome,
+            )
+        }
+    }
+
+    @Test
+    fun dohServiceUnavailableIsRateLimitedWithHttpDate() {
+        val retryAt = Instant.parse("2026-11-28T11:30:00Z")
+        LocalHttpServer(https = true) {
+            HttpResponseSpec(
+                status = 503,
+                headers = mapOf("Retry-After" to "Sat, 28 Nov 2026 11:30:00 GMT"),
+            )
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(trustTestTls = true, clock = Clock.fixed(fixedNow, java.time.ZoneOffset.UTC)),
+                request = dohRequest(server.url("/dns-query")),
+            )
+
+            assertEquals(
+                ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, retryAt),
+                completed(result).outcome,
+            )
+        }
+    }
+
+    @Test
+    fun dohServiceUnavailableWithoutRetryAfterIsRateLimitedWithoutTime() {
+        LocalHttpServer(https = true) {
+            HttpResponseSpec(status = 503)
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(trustTestTls = true),
+                request = dohRequest(server.url("/dns-query")),
+            )
+
+            assertEquals(
+                ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, null),
+                completed(result).outcome,
+            )
+        }
+    }
+
+    @Test
+    fun dohServiceUnavailableWithZeroRetryAfterIsNotRetried() {
+        var requests = 0
+        LocalHttpServer(https = true) { call ->
+            requests += 1
+            if (requests == 1) {
+                HttpResponseSpec(status = 503, headers = mapOf("Retry-After" to "0"))
+            } else {
+                HttpResponseSpec(
+                    status = 200,
+                    body = dnsResponse(call.body, answerCount = 1, answerBytes = aRecord()),
+                    headers = mapOf("Content-Type" to "application/dns-message"),
+                )
+            }
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(trustTestTls = true, clock = Clock.fixed(fixedNow, java.time.ZoneOffset.UTC)),
+                request = dohRequest(server.url("/dns-query")),
+            )
+
+            assertEquals(
+                ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, fixedNow),
+                completed(result).outcome,
+            )
+            assertEquals(1, server.calls().size)
+        }
+    }
+
+    @Test
+    fun dohForbiddenIsAccessDenied() {
+        LocalHttpServer(https = true) {
+            HttpResponseSpec(status = 403)
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(trustTestTls = true),
+                request = dohRequest(server.url("/dns-query")),
+            )
+
+            assertEquals(
+                ProbeOutcome.Restricted(RestrictionReason.ACCESS_DENIED, null),
+                completed(result).outcome,
+            )
         }
     }
 
@@ -530,6 +641,129 @@ class SecureDnsProbeRunnerTest {
     }
 
     @Test
+    fun dohAuthorizesOnlyAddressesActuallyAttempted() {
+        LocalHttpServer(https = true) { call ->
+            HttpResponseSpec(
+                status = 200,
+                body = dnsResponse(call.body, answerCount = 1, answerBytes = aRecord()),
+                headers = mapOf("Content-Type" to "application/dns-message"),
+            )
+        }.use { server ->
+            val admission = RecordingAdmission()
+            val result = runProbe(
+                runner = runner(
+                    trustTestTls = true,
+                    hostResolver = HostResolver { _, _ ->
+                        listOf(
+                            InetAddress.getByName("127.0.0.1"),
+                            InetAddress.getByName("127.0.0.2"),
+                        )
+                    },
+                ),
+                request = dohRequest("https://localhost:${server.port}/dns-query"),
+                admission = admission,
+            )
+
+            assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+            assertEquals(
+                listOf(
+                    ProbeAttempt("example.test", "localhost"),
+                    ProbeAttempt("localhost", "system-dns"),
+                    ProbeAttempt("localhost", "localhost"),
+                ),
+                admission.attempts,
+            )
+        }
+    }
+
+    @Test
+    fun dohIgnoresSystemHttpProxy() {
+        val closedPort = ServerSocket(0).use { it.localPort }
+        LocalHttpServer(https = true) { call ->
+            HttpResponseSpec(
+                status = 200,
+                body = dnsResponse(call.body, answerCount = 1, answerBytes = aRecord()),
+                headers = mapOf("Content-Type" to "application/dns-message"),
+            )
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(
+                    trustTestTls = true,
+                    proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", closedPort)),
+                ),
+                request = dohRequest("https://localhost:${server.port}/dns-query"),
+            )
+
+            val completed = completed(result)
+            assertEquals(ProbeOutcome.Matched, completed.outcome)
+            assertEquals(IpFamily.IPV4, completed.observations.connectedIpFamily)
+            assertEquals(1, server.calls().size)
+        }
+    }
+
+    @Test
+    fun dohTransportAdmissionDenialSendsNoRequest() {
+        LocalHttpServer(https = true) {
+            HttpResponseSpec(status = 200, headers = mapOf("Content-Type" to "application/dns-message"))
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(
+                    trustTestTls = true,
+                    hostResolver = HostResolver { _, _ -> listOf(InetAddress.getByName("127.0.0.1")) },
+                ),
+                request = dohRequest("https://localhost:${server.port}/dns-query"),
+                admission = RecordingAdmission(
+                    listOf(
+                        AdmissionDecision.Allowed,
+                        AdmissionDecision.Allowed,
+                        AdmissionDecision.Denied(SkipReason.COOLDOWN),
+                    ),
+                ),
+            )
+
+            skipped(result, SkipReason.COOLDOWN)
+            assertTrue(server.calls().isEmpty())
+        }
+    }
+
+    @Test
+    fun dohBootstrapCancellationInterruptsResolver() {
+        val entered = CountDownLatch(1)
+        val blocked = CountDownLatch(1)
+        val interrupted = AtomicBoolean(false)
+        val resolver = HostResolver { _, _ ->
+            entered.countDown()
+            try {
+                blocked.await()
+                emptyList()
+            } catch (error: InterruptedException) {
+                interrupted.set(true)
+                throw IOException("interrupted")
+            }
+        }
+        assertThrows(TimeoutCancellationException::class.java) {
+            runBlocking {
+                withTimeout(100.milliseconds) {
+                    runner(trustTestTls = true, hostResolver = resolver).run(
+                        probeRunRequest(
+                            dohRequest("https://localhost:1/dns-query"),
+                            5.seconds,
+                        ),
+                        RecordingAdmission(),
+                    )
+                }
+            }
+        }
+        assertTrue(entered.await(1, TimeUnit.SECONDS))
+        val deadline = System.nanoTime() + 1_000_000_000L
+        while (!interrupted.get() && System.nanoTime() < deadline) {
+            Thread.sleep(10)
+        }
+        blocked.countDown()
+        assertTrue(interrupted.get())
+    }
+
+    @Test
     fun dohBootstrapDenialStopsBeforeHttpRequest() {
         LocalHttpServer(https = true) {
             HttpResponseSpec(status = 200, headers = mapOf("Content-Type" to "application/dns-message"))
@@ -610,6 +844,44 @@ class SecureDnsProbeRunnerTest {
     }
 
     @Test
+    fun dotSlowDripResponseHonorsAddressBudget() {
+        DotDnsServer(
+            bindAddress = "127.0.0.2",
+            handler = { query -> dnsResponse(query, answerCount = 1, answerBytes = aRecord()) },
+            responseChunkSize = 1,
+            responseChunkMillis = 200,
+        ).use { slow ->
+            DotDnsServer(
+                bindAddress = "127.0.0.1",
+                port = slow.port,
+                handler = { query -> dnsResponse(query, answerCount = 1, answerBytes = aRecord()) },
+            ).use { server ->
+                val started = System.nanoTime()
+                val result = runProbe(
+                    runner = runner(
+                        trustTestTls = true,
+                        hostResolver = HostResolver { _, _ ->
+                            listOf(InetAddress.getByName("127.0.0.2"), InetAddress.getByName("127.0.0.1"))
+                        },
+                    ),
+                    request = ProbeRequest.DnsOverTls(
+                        resolver = SocketEndpoint("resolver.test", server.port),
+                        serverName = "localhost",
+                        question = question(),
+                        expected = DnsExpectation(0, true),
+                    ),
+                    timeout = 3.seconds,
+                )
+
+                assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+                assertTrue((System.nanoTime() - started).nanoseconds < 3.seconds)
+                assertTrue(slow.awaitReceived())
+                assertTrue(server.awaitReceived())
+            }
+        }
+    }
+
+    @Test
     fun dohExternalCancellationPropagates() {
         LocalHttpServer(https = true) {
             HttpResponseSpec(status = 200, delayBeforeHeadersMillis = 2_000)
@@ -647,6 +919,8 @@ class SecureDnsProbeRunnerTest {
         trustTestTls: Boolean = false,
         hostResolver: HostResolver = SystemHostResolver(),
         readTimeout: Duration? = null,
+        clock: Clock = Clock.systemUTC(),
+        proxy: Proxy? = null,
     ): SecureDnsProbeRunner {
         val client = OkHttpClient.Builder().apply {
             if (trustTestTls) {
@@ -655,9 +929,12 @@ class SecureDnsProbeRunnerTest {
             if (readTimeout != null) {
                 readTimeout(readTimeout.inWholeMilliseconds, java.util.concurrent.TimeUnit.MILLISECONDS)
             }
+            if (proxy != null) {
+                proxy(proxy)
+            }
         }.build()
         val tls = if (trustTestTls) TestTls.clientContext else SSLContext.getDefault()
-        return SecureDnsProbeRunner(client, tls, hostResolver)
+        return SecureDnsProbeRunner(client, tls, hostResolver, clock)
     }
 
     private fun runProbe(

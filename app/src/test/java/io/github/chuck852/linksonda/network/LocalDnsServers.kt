@@ -64,6 +64,8 @@ internal class DotDnsServer(
     bindAddress: String = "127.0.0.1",
     port: Int = 0,
     serverContext: javax.net.ssl.SSLContext = TestTls.serverContext,
+    private val responseChunkSize: Int = 0,
+    private val responseChunkMillis: Long = 0,
     private val handler: (ByteArray) -> ByteArray? = { it },
 ) : AutoCloseable {
     private val server = (serverContext.serverSocketFactory.createServerSocket(
@@ -103,7 +105,20 @@ internal class DotDnsServer(
                 if (response != null) {
                     DataOutputStream(socket.getOutputStream()).use { output ->
                         output.writeShort(response.size)
-                        output.write(response)
+                        if (responseChunkSize <= 0) {
+                            output.write(response)
+                        } else {
+                            var offset = 0
+                            while (offset < response.size) {
+                                val length = minOf(responseChunkSize, response.size - offset)
+                                output.write(response, offset, length)
+                                output.flush()
+                                offset += length
+                                if (offset < response.size && responseChunkMillis > 0) {
+                                    Thread.sleep(responseChunkMillis)
+                                }
+                            }
+                        }
                         output.flush()
                     }
                 } else {

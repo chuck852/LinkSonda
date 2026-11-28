@@ -202,7 +202,7 @@ internal class HttpProbeRunner internal constructor(
                         state,
                         ProbeOutcome.Restricted(
                             reason = restriction,
-                            retryAt = retryAt(received),
+                            retryAt = retryAt(received.header("Retry-After"), clock),
                         ),
                         http = HttpObservation(status),
                     )
@@ -435,27 +435,6 @@ internal class HttpProbeRunner internal constructor(
         return -1
     }
 
-    private fun retryAt(response: Response): Instant? =
-        retryAt(response.header("Retry-After"))
-
-    private fun retryAt(header: String?): Instant? {
-        val value = header?.trim() ?: return null
-        value.toLongOrNull()?.let { seconds ->
-            if (seconds >= 0) {
-                return try {
-                    clock.instant().plusSeconds(seconds)
-                } catch (error: Exception) {
-                    null
-                }
-            }
-        }
-        return try {
-            ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()
-        } catch (error: Exception) {
-            null
-        }
-    }
-
     private class BlockedResponseException(
         val status: Int,
         val retryAfter: String?,
@@ -478,7 +457,7 @@ internal class HttpProbeRunner internal constructor(
         generateSequence(this) { it.cause }.any { it is T }
 
     private fun BlockedResponseException.outcome(): ProbeOutcome =
-        ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, retryAt(retryAfter))
+        ProbeOutcome.Restricted(RestrictionReason.RATE_LIMITED, retryAt(retryAfter, clock))
 
     private fun classifyFailure(error: Throwable): ProbeOutcome {
         val chain = generateSequence(error) { it.cause }.toList()
@@ -690,5 +669,23 @@ internal class HttpProbeRunner internal constructor(
         private val WEB_SCHEMES = setOf("http", "https")
         private val REDIRECT_STATUSES = setOf(301, 302, 303, 307, 308)
         private val IPV4 = Regex("""\d{1,3}(\.\d{1,3}){3}""")
+    }
+}
+
+internal fun retryAt(header: String?, clock: Clock): Instant? {
+    val value = header?.trim() ?: return null
+    value.toLongOrNull()?.let { seconds ->
+        if (seconds >= 0) {
+            return try {
+                clock.instant().plusSeconds(seconds)
+            } catch (error: Exception) {
+                null
+            }
+        }
+    }
+    return try {
+        ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()
+    } catch (error: Exception) {
+        null
     }
 }
