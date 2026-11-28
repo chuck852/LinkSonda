@@ -62,11 +62,12 @@ internal class UdpDnsServer(
 
 internal class DotDnsServer(
     bindAddress: String = "127.0.0.1",
+    port: Int = 0,
     serverContext: javax.net.ssl.SSLContext = TestTls.serverContext,
     private val handler: (ByteArray) -> ByteArray? = { it },
 ) : AutoCloseable {
     private val server = (serverContext.serverSocketFactory.createServerSocket(
-        0,
+        port,
         50,
         InetAddress.getByName(bindAddress),
     ) as javax.net.ssl.SSLServerSocket)

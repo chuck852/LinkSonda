@@ -5,6 +5,7 @@ import io.github.chuck852.linksonda.domain.DnsExpectation
 import io.github.chuck852.linksonda.domain.DnsObservation
 import io.github.chuck852.linksonda.domain.DnsQuestion
 import io.github.chuck852.linksonda.domain.FailureReason
+import io.github.chuck852.linksonda.domain.InconclusiveReason
 import io.github.chuck852.linksonda.domain.IpFamily
 import io.github.chuck852.linksonda.domain.NetworkId
 import io.github.chuck852.linksonda.domain.NetworkSnapshot
@@ -34,13 +35,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class SecureDnsProbeRunnerTest {
     @Test
     fun dohPostsDnsMessageAndMatches() {
         val server = LocalHttpServer(https = true) { call ->
+            assertEquals("POST", call.method)
             assertEquals("application/dns-message", call.header("Content-Type"))
+            assertEquals("application/dns-message", call.header("Accept"))
+            assertEquals("identity", call.header("Accept-Encoding"))
             assertTrue(call.body.isNotEmpty())
             HttpResponseSpec(
                 status = 200,
@@ -288,7 +293,7 @@ class SecureDnsProbeRunnerTest {
 
     @Test
     fun dotIpv6LiteralUsesObservedFamily() {
-        if (!ipv6LoopbackAvailable()) return
+        assumeTrue(ipv6LoopbackAvailable())
         DotDnsServer(bindAddress = "::1") { query ->
             dnsResponse(query, answerCount = 1, answerBytes = aaaaRecord())
         }.use { server ->
@@ -305,6 +310,240 @@ class SecureDnsProbeRunnerTest {
             val completed = completed(result)
             assertEquals(ProbeOutcome.Matched, completed.outcome)
             assertEquals(IpFamily.IPV6, completed.observations.connectedIpFamily)
+        }
+    }
+
+    @Test
+    fun dohRejectsInvalidQuestionNameBeforeAdmission() {
+        val admission = RecordingAdmission()
+        val result = runProbe(
+            runner = runner(trustTestTls = true),
+            request = dohRequest(
+                url = "https://127.0.0.1:1/dns-query",
+                question = DnsQuestion("a..b", 1),
+            ),
+            admission = admission,
+        )
+
+        failed(result, FailureReason.DNS)
+        assertTrue(admission.attempts.isEmpty())
+    }
+
+    @Test
+    fun dotRejectsInvalidQuestionNameBeforeAdmission() {
+        val admission = RecordingAdmission()
+        val result = runProbe(
+            runner = runner(trustTestTls = true),
+            request = dotRequest(
+                port = 1,
+                serverName = "localhost",
+                question = DnsQuestion("a".repeat(64) + ".test", 1),
+            ),
+            admission = admission,
+        )
+
+        failed(result, FailureReason.DNS)
+        assertTrue(admission.attempts.isEmpty())
+    }
+
+    @Test
+    fun dotInvalidIpLiteralIsDnsFailureWithoutException() {
+        val admission = RecordingAdmission()
+        val result = runProbe(
+            runner = runner(trustTestTls = true),
+            request = ProbeRequest.DnsOverTls(
+                resolver = SocketEndpoint("::gg", 853),
+                serverName = "localhost",
+                question = question(),
+                expected = DnsExpectation(0, true),
+            ),
+            admission = admission,
+        )
+
+        failed(result, FailureReason.DNS)
+        assertTrue(admission.attempts.isEmpty())
+    }
+
+    @Test
+    fun dotBootstrapSecurityExceptionIsPermissionDenied() {
+        val result = runProbe(
+            runner = runner(
+                trustTestTls = true,
+                hostResolver = HostResolver { _, _ -> throw SecurityException("denied") },
+            ),
+            request = ProbeRequest.DnsOverTls(
+                resolver = SocketEndpoint("resolver.test", 853),
+                serverName = "localhost",
+                question = question(),
+                expected = DnsExpectation(0, true),
+            ),
+        )
+
+        assertEquals(
+            ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED),
+            completed(result).outcome,
+        )
+    }
+
+    @Test
+    fun dotRejectsHostnameMismatch() {
+        DotDnsServer { query ->
+            dnsResponse(query, answerCount = 1, answerBytes = aRecord())
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(trustTestTls = true),
+                request = dotRequest(server.port, "wrong.test"),
+            )
+
+            failed(result, FailureReason.TLS)
+        }
+    }
+
+    @Test
+    fun dohRejectsUntrustedCertificate() {
+        LocalHttpServer(https = true) {
+            HttpResponseSpec(
+                status = 200,
+                body = ByteArray(0),
+                headers = mapOf("Content-Type" to "application/dns-message"),
+            )
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(trustTestTls = false),
+                request = dohRequest(server.url("/dns-query")),
+            )
+
+            failed(result, FailureReason.TLS)
+        }
+    }
+
+    @Test
+    fun dohSlowBodyIsTimeout() {
+        LocalHttpServer(https = true) {
+            HttpResponseSpec(
+                status = 200,
+                body = ByteArray(10_000) { 1 },
+                headers = mapOf("Content-Type" to "application/dns-message"),
+                bodyChunkSize = 100,
+                bodyChunkMillis = 100,
+            )
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(trustTestTls = true),
+                request = dohRequest(server.url("/dns-query")),
+                timeout = 100.milliseconds,
+            )
+
+            failed(result, FailureReason.TIMEOUT)
+        }
+    }
+
+    @Test
+    fun dohHostnameUsesBootstrapAndTransportAdmission() {
+        LocalHttpServer(https = true) { call ->
+            HttpResponseSpec(
+                status = 200,
+                body = dnsResponse(call.body, answerCount = 1, answerBytes = aRecord()),
+                headers = mapOf("Content-Type" to "application/dns-message"),
+            )
+        }.use { server ->
+            val admission = RecordingAdmission()
+            val result = runProbe(
+                runner = runner(
+                    trustTestTls = true,
+                    hostResolver = HostResolver { _, _ -> listOf(InetAddress.getByName("127.0.0.1")) },
+                ),
+                request = dohRequest("https://localhost:${server.port}/dns-query"),
+                admission = admission,
+            )
+
+            assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+            assertEquals(
+                listOf(
+                    ProbeAttempt("example.test", "localhost"),
+                    ProbeAttempt("localhost", "system-dns"),
+                    ProbeAttempt("localhost", "localhost"),
+                ),
+                admission.attempts,
+            )
+        }
+    }
+
+    @Test
+    fun dohBootstrapDenialStopsBeforeHttpRequest() {
+        LocalHttpServer(https = true) {
+            HttpResponseSpec(status = 200, headers = mapOf("Content-Type" to "application/dns-message"))
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(
+                    trustTestTls = true,
+                    hostResolver = HostResolver { _, _ -> listOf(InetAddress.getByName("127.0.0.1")) },
+                ),
+                request = dohRequest("https://localhost:${server.port}/dns-query"),
+                admission = RecordingAdmission(
+                    listOf(
+                        AdmissionDecision.Allowed,
+                        AdmissionDecision.Denied(SkipReason.COOLDOWN),
+                    ),
+                ),
+            )
+
+            skipped(result, SkipReason.COOLDOWN)
+            assertTrue(server.calls().isEmpty())
+        }
+    }
+
+    @Test
+    fun dohDoesNotFollowRedirects() {
+        LocalHttpServer(https = true) { call ->
+            when (call.path) {
+                "/dns-query" -> HttpResponseSpec(
+                    status = 302,
+                    headers = mapOf("Location" to "/other"),
+                )
+                else -> HttpResponseSpec(status = 500)
+            }
+        }.use { server ->
+            val result = runProbe(
+                runner = runner(trustTestTls = true),
+                request = dohRequest(server.url("/dns-query")),
+            )
+
+            failed(result, FailureReason.HTTP)
+            assertEquals(1, server.calls().size)
+        }
+    }
+
+    @Test
+    fun dotSplitsTheTimeoutAcrossResolvedAddresses() {
+        DotDnsServer(bindAddress = "127.0.0.2", handler = { null }).use { silent ->
+            DotDnsServer(
+                bindAddress = "127.0.0.1",
+                port = silent.port,
+                handler = { query ->
+                    dnsResponse(query, answerCount = 1, answerBytes = aRecord())
+                },
+            ).use { server ->
+                val result = runProbe(
+                    runner = runner(
+                        trustTestTls = true,
+                        hostResolver = HostResolver { _, _ ->
+                            listOf(InetAddress.getByName("127.0.0.2"), InetAddress.getByName("127.0.0.1"))
+                        },
+                    ),
+                    request = ProbeRequest.DnsOverTls(
+                        resolver = SocketEndpoint("resolver.test", server.port),
+                        serverName = "localhost",
+                        question = question(),
+                        expected = DnsExpectation(0, true),
+                    ),
+                    timeout = 6.seconds,
+                )
+
+                assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+                assertTrue(silent.awaitAccepted())
+                assertTrue(server.awaitReceived())
+            }
         }
     }
 
@@ -330,20 +569,25 @@ class SecureDnsProbeRunnerTest {
         runner.run(probeRunRequest(request, timeout), admission)
     }
 
-    private fun dohRequest(url: String): ProbeRequest.DnsOverHttps =
-        ProbeRequest.DnsOverHttps(
-            resolver = URI(url),
-            question = question(),
-            expected = DnsExpectation(0, true),
-        )
+    private fun dohRequest(
+        url: String,
+        question: DnsQuestion = question(),
+    ): ProbeRequest.DnsOverHttps = ProbeRequest.DnsOverHttps(
+        resolver = URI(url),
+        question = question,
+        expected = DnsExpectation(0, true),
+    )
 
-    private fun dotRequest(port: Int, serverName: String): ProbeRequest.DnsOverTls =
-        ProbeRequest.DnsOverTls(
-            resolver = SocketEndpoint("127.0.0.1", port),
-            serverName = serverName,
-            question = question(),
-            expected = DnsExpectation(0, true),
-        )
+    private fun dotRequest(
+        port: Int,
+        serverName: String,
+        question: DnsQuestion = question(),
+    ): ProbeRequest.DnsOverTls = ProbeRequest.DnsOverTls(
+        resolver = SocketEndpoint("127.0.0.1", port),
+        serverName = serverName,
+        question = question,
+        expected = DnsExpectation(0, true),
+    )
 
     private fun question(question: DnsQuestion = DnsQuestion("example.test", 1)): DnsQuestion = question
 

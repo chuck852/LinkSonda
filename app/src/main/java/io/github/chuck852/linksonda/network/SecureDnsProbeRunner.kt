@@ -23,6 +23,7 @@ import java.io.EOFException
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.ConnectException
+import java.net.IDN
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
@@ -33,6 +34,7 @@ import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.UnknownHostException
+import java.security.SecureRandom
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
@@ -52,7 +54,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Call
+import okhttp3.Connection
 import okhttp3.Dns
+import okhttp3.EventListener
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -66,6 +70,7 @@ internal class SecureDnsProbeRunner internal constructor(
     hostResolver: HostResolver = SystemHostResolver(),
 ) : ProbeRunner {
     private val resolver = BoundedHostResolver(hostResolver)
+    private val random = SecureRandom()
 
     constructor() : this(OkHttpClient(), SSLContext.getDefault())
 
@@ -114,12 +119,12 @@ internal class SecureDnsProbeRunner internal constructor(
         if (!useCustomDns) {
             val transport = admission.authorize(ProbeAttempt(resolverHost, resolverHost))
             if (transport is AdmissionDecision.Denied) return skipped(request, transport)
-            state.connectedIpFamily = literalFamily(resolverHost)
         }
         val client = dohClient(
             probe = probe,
             admission = admission,
             state = dnsState,
+            runState = state,
             useCustomDns = useCustomDns,
             startNanos = startNanos,
             timeout = request.config.timeout,
@@ -142,7 +147,9 @@ internal class SecureDnsProbeRunner internal constructor(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            error.findAdmissionDenied()?.let { return skipped(request, it.decision) }
+            (error.findAdmissionDenied()?.decision ?: dnsState.denied)?.let {
+                return skipped(request, it)
+            }
             if (error.hasCause<DnsCapacityExceededException>()) {
                 return completed(request, startNanos, state, ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION))
             }
@@ -161,7 +168,7 @@ internal class SecureDnsProbeRunner internal constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                return completed(request, startNanos, state, ProbeOutcome.Failed(FailureReason.HTTP))
+                return completed(request, startNanos, state, classifyTransport(error))
             } ?: return completed(request, startNanos, state, ProbeOutcome.Failed(FailureReason.HTTP))
             val message = try {
                 DnsWire.parseResponse(body, queryId(query), probe.question)
@@ -198,7 +205,18 @@ internal class SecureDnsProbeRunner internal constructor(
             return completed(request, startNanos, state, ProbeOutcome.Failed(FailureReason.DNS))
         }
         val addresses = when {
-            isIpLiteral(resolverHost) -> listOf(InetAddress.getByName(resolverHost))
+            isIpLiteral(resolverHost) -> try {
+                listOf(InetAddress.getByName(resolverHost))
+            } catch (error: SecurityException) {
+                return completed(
+                    request,
+                    startNanos,
+                    state,
+                    ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED),
+                )
+            } catch (error: UnknownHostException) {
+                return completed(request, startNanos, state, ProbeOutcome.Failed(FailureReason.DNS))
+            }
             else -> {
                 val decision = admission.authorize(ProbeAttempt(resolverHost, SYSTEM_DNS))
                 if (decision is AdmissionDecision.Denied) return skipped(request, decision)
@@ -208,10 +226,17 @@ internal class SecureDnsProbeRunner internal constructor(
                         .sortedBy { it.family() !in request.network.ipFamilies }
                 } catch (error: DnsCapacityExceededException) {
                     return completed(request, startNanos, state, ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION))
+                } catch (error: SecurityException) {
+                    return completed(
+                        request,
+                        startNanos,
+                        state,
+                        ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED),
+                    )
                 } catch (error: UnknownHostException) {
                     return completed(request, startNanos, state, ProbeOutcome.Failed(FailureReason.DNS))
                 } catch (error: IOException) {
-                    return completed(request, startNanos, state, classifyTransport(error))
+                    return completed(request, startNanos, state, ProbeOutcome.Failed(FailureReason.DNS))
                 }
             }
         }
@@ -220,13 +245,26 @@ internal class SecureDnsProbeRunner internal constructor(
         }
 
         var last: ProbeOutcome? = null
-        for (address in addresses) {
+        for ((index, address) in addresses.withIndex()) {
+            val now = System.nanoTime()
+            val remaining = request.config.timeout.inWholeNanoseconds - (now - startNanos)
+            val addressesLeft = addresses.size - index
+            val budget = (remaining.coerceAtLeast(MIN_ATTEMPT_NANOS) / addressesLeft)
+                .coerceAtLeast(MIN_ATTEMPT_NANOS)
+            val deadlineNanos = now + budget
             val transport = admission.authorize(ProbeAttempt(resolverHost, resolverHost))
             if (transport is AdmissionDecision.Denied) return skipped(request, transport)
             val query = admission.authorize(ProbeAttempt(questionHost, resolverHost))
             if (query is AdmissionDecision.Denied) return skipped(request, query)
             try {
-                val message = answerDot(address, probe.resolver.port, serverName, probe.question, request, startNanos, state)
+                val message = answerDot(
+                    address = address,
+                    port = probe.resolver.port,
+                    serverName = serverName,
+                    question = probe.question,
+                    deadlineNanos = deadlineNanos,
+                    state = state,
+                )
                 return evaluate(request, probe.expected, message, startNanos, state)
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -242,6 +280,7 @@ internal class SecureDnsProbeRunner internal constructor(
         probe: ProbeRequest.DnsOverHttps,
         admission: ProbeAdmission,
         state: DohDnsState,
+        runState: RunState,
         useCustomDns: Boolean,
         startNanos: Long,
         timeout: Duration,
@@ -251,6 +290,11 @@ internal class SecureDnsProbeRunner internal constructor(
             .followSslRedirects(false)
             .retryOnConnectionFailure(false)
             .fastFallback(false)
+            .eventListener(object : EventListener() {
+                override fun connectionAcquired(call: Call, connection: Connection) {
+                    runState.connectedIpFamily = connection.route().socketAddress.address.family()
+                }
+            })
         if (useCustomDns) {
             builder.dns(Dns { hostname ->
                 val host = normalizeHost(hostname) ?: throw UnknownHostException(hostname)
@@ -290,8 +334,7 @@ internal class SecureDnsProbeRunner internal constructor(
         port: Int,
         serverName: String,
         question: DnsQuestion,
-        request: ProbeRunRequest,
-        startNanos: Long,
+        deadlineNanos: Long,
         state: RunState,
     ): DnsMessage = withContext(Dispatchers.IO) {
         suspendCancellableCoroutine { continuation ->
@@ -299,18 +342,29 @@ internal class SecureDnsProbeRunner internal constructor(
             continuation.invokeOnCancellation { raw.closeQuietly() }
             var ssl: SSLSocket? = null
             try {
-                raw.connect(java.net.InetSocketAddress(address, port), remainingMillis(startNanos, request.config.timeout).toInt())
-                raw.soTimeout = remainingMillis(startNanos, request.config.timeout).toInt()
+                raw.connect(
+                    java.net.InetSocketAddress(address, port),
+                    remainingMillis(deadlineNanos).toInt(),
+                )
+                raw.soTimeout = remainingMillis(deadlineNanos).toInt()
                 ssl = sslContext.socketFactory.createSocket(raw, serverName, port, true) as SSLSocket
-                ssl.sslParameters = ssl.sslParameters.apply {
+                val params = ssl.sslParameters.apply {
                     endpointIdentificationAlgorithm = "HTTPS"
+                    val secureProtocols = protocols.filter { it in TLS_PROTOCOLS }
+                    if (secureProtocols.isEmpty()) {
+                        throw SSLException("No TLS 1.2 or 1.3 protocol available")
+                    }
+                    protocols = secureProtocols.toTypedArray()
                 }
                 if (!isIpLiteral(serverName)) {
-                    ssl.sslParameters = ssl.sslParameters.apply {
-                        serverNames = listOf(SNIHostName(serverName))
-                    }
+                    params.serverNames = listOf(SNIHostName(serverName))
                 }
+                ssl.sslParameters = params
                 ssl.startHandshake()
+                if (ssl.session.protocol !in TLS_PROTOCOLS) {
+                    throw SSLException("Negotiated protocol is not TLS 1.2 or 1.3")
+                }
+                ssl.soTimeout = remainingMillis(deadlineNanos).toInt()
                 val query = DnsWire.query(nextId(), question)
                 val output = DataOutputStream(ssl.outputStream)
                 output.writeShort(query.size)
@@ -423,7 +477,17 @@ internal class SecureDnsProbeRunner internal constructor(
                 ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
             chain.any { it is NoRouteToHostException } ->
                 ProbeOutcome.Failed(FailureReason.UNREACHABLE)
-            chain.any { it is ConnectException } -> ProbeOutcome.Failed(FailureReason.REFUSED)
+            chain.any { it is ConnectException } -> {
+                val message = chain.filterIsInstance<ConnectException>()
+                    .joinToString(" ") { it.message.orEmpty() }
+                when {
+                    message.contains("timed out", ignoreCase = true) ->
+                        ProbeOutcome.Failed(FailureReason.TIMEOUT)
+                    message.contains("unreachable", ignoreCase = true) ->
+                        ProbeOutcome.Failed(FailureReason.UNREACHABLE)
+                    else -> ProbeOutcome.Failed(FailureReason.REFUSED)
+                }
+            }
             chain.any { it is MalformedDnsResponseException || it is EOFException } ->
                 ProbeOutcome.Failed(FailureReason.UNEXPECTED_RESPONSE)
             chain.any { it is ProtocolException } -> ProbeOutcome.Failed(FailureReason.HTTP)
@@ -454,6 +518,9 @@ internal class SecureDnsProbeRunner internal constructor(
     private fun remainingMillis(startNanos: Long, timeout: Duration): Long =
         ((timeout.inWholeNanoseconds - (System.nanoTime() - startNanos)).coerceAtLeast(1_000_000L) / 1_000_000L)
 
+    private fun remainingMillis(deadlineNanos: Long): Long =
+        ((deadlineNanos - System.nanoTime()).coerceAtLeast(1_000_000L) / 1_000_000L)
+
     private fun normalizeHost(value: String?): String? {
         if (value.isNullOrBlank()) return null
         val trimmed = value.trim()
@@ -463,11 +530,19 @@ internal class SecureDnsProbeRunner internal constructor(
         return withoutBrackets.removeSuffix(".").lowercase().takeIf { it.isNotEmpty() }
     }
 
-    private fun normalizeQuestionHost(value: String): String? =
-        normalizeHost(value)?.takeIf {
-            it.none { ch -> ch.isWhitespace() || ch.isISOControl() } &&
-                !it.startsWith("-") && '/' !in it && '\\' !in it
+    private fun normalizeQuestionHost(value: String): String? {
+        if (value.any { it.isWhitespace() || it.isISOControl() } || '/' in value || '\\' in value) {
+            return null
         }
+        val ascii = try {
+            IDN.toASCII(value.trim().removeSuffix("."), IDN.ALLOW_UNASSIGNED)
+        } catch (error: IllegalArgumentException) {
+            return null
+        }
+        if (ascii.isEmpty() || ascii.length > 253) return null
+        if (ascii.split('.').any { it.isEmpty() || it.length > 63 }) return null
+        return ascii.lowercase().takeIf { !it.startsWith("-") }
+    }
 
     private fun isIpLiteral(host: String): Boolean {
         val ipv4 = IPV4.matches(host) && host.split('.').all { it.toIntOrNull() in 0..255 }
@@ -495,7 +570,7 @@ internal class SecureDnsProbeRunner internal constructor(
     private fun isDnsMediaType(value: String?): Boolean =
         value?.substringBefore(';')?.trim()?.equals(DNS_MEDIA_TYPE, ignoreCase = true) == true
 
-    private fun nextId(): Int = java.security.SecureRandom().nextInt(0x10000)
+    private fun nextId(): Int = random.nextInt(0x10000)
 
     private fun queryId(query: ByteArray): Int =
         ((query[0].toInt() and 0xFF) shl 8) or (query[1].toInt() and 0xFF)
@@ -523,6 +598,8 @@ internal class SecureDnsProbeRunner internal constructor(
         const val MAX_DNS_MESSAGE = 65_535
         private const val DNS_MEDIA_TYPE = "application/dns-message"
         private const val SYSTEM_DNS = "system-dns"
+        private const val MIN_ATTEMPT_NANOS = 1_000_000L
+        private val TLS_PROTOCOLS = setOf("TLSv1.2", "TLSv1.3")
         private val IPV4 = Regex("""\d{1,3}(\.\d{1,3}){3}""")
     }
 }
