@@ -1,5 +1,6 @@
 package io.github.chuck852.linksonda.network
 
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlinx.coroutines.CancellationException
@@ -28,29 +29,56 @@ internal class SystemPingProcessRunner : PingProcessRunner {
                 return@withContext PingExecution.LaunchFailed(error)
             }
 
-            try {
-                val output = async {
-                    process.inputStream.bufferedReader().use { it.readText() }
+            val output = ByteArrayOutputStream()
+            val outputLock = Any()
+            val reader = async {
+                val input = process.inputStream
+                val buffer = ByteArray(4 * 1024)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    synchronized(outputLock) {
+                        val remaining = MAX_OUTPUT_BYTES - output.size()
+                        if (remaining > 0) output.write(buffer, 0, minOf(read, remaining))
+                    }
                 }
+            }
+            try {
                 val exitCode = withTimeoutOrNull(timeout) {
                     runInterruptible { process.waitFor() }
                 }
                 if (exitCode == null) {
-                    process.destroy()
-                    if (!runInterruptible { process.waitFor(200, TimeUnit.MILLISECONDS) }) {
-                        process.destroyForcibly()
-                    }
-                    output.cancel()
-                    PingExecution.TimedOut("")
+                    terminate(process)
+                    reader.cancel()
+                    PingExecution.TimedOut(snapshot(output, outputLock))
                 } else {
-                    PingExecution.Completed(output.await(), exitCode)
+                    reader.await()
+                    PingExecution.Completed(snapshot(output, outputLock), exitCode)
                 }
             } catch (cancelled: CancellationException) {
-                process.destroyForcibly()
+                terminate(process)
+                reader.cancel()
                 throw cancelled
             } catch (error: Exception) {
-                process.destroyForcibly()
+                terminate(process)
+                reader.cancel()
                 PingExecution.LaunchFailed(error)
             }
         }
+
+    private fun terminate(process: Process) {
+        process.destroy()
+        if (runCatching { process.waitFor(200, TimeUnit.MILLISECONDS) }.getOrDefault(false)) {
+            return
+        }
+        process.destroyForcibly()
+        runCatching { process.waitFor(500, TimeUnit.MILLISECONDS) }
+    }
+
+    private fun snapshot(output: ByteArrayOutputStream, lock: Any): String =
+        synchronized(lock) { output.toString(Charsets.UTF_8.name()) }
+
+    private companion object {
+        const val MAX_OUTPUT_BYTES = 64 * 1024
+    }
 }

@@ -74,7 +74,8 @@ class IcmpProbeRunnerTest {
     fun ipv6LiteralUsesPing6() {
         val process = FakePingProcessRunner(
             PingExecution.Completed(
-                output = "64 bytes from ::1: icmp_seq=1 ttl=64 time=0.200 ms",
+                output = "64 bytes from ::1: icmp_seq=1 ttl=64 time=0.200 ms\n" +
+                    "1 packets transmitted, 1 received, 0% packet loss",
                 exitCode = 0,
             ),
         )
@@ -92,7 +93,11 @@ class IcmpProbeRunnerTest {
     @Test
     fun bracketedIpv6HostIsNormalizedBeforeLaunch() {
         val process = FakePingProcessRunner(
-            PingExecution.Completed("64 bytes from ::1: icmp_seq=1 ttl=64 time=0.100 ms", 0),
+            PingExecution.Completed(
+                "64 bytes from ::1: icmp_seq=1 ttl=64 time=0.100 ms\n" +
+                    "1 packets transmitted, 1 received, 0% packet loss",
+                0,
+            ),
         )
         val result = runProbe(
             runner = IcmpProbeRunner(process),
@@ -106,8 +111,12 @@ class IcmpProbeRunnerTest {
     @Test
     fun firstPacketTimeoutDoesNotAbortRemainingPackets() {
         val process = FakePingProcessRunner(
-            PingExecution.TimedOut(""),
-            PingExecution.Completed("64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=1.000 ms", 0),
+            PingExecution.TimedOut("1 packets transmitted, 0 received, 100% packet loss"),
+            PingExecution.Completed(
+                "64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=1.000 ms\n" +
+                    "1 packets transmitted, 1 received, 0% packet loss",
+                0,
+            ),
         )
         val result = runProbe(
             runner = IcmpProbeRunner(process),
@@ -123,8 +132,14 @@ class IcmpProbeRunnerTest {
     @Test
     fun rttSummaryUsesAllReplies() {
         val process = FakePingProcessRunner(
-            PingExecution.Completed("64 bytes from 127.0.0.1: time=1.000 ms", 0),
-            PingExecution.Completed("64 bytes from 127.0.0.1: time=3.000 ms", 0),
+            PingExecution.Completed(
+                "64 bytes from 127.0.0.1: time=1.000 ms\n1 packets transmitted, 1 received",
+                0,
+            ),
+            PingExecution.Completed(
+                "64 bytes from 127.0.0.1: time=3.000 ms\n1 packets transmitted, 1 received",
+                0,
+            ),
         )
         val admission = RecordingAdmission()
         val result = runProbe(
@@ -192,7 +207,10 @@ class IcmpProbeRunnerTest {
     @Test
     fun outputErrorAfterMinimumRepliesKeepsSuccess() {
         val process = FakePingProcessRunner(
-            PingExecution.Completed("64 bytes from ::1: time=1.000 ms", 0),
+            PingExecution.Completed(
+                "64 bytes from ::1: time=1.000 ms\n1 packets transmitted, 1 received",
+                0,
+            ),
             PingExecution.Completed("ping6: socket: Permission denied", 1),
         )
         val result = runProbe(
@@ -225,7 +243,10 @@ class IcmpProbeRunnerTest {
     @Test
     fun ipv4FamilyAddsMinusFourForHostname() {
         val process = FakePingProcessRunner(
-            PingExecution.Completed("64 bytes from 192.0.2.1: time=1.000 ms", 0),
+            PingExecution.Completed(
+                "64 bytes from 192.0.2.1: time=1.000 ms\n1 packets transmitted, 1 received",
+                0,
+            ),
         )
         val result = runProbe(
             runner = IcmpProbeRunner(process),
@@ -239,7 +260,10 @@ class IcmpProbeRunnerTest {
     @Test
     fun admissionKeyIsNormalized() {
         val process = FakePingProcessRunner(
-            PingExecution.Completed("64 bytes from 192.0.2.1: time=1.000 ms", 0),
+            PingExecution.Completed(
+                "64 bytes from 192.0.2.1: time=1.000 ms\n1 packets transmitted, 1 received",
+                0,
+            ),
         )
         val admission = RecordingAdmission()
         val result = runProbe(
@@ -256,7 +280,10 @@ class IcmpProbeRunnerTest {
     @Test
     fun denialAfterMinimumRepliesKeepsTheSuccessfulResult() {
         val process = FakePingProcessRunner(
-            PingExecution.Completed("64 bytes from 127.0.0.1: time=1.000 ms", 0),
+            PingExecution.Completed(
+                "64 bytes from 127.0.0.1: time=1.000 ms\n1 packets transmitted, 1 received",
+                0,
+            ),
         )
         val admission = RecordingAdmission(
             listOf(AdmissionDecision.Allowed, AdmissionDecision.Denied(SkipReason.COOLDOWN)),
@@ -273,8 +300,10 @@ class IcmpProbeRunnerTest {
     }
 
     @Test
-    fun noReplyTimesOutWithObservation() {
-        val process = FakePingProcessRunner(PingExecution.TimedOut(""))
+    fun timeoutWithPingSummaryReportsObservedPackets() {
+        val process = FakePingProcessRunner(
+            PingExecution.TimedOut("1 packets transmitted, 0 received, 100% packet loss"),
+        )
         val result = runProbe(
             runner = IcmpProbeRunner(process),
             request = icmpRequest("127.0.0.1"),
@@ -285,15 +314,31 @@ class IcmpProbeRunnerTest {
     }
 
     @Test
-    fun emptySuccessfulProcessWithoutReplyIsTimeout() {
-        val process = FakePingProcessRunner(PingExecution.Completed("", 1))
+    fun timeoutWithoutPingSummaryDoesNotInventPacketLoss() {
+        val process = FakePingProcessRunner(PingExecution.TimedOut(""))
         val result = runProbe(
             runner = IcmpProbeRunner(process),
             request = icmpRequest("127.0.0.1"),
         )
 
-        failed(result, FailureReason.TIMEOUT)
-        assertEquals(IcmpObservation(1, 0), completed(result).observations.icmp)
+        val completed = failed(result, FailureReason.TIMEOUT)
+        assertNull(completed.observations.icmp)
+        assertNull(completed.observations.connectedIpFamily)
+    }
+
+    @Test
+    fun emptySuccessfulProcessWithoutStatsIsInconclusive() {
+        val process = FakePingProcessRunner(PingExecution.Completed("", 0))
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("127.0.0.1"),
+        )
+
+        assertEquals(
+            ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION),
+            completed(result).outcome,
+        )
+        assertNull(completed(result).observations.icmp)
     }
 
     @Test
@@ -320,6 +365,43 @@ class IcmpProbeRunnerTest {
         )
 
         failed(result, FailureReason.UNREACHABLE)
+    }
+
+    @Test
+    fun eaiMemoryFailureIsOsLimitation() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed("ping: memory allocation failure (EAI_MEMORY)", 1),
+        )
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("127.0.0.1"),
+        )
+
+        assertEquals(
+            ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION),
+            completed(result).outcome,
+        )
+        assertNull(completed(result).observations.icmp)
+    }
+
+    @Test
+    fun minimumReachedSurvivesLaterOverallTimeout() {
+        val process = FakePingProcessRunner(
+            PingExecution.Completed(
+                "64 bytes from 127.0.0.1: time=1.000 ms\n1 packets transmitted, 1 received",
+                0,
+            ),
+        )
+        process.blockOnCall = 2
+        val result = runProbe(
+            runner = IcmpProbeRunner(process),
+            request = icmpRequest("127.0.0.1", packets = 2, minimumReplies = 1),
+            timeout = 200.milliseconds,
+        )
+
+        assertEquals(ProbeOutcome.Matched, completed(result).outcome)
+        assertEquals(1, completed(result).observations.icmp?.sentPackets)
+        assertEquals(1, completed(result).observations.icmp?.receivedReplies)
     }
 
     @Test
@@ -382,8 +464,12 @@ class IcmpProbeRunnerTest {
     @Test
     fun partialRepliesBelowMinimumFailWithTimeout() {
         val process = FakePingProcessRunner(
-            PingExecution.Completed("64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=1 ms", 0),
-            PingExecution.TimedOut(""),
+            PingExecution.Completed(
+                "64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=1 ms\n" +
+                    "1 packets transmitted, 1 received",
+                0,
+            ),
+            PingExecution.TimedOut("1 packets transmitted, 0 received, 100% packet loss"),
         )
         val result = runProbe(
             runner = IcmpProbeRunner(process),
@@ -398,8 +484,12 @@ class IcmpProbeRunnerTest {
     @Test
     fun oneReplyCanMatchWhenMinimumIsOne() {
         val process = FakePingProcessRunner(
-            PingExecution.Completed("64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=1.000 ms", 0),
-            PingExecution.TimedOut(""),
+            PingExecution.Completed(
+                "64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=1.000 ms\n" +
+                    "1 packets transmitted, 1 received",
+                0,
+            ),
+            PingExecution.TimedOut("1 packets transmitted, 0 received, 100% packet loss"),
         )
         val result = runProbe(
             runner = IcmpProbeRunner(process),
@@ -511,10 +601,13 @@ class IcmpProbeRunnerTest {
         private val pending = ArrayDeque(responses.toList())
         val commands = mutableListOf<List<String>>()
         var blockForever = false
+        var blockOnCall: Int? = null
+        private var callCount = 0
 
         override suspend fun execute(command: List<String>, timeout: Duration): PingExecution {
             commands += command
-            if (blockForever) awaitCancellation()
+            callCount += 1
+            if (blockForever || blockOnCall == callCount) awaitCancellation()
             return pending.removeFirstOrNull() ?: error("No fake ping response for $command")
         }
     }

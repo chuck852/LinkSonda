@@ -69,7 +69,11 @@ internal class IcmpProbeRunner internal constructor(
             request,
             startNanos,
             state,
-            ProbeOutcome.Failed(FailureReason.TIMEOUT),
+            if (state.received >= probe.minimumReplies) {
+                ProbeOutcome.Matched
+            } else {
+                ProbeOutcome.Failed(FailureReason.TIMEOUT)
+            },
         )
     }
 
@@ -103,50 +107,54 @@ internal class IcmpProbeRunner internal constructor(
             val budget = (remaining.coerceAtLeast(MIN_PACKET_NANOS) / packetsLeft)
                 .coerceAtLeast(MIN_PACKET_NANOS)
             val command = pingCommand(binary, host, budget, probe.family)
-            state.sent += 1
             val execution = try {
                 ping.execute(command, budget.nanoseconds)
             } catch (cancelled: CancellationException) {
-                state.sent -= 1
                 throw cancelled
             } catch (error: Exception) {
-                state.sent -= 1
                 return launchFailure(request, startNanos, state, error)
             }
 
             when (execution) {
                 is PingExecution.LaunchFailed -> {
-                    state.sent -= 1
                     return launchFailure(request, startNanos, state, execution.error)
                 }
                 is PingExecution.TimedOut -> {
-                    val rtts = PingOutputParser.replyTimes(execution.output)
-                    if (rtts.isNotEmpty()) {
-                        state.received += 1
-                        state.rtts += rtts.first()
-                        state.connectedIpFamily = state.targetFamily
-                    }
+                    state.add(PingOutputParser.summary(execution.output))
                     state.timedOut = true
                 }
                 is PingExecution.Completed -> {
-                    val rtts = PingOutputParser.replyTimes(execution.output)
-                    if (rtts.isNotEmpty()) {
-                        state.received += 1
-                        state.rtts += rtts.first()
-                        state.connectedIpFamily = state.targetFamily
-                    } else {
+                    val summary = PingOutputParser.summary(execution.output)
+                    if (summary.transmitted == null || summary.received == null) {
                         val outputOutcome = outputOutcome(execution.output)
                         if (outputOutcome != null) {
-                            state.sent -= 1 // the ping process failed before sending an echo packet
                             if (state.received >= probe.minimumReplies) {
                                 return completed(request, startNanos, state, ProbeOutcome.Matched)
                             }
                             state.lastFailure = outputOutcome
                             return completed(request, startNanos, state, outputOutcome)
                         }
-                        state.timedOut = execution.exitCode != 0
+                        state.unknownPackets += 1
                         if (execution.exitCode == 0) {
-                            state.lastFailure = ProbeOutcome.Failed(FailureReason.ICMP)
+                            state.lastFailure = ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION)
+                        } else {
+                            state.timedOut = true
+                        }
+                    } else {
+                        state.add(summary)
+                        if (summary.received == 0) {
+                            val outputOutcome = outputOutcome(execution.output)
+                            if (outputOutcome != null) {
+                                if (state.received >= probe.minimumReplies) {
+                                    return completed(request, startNanos, state, ProbeOutcome.Matched)
+                                }
+                                state.lastFailure = outputOutcome
+                                return completed(request, startNanos, state, outputOutcome)
+                            }
+                            state.timedOut = execution.exitCode != 0
+                            if (execution.exitCode == 0) {
+                                state.lastFailure = ProbeOutcome.Failed(FailureReason.ICMP)
+                            }
                         }
                     }
                 }
@@ -205,8 +213,7 @@ internal class IcmpProbeRunner internal constructor(
                 text.contains("no address associated with hostname") ||
                 text.contains("temporary failure in name resolution") ||
                 text.contains("non-recoverable failure in name resolution") ||
-                text.contains("address family for hostname not supported") ||
-                text.contains("memory allocation failure") ->
+                text.contains("address family for hostname not supported") ->
                 ProbeOutcome.Failed(FailureReason.DNS)
             text.contains("network is unreachable") ||
                 text.contains("no route to host") ->
@@ -218,6 +225,8 @@ internal class IcmpProbeRunner internal constructor(
                 ProbeOutcome.Inconclusive(InconclusiveReason.PERMISSION_DENIED)
             text.contains("too many open files") ||
                 text.contains("cannot allocate memory") ||
+                text.contains("memory allocation failure") ||
+                text.contains("eai_memory") ||
                 text.contains("resource temporarily unavailable") ||
                 text.contains("selinux") ->
                 ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION)
@@ -229,6 +238,7 @@ internal class IcmpProbeRunner internal constructor(
         state.received >= probe.minimumReplies -> ProbeOutcome.Matched
         state.lastFailure != null -> state.lastFailure!!
         state.timedOut -> ProbeOutcome.Failed(FailureReason.TIMEOUT)
+        state.sent == 0 -> ProbeOutcome.Inconclusive(InconclusiveReason.OS_LIMITATION)
         else -> ProbeOutcome.Failed(FailureReason.ICMP)
     }
 
@@ -249,7 +259,7 @@ internal class IcmpProbeRunner internal constructor(
     )
 
     private fun observation(state: RunState): IcmpObservation? {
-        if (state.sent == 0) return null
+        if (state.sent == 0 || state.unknownPackets > 0) return null
         val rtt = if (state.rtts.isEmpty()) {
             null
         } else {
@@ -330,7 +340,23 @@ internal class IcmpProbeRunner internal constructor(
         var connectedIpFamily: IpFamily? = null
         val rtts = mutableListOf<Duration>()
         var timedOut = false
+        var unknownPackets = 0
         var lastFailure: ProbeOutcome? = null
+
+        fun add(summary: PingSummary) {
+            val transmitted = summary.transmitted
+            val received = summary.received
+            if (transmitted == null || received == null) {
+                unknownPackets += 1
+                return
+            }
+            sent += transmitted
+            this.received += received
+            if (received > 0 && summary.replyTimes.isNotEmpty()) {
+                rtts += summary.replyTimes.first()
+                connectedIpFamily = targetFamily
+            }
+        }
     }
 
     private companion object {

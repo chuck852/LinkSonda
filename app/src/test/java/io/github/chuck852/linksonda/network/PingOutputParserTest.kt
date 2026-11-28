@@ -43,4 +43,15 @@ class PingOutputParserTest {
             PingOutputParser.replyTimes("64 bytes from 192.0.2.1: time=12.345 ms"),
         )
     }
+
+    @Test
+    fun parsesPacketStatisticsWithoutInventingMissingValues() {
+        val summary = PingOutputParser.summary(
+            "1 packets transmitted, 0 received, 100% packet loss",
+        )
+
+        assertEquals(1, summary.transmitted)
+        assertEquals(0, summary.received)
+        assertEquals(PingSummary(null, null, emptyList()), PingOutputParser.summary("partial output"))
+    }
 }
